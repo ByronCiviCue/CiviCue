@@ -1,0 +1,12 @@
+node_modules/
+.env*
+dist/
+coverage/
+.DS_Store
+*.log
+.pnpm-store/
+.turbo/
+tmp/
+# Allow committed placeholder logs
+!logs/ingest.log
+!logs/replication.log
