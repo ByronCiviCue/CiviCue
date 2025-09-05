@@ -1,1 +1,37 @@
-{}
+{
+  "name": "sf_dashboard",
+  "version": "1.0.0",
+  "description": "This project implements a comprehensive data pipeline for San Francisco municipal data, facilitating the flow from CSV files and Google Sheets into a structured Postgres database with landing, staging, and core layers, followed by reverse ETL back to Google Sheets for analysis and reporting.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier -w .",
+    "start:ingest": "ts-node services/ingest/csvLoader.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "eslint": "^9.35.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "prettier": "^3.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "fast-csv": "^5.0.5",
+    "pg": "^8.16.3",
+    "pg-copy-streams": "^7.0.0",
+    "pino": "^9.9.4",
+    "zod": "^4.1.5"
+  }
+}
