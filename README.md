@@ -27,3 +27,13 @@ Transform landing_raw.evictions_raw into typed, deduped staging rows.
 ### staging → core (evictions)
 Upsert typed staging rows into core fact table using case_number as the business key.
 - Run (requires DB up + migrations applied): `npm run run:evictions:core`
+
+## First run (evictions only)
+1. Start DB: `docker compose up -d`
+2. Apply schemas: `./scripts/migrate.sh`
+3. Seed reference dims: `psql -h localhost -p 5432 -U dev -d civicue -f db/seeds/seed_reference.sql`
+4. Load landing (dry-run): `npm run run:evictions:landing`
+5. Load landing (write): `npm run run:evictions:landing:write`
+6. Transform to staging: `npm run run:evictions:staging`
+7. Upsert to core: `npm run run:evictions:core`
+8. QA checks: `psql -h localhost -p 5432 -U dev -d civicue -f tests/data-quality/evictions_basic.sql`
