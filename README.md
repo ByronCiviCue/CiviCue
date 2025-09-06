@@ -15,11 +15,11 @@ This project implements a comprehensive data pipeline for San Francisco municipa
 2) (Optional) create a `.env` using `.env.example`
 3) Apply: `./scripts/migrate.sh`
 
-## CSV → landing (evictions)
+### CSV → landing (evictions)
+Place CSV files under `data/csv_raw/evictions/`.
+- Dry run (no DB writes): `npm run run:evictions:landing`
+- Write to DB (requires migrations applied): `npm run run:evictions:landing:write`
 
-- Dry run (default): `npm run run:evictions:landing`
-- Load to DB: `npm run run:evictions:landing:write`
-
-## Landing → staging (evictions)
-
-- Transform: `npm run run:evictions:staging`
+### landing → staging (evictions)
+Transform landing_raw.evictions_raw into typed, deduped staging rows.
+- Run (requires DB up + migrations applied): `npm run run:evictions:staging`
