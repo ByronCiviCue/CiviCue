@@ -23,3 +23,7 @@ Place CSV files under `data/csv_raw/evictions/`.
 ### landing → staging (evictions)
 Transform landing_raw.evictions_raw into typed, deduped staging rows.
 - Run (requires DB up + migrations applied): `npm run run:evictions:staging`
+
+### staging → core (evictions)
+Upsert typed staging rows into core fact table using case_number as the business key.
+- Run (requires DB up + migrations applied): `npm run run:evictions:core`
