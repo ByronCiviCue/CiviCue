@@ -77,3 +77,16 @@ SF_Dashboard_LatestExports/**
 # Tracked sample areas
 !data/samples/
 !data/samples/**
+
+# ---- Bulk datasets (ignore) round 3 ----
+Behested_Payments_SF_Master/**
+!Behested_Payments_SF_Master/README.md
+
+Committee Meetings/**
+!Committee Meetings/README.md
+
+Crime/**
+!Crime/README.md
+
+SF_Crime_Weekly_Exports/**
+!SF_Crime_Weekly_Exports/README.md
