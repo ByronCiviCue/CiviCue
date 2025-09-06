@@ -22,3 +22,58 @@ data/csv_raw/311/**
 !data/samples/
 !data/samples/311/
 !data/samples/311/*.json
+
+# ---- Bulk datasets (ignore) round 2 ----
+.vscode/
+
+Archived Raw Data/**
+!Archived Raw Data/README.md
+
+BOS MINUTES/**
+!BOS MINUTES/README.md
+
+SF BOS MINUTES/**
+!SF BOS MINUTES/README.md
+
+TABULATED BOS MEETING MINUTES/**
+!TABULATED BOS MEETING MINUTES/README.md
+
+Campaign Finance/**
+!Campaign Finance/README.md
+
+Contact Lobbyist Activity/**
+!Contact Lobbyist Activity/README.md
+
+Lobbyist Activity Directory/**
+!Lobbyist Activity Directory/README.md
+
+Lobbyist Directory/**
+!Lobbyist Directory/README.md
+
+Building Permits/**
+!Building Permits/README.md
+
+Zoning_Master/**
+!Zoning_Master/README.md
+
+Supervisor Policy Positions Campaigned On/**
+!Supervisor Policy Positions Campaigned On/README.md
+
+Crime2/**
+!Crime2/README.md
+
+Housing/**
+!Housing/README.md
+
+Evictions/**
+!Evictions/README.md
+
+Permitting_Delays_Archive/**
+!Permitting_Delays_Archive/README.md
+
+SF_Dashboard_LatestExports/**
+!SF_Dashboard_LatestExports/README.md
+
+# Tracked sample areas
+!data/samples/
+!data/samples/**
