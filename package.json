@@ -11,7 +11,9 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint . --ext .ts",
     "format": "prettier -w .",
-    "start:ingest": "ts-node services/ingest/csvLoader.ts"
+    "start:ingest": "ts-node services/ingest/csvLoader.ts",
+    "run:evictions:landing": "ts-node services/ingest/csvLoader.ts",
+    "run:evictions:landing:write": "DRY_RUN=false ts-node services/ingest/csvLoader.ts"
   },
   "keywords": [],
   "author": "",

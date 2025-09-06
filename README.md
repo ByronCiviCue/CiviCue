@@ -14,3 +14,8 @@ This project implements a comprehensive data pipeline for San Francisco municipa
 1) Start DB (if not already): `docker compose up -d`
 2) (Optional) create a `.env` using `.env.example`
 3) Apply: `./scripts/migrate.sh`
+
+## CSV → landing (evictions)
+
+- Dry run (default): `npm run run:evictions:landing`
+- Load to DB: `npm run run:evictions:landing:write`
