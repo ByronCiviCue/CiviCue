@@ -38,6 +38,5 @@ Upsert typed staging rows into core fact table using case_number as the business
 7. Upsert to core: `npm run run:evictions:core`
 8. QA checks: `psql -h localhost -p 5432 -U dev -d civicue -f tests/data-quality/evictions_basic.sql`
 
-## Planning
-
-See the project planning canvas at docs/PLANNING.md.
+### Planning
+See the project planning canvas at [docs/PLANNING.md](docs/PLANNING.md).
