@@ -3,7 +3,7 @@ CREATE OR REPLACE FUNCTION public.jsonb_canon_text(js jsonb)
 RETURNS text
 LANGUAGE SQL
 IMMUTABLE
-AS $
+AS $$
 SELECT COALESCE(
   (
     SELECT '{' || string_agg(format('%s:%s', to_jsonb(k)::text, jsonb_canon_text(v)), ',') || '}'
@@ -24,4 +24,4 @@ SELECT COALESCE(
       js::text
   END
 );
-$;
+$$;
