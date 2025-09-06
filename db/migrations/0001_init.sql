@@ -4,4 +4,5 @@
 \i db/schema/30_core.sql
 \i db/schema/35_views.sql
 \i db/schema/40_reference.sql
+\i db/schema/50_embeddings.sql
 \i db/schema/99_helpers.sql
