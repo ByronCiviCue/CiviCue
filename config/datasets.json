@@ -1,0 +1,10 @@
+{
+  "evictions": {
+    "rawDir": "data/csv_raw/evictions",
+    "landingTable": "landing_raw.evictions_raw",
+    "stagingTable": "staging_clean.evictions",
+    "coreTable": "core.fact_evictions",
+    "businessKey": ["case_number"],
+    "dateFields": ["filing_date"]
+  }
+}
