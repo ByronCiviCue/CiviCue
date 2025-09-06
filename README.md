@@ -9,3 +9,8 @@ This project implements a comprehensive data pipeline for San Francisco municipa
 - Start: `docker compose up -d`
 - Reset: `./scripts/resetDb.sh`
 - Connect: `psql -h localhost -p 5432 -U dev -d civicue`
+
+### Run migrations
+1) Start DB (if not already): `docker compose up -d`
+2) (Optional) create a `.env` using `.env.example`
+3) Apply: `./scripts/migrate.sh`
