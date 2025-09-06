@@ -13,7 +13,8 @@
     "format": "prettier -w .",
     "start:ingest": "ts-node services/ingest/csvLoader.ts",
     "run:evictions:landing": "ts-node services/ingest/csvLoader.ts",
-    "run:evictions:landing:write": "DRY_RUN=false ts-node services/ingest/csvLoader.ts"
+    "run:evictions:landing:write": "DRY_RUN=false ts-node services/ingest/csvLoader.ts",
+    "run:evictions:staging": "ts-node services/transforms/evictionsTransform.ts"
   },
   "keywords": [],
   "author": "",

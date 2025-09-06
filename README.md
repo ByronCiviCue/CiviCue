@@ -19,3 +19,7 @@ This project implements a comprehensive data pipeline for San Francisco municipa
 
 - Dry run (default): `npm run run:evictions:landing`
 - Load to DB: `npm run run:evictions:landing:write`
+
+## Landing → staging (evictions)
+
+- Transform: `npm run run:evictions:staging`
