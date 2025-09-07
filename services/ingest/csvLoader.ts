@@ -1,4 +1,4 @@
-import { env } from '../../src/lib/env.js';
+import { getEnv } from '../../src/lib/env.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
@@ -8,6 +8,7 @@ import copyFrom from 'pg-copy-streams';
 import pino from 'pino';
 import { stableRowHash } from './lib/hash.js';
 
+const env = getEnv();
 const logger = pino({ level: 'info' });
 
 interface DatasetConfig {

@@ -1,7 +1,8 @@
-import { env } from '../../src/lib/env.js';
+import { getEnv } from '../../src/lib/env.js';
 import { Client } from 'pg';
 import pino from 'pino';
 
+const env = getEnv();
 const logger = pino({ level: 'info' });
 
 async function main(): Promise<void> {

@@ -25,8 +25,8 @@ async function lintVirtual(text: string, virtualPath: string, withTs = false) {
     }];
   }
   const eslint = new ESLint(base);
-  // @ts-expect-error ESLint accepts filePath in lintText options
-  const [res] = await eslint.lintText(text, { filePath: join(cwd, virtualPath) });
+  const opts: Parameters<ESLint['lintText']>[1] = {  filePath: join(cwd, virtualPath)  };
+  const [res] = await eslint.lintText(text, opts);
   return res;
 }
 
