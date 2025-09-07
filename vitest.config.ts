@@ -1,65 +1,61 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config'
 
-// Deduplicated literals to appease sonarjs/no-duplicate-string
-const EXCLUDE_COMMON = ['dist/**', 'node_modules/**'];
-const EXCLUDE_WIDE = ['dist/**', 'node_modules/**', 'tests/fixtures/**', 'sandbox/**', 'fixtures/**'];
-const INCLUDE_UNIT = ['tests/unit/**/*.ts'];
-const INCLUDE_CONTRACTS = ['tests/contracts/**/*.ts'];
-const INCLUDE_INTEGRATION = ['tests/integration/**/*.ts'];
-const INCLUDE_ARCH = ['tests/arch/**/*.ts'];
-
+// Deterministic Vitest config with explicit projects.
+// - unit: general tests (default globs)
+// - contracts: reserved for pact/contract tests
+// - integration: reserved for integration tests  
+// - arch: architectural/lint guard tests
+// NOTE: tsconfigPaths plugin not included - add vite-tsconfig-paths dependency if path aliases needed
 export default defineConfig({
   test: {
-    include: [], // force project selection via --project
     projects: [
       {
         test: {
           name: 'unit',
-          include: INCLUDE_UNIT, // TEMP until Commit B moves files
-          exclude: EXCLUDE_WIDE,
+          include: [
+            // everything except explicit arch tests
+            'tests/**/*.spec.ts',
+            'tests/**/*.test.ts',
+            '!tests/eslint-*.test.ts',
+            '!tests/**/*arch*.test.ts'
+          ],
           environment: 'node',
-          pool: 'threads',
-          testTimeout: 3000,
-          retry: 1,
-          coverage: { enabled: true }
+          globals: true
         }
       },
       {
         test: {
           name: 'contracts',
-          include: INCLUDE_CONTRACTS,
-          exclude: EXCLUDE_WIDE,
+          include: [
+            'tests/contracts/**/*.spec.ts',
+            'tests/contracts/**/*.test.ts'
+          ],
           environment: 'node',
-          pool: 'threads',
-          testTimeout: 5000,
-          retry: 1,
-          coverage: { enabled: true }
+          globals: true
         }
       },
       {
         test: {
           name: 'integration',
-          include: INCLUDE_INTEGRATION,
-          exclude: EXCLUDE_WIDE,
+          include: [
+            'tests/integration/**/*.spec.ts',
+            'tests/integration/**/*.test.ts'
+          ],
           environment: 'node',
-          pool: 'forks',
-          testTimeout: 15000,
-          retry: 0,
-          coverage: { enabled: true }
+          globals: true
         }
       },
       {
         test: {
           name: 'arch',
-          include: INCLUDE_ARCH, // TEMP until Commit B moves file
-          exclude: EXCLUDE_COMMON,
+          include: [
+            'tests/eslint-*.test.ts',
+            'tests/**/*arch*.test.ts'
+          ],
           environment: 'node',
-          pool: 'threads',
-          testTimeout: 6000,
-          retry: 0,
-          coverage: { enabled: false }
+          globals: true
         }
       }
     ]
   }
-});
+})

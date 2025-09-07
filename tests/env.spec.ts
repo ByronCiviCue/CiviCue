@@ -120,4 +120,18 @@ describe('env validation', () => {
       'Required environment variable MISSING_KEY is not set'
     );
   });
+
+  it('should default nodeEnv to development in skip-validation mode', async () => {
+    process.env.CIVICUE_SKIP_ENV_VALIDATION = '1';
+    process.env.SOCRATA_APP_ID = 'test-app-id';
+    process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/test';
+    process.env.EMBEDDING_MODEL = 'text-embedding-3-large';
+    delete process.env.NODE_ENV; // Ensure NODE_ENV is not set
+
+    const { getEnv } = await import('../src/lib/env.js');
+    const env = getEnv();
+
+    expect(env.runtime.nodeEnv).toBe('development');
+    delete process.env.CIVICUE_SKIP_ENV_VALIDATION;
+  });
 });

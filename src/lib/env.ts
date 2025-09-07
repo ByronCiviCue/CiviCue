@@ -26,7 +26,7 @@ const envSchema = z.object({
     embeddingModel: z.string().optional()
   }),
   runtime: z.object({
-    nodeEnv: z.string().optional(),
+    nodeEnv: z.enum(['development', 'test', 'production']).default('development').optional(),
     port: z.coerce.number().int().positive().default(3000),
     requestTimeoutMs: z.coerce.number().int().positive().default(10000),
     retryMaxAttempts: z.coerce.number().int().positive().default(3),
@@ -96,7 +96,16 @@ function validateEnv(): Env {
   if (shouldSkipValidation()) {
     // Best-effort coercion; defaults applied by schema .parse, but on skip we return raw with sane defaults injected
     const coerced = envSchema.partial().parse(raw); // coerce defaults for numeric fields
-    return { ...coerced, db: { ...coerced.db, vectorDim: coerced.db?.vectorDim ?? 1536 }, runtime: { ...coerced.runtime, port: coerced.runtime?.port ?? 3000, requestTimeoutMs: coerced.runtime?.requestTimeoutMs ?? 10000, retryMaxAttempts: coerced.runtime?.retryMaxAttempts ?? 3, retryBaseDelayMs: coerced.runtime?.retryBaseDelayMs ?? 250 } } as Env;
+    const nodeEnv = coerced.runtime?.nodeEnv ?? 'development';
+    const runtime = {
+      ...coerced.runtime,
+      nodeEnv,
+      port: coerced.runtime?.port ?? 3000,
+      requestTimeoutMs: coerced.runtime?.requestTimeoutMs ?? 10000,
+      retryMaxAttempts: coerced.runtime?.retryMaxAttempts ?? 3,
+      retryBaseDelayMs: coerced.runtime?.retryBaseDelayMs ?? 250
+    };
+    return { ...coerced, db: { ...coerced.db, vectorDim: coerced.db?.vectorDim ?? 1536 }, runtime } as Env;
   }
   try {
     return envSchema.parse(raw);
