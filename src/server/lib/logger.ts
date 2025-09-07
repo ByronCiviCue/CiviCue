@@ -1,8 +1,8 @@
 import pino from 'pino';
-import { getEnv } from '../../lib/env.js';
+import { secrets } from '../../lib/secrets/index.js';
 
 const logger = pino({
-  level: getEnv().runtime.logLevel,
+  level: secrets.getLogLevel(),
   redact: {
     paths: [
       'req.headers.authorization',

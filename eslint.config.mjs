@@ -220,5 +220,85 @@ export default [
       'security/detect-object-injection': 'off',
       'no-empty': 'off'
     }
+  },
+
+  // 1) Global forbids (application code)
+  {
+    files: ['**/*.ts', '**/*.js'],
+    rules: {
+      // Forbid direct process.env everywhere by default
+      'no-restricted-properties': ['error', {
+        object: 'process',
+        property: 'env',
+        message: 'Access env via the secrets facade (@/lib/secrets), not process.env.'
+      }],
+      // Forbid importing the raw env loader from app code
+      'no-restricted-imports': ['error', {
+        patterns: [
+          '@/lib/env',
+          '@/lib/env.js',
+          '**/lib/env',
+          '**/lib/env.js',
+          '../lib/env',
+          '../lib/env.js'
+        ]
+      }]
+    }
+  },
+
+  // 2) Allowlist: env loader itself + secrets facade + server bootstrap
+  {
+    files: [
+      'src/lib/env.ts',
+      'src/lib/secrets/**/*.ts',
+      'src/lib/secrets/**/*.js',
+      'src/server/bootstrap.ts',
+      'src/server/bootstrap.js',
+      'src/config/env.ts'  // Legacy barrel export
+    ],
+    rules: {
+      'no-restricted-properties': 'off',
+      'no-restricted-imports': 'off'
+    }
+  },
+
+  // 3) Infra/config/scripts/setup — full allowance
+  {
+    files: [
+      'scripts/**/*.mjs',
+      'scripts/**/*.js',
+      'scripts/**/*.ts',
+      '**/*.config.js',
+      '**/*.config.ts',
+      '**/*.config.mjs',
+      'vitest*.js',
+      'vitest*.ts',
+      'vitest*.mjs',
+      '.husky/**',
+      'tests/setup/**/*.js',
+      'tests/setup/**/*.ts',
+      'services/**/*.js',
+      'services/**/*.ts'
+    ],
+    rules: {
+      'no-restricted-properties': 'off',
+      'no-restricted-imports': 'off'
+    }
+  },
+
+  // 4) Regular test files — allow process.env, but still block env imports
+  {
+    files: [
+      'tests/**/*.ts',
+      'tests/**/*.js',
+      '**/__tests__/**/*.ts',
+      '**/__tests__/**/*.js',
+      'packages/**/tests/**/*.ts',
+      'packages/**/tests/**/*.js'
+    ],
+    rules: {
+      'no-restricted-properties': 'off'
+      // NOTE: no-restricted-imports remains active from global layer
+    }
   }
 ];
