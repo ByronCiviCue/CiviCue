@@ -94,7 +94,7 @@
         "testStrategy": "The entire test suite should pass, and the application should build and run successfully after the migration. CI pipeline should confirm build and test success.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -113,7 +113,7 @@
               "3.1"
             ],
             "details": "1) Replace ts-node with tsx (or ensure your runner supports ESM). package.json scripts: \"dev\": \"tsx watch src/index.ts\"; \"start\": \"node ./dist/index.js\".\n2) Build pipeline: If using tsc, set \"build\": \"tsc -p tsconfig.build.json\". If you rely on TS path aliases at runtime, add tsc-alias: \"build\": \"tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json\". Alternatively, use tsup/esbuild to bundle as ESM: e.g., \"build\": \"tsup src/index.ts --format esm --dts --out-dir dist\" and mirror path aliases in bundler config.\n3) For CLIs, ensure the compiled dist files retain the shebang and that \"bin\" in package.json points at \"./dist/cli.js\". If required, add a build step to preserve the shebang (tsup --shims or a banner).\n4) If you have config scripts that tools load as CJS, rename them to .cjs (e.g., webpack.config.cjs) and adjust invocations. Keep runtime Node flags to a minimum; do not rely on --experimental-specifier-resolution.\n5) Verify that emitted files are .js and that relative import specifiers in the output are correct (with .js extensions).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run: npm run build and confirm dist output exists and is runnable with npm start. If using path aliases, confirm tsc-alias rewrites imports (grep for unresolved @alias in dist)."
           },
           {
@@ -124,7 +124,7 @@
               "3.1"
             ],
             "details": "1) Convert vitest.config.ts to ESM style: use \"export default defineConfig({...})\" and ESM imports from \"vitest/config\". Ensure the file extension and syntax match the repository ESM setup.\n2) Map TS path aliases to Vitest/Vite resolve.alias. Optionally use a tsconfig-paths resolver plugin, or manually mirror aliases.\n3) Set test environment to node and configure deps handling for any CJS-heavy modules (e.g., test: { environment: 'node', deps: { inline: [] } }).\n4) Update package.json scripts: \"test\": \"vitest run\", \"test:watch\": \"vitest\". Remove any CommonJS-specific test bootstrap code; convert setup files to ESM.\n5) If tests import JSON, prefer fs read in tests or use Node ESM JSON import with assertions (import data from './x.json' assert { type: 'json' }). Ensure TS supports it (TS >=5.3) or gate behind createRequire in tests.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run: npm run test on a small subset, then full suite. Add a simple ESM-only test (using import.meta.url) to validate ESM execution. Verify mocking works for both ESM and CJS dependencies."
           },
           {
@@ -137,7 +137,7 @@
               "3.3"
             ],
             "details": "1) Replace require/module.exports patterns with ESM: use \"import ... from 'x'\" or named imports; replace \"module.exports =\" with \"export default\" (or named exports); convert \"exports.foo = foo\" to \"export { foo }\".\n2) Update relative imports to include file extensions that will exist at runtime (e.g., import './utils.js'), even in .ts source when using NodeNext. Keep directory index imports explicit (e.g., './dir/index.js').\n3) Maintain type-only imports using the \"type\" modifier to avoid runtime import overhead (e.g., import type { Foo } from './types.js'). Consider enabling \"verbatimModuleSyntax\" in TS to enforce correctness.\n4) Handle CJS-only dependencies: use createRequire from 'node:module' when needed (const require = createRequire(import.meta.url); const pkg = require('cjs-only')). For JSON at runtime, either read via fs (recommended) or use import assertions where supported. Replace __dirname/__filename with fileURLToPath(import.meta.url) equivalents.\n5) Rename any files that must remain CJS to .cjs (or in TS to .cts) and ESM-only files to .mjs/.mts as necessary. Update any tool configs expecting specific module types. Run incremental conversions and commit in small batches.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run: npx tsc -p tsconfig.build.json --noEmit to ensure no unresolved imports. Grep for remaining \"require(\" and \"module.exports\". Execute targeted integration tests for modules using __dirname, JSON, and CJS interop. Build and run a smoke start after each batch."
           },
           {
@@ -150,7 +150,7 @@
               "3.4"
             ],
             "details": "1) CI: set Node version to >=18.17 (prefer 20 LTS). Ensure steps: install, typecheck (tsc --noEmit), build, test. If using pnpm/yarn, enable corepack.\n2) Add a job to fail on unresolved ESM specifiers: run tsc with --noEmit and optionally a script that greps for extensionless relative imports (e.g., './foo' without '.js').\n3) Ensure coverage and reporters still work under ESM (Vitest flags). Update any CI caching keys if tools changed (e.g., tsx, tsup).\n4) Do a runtime smoke test in CI: after build, run \"node dist/index.js\" or a minimal health check command to verify startup under ESM.\n5) Document migration notes and add a checklist to PR template to keep new code ESM-compliant (explicit extensions, no require/module.exports).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Confirm the CI pipeline passes end-to-end on a clean branch. Validate that the smoke test executes successfully and that the typecheck step fails if a new extensionless import is introduced."
           }
         ]
@@ -3129,7 +3129,7 @@
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-07T06:58:30.512Z",
+      "updated": "2025-09-07T11:14:02.097Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",
