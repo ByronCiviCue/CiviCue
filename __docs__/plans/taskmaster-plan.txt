@@ -1,0 +1,89 @@
+T-100 | Configure Task Master models (.taskmaster/config.json): main=GPT-5, research=claude-code/sonnet, fallback=gemini-2.5-pro |  | phase:Foundations, area:ci, prio:P1
+T-101 | Env setup: .env with SOCRATA_APP_ID and provider keys | T-100 | phase:Foundations, area:docs, prio:P1
+T-102 | Cohesive ESM migration: tsconfig (NodeNext), build scripts, test runner, path imports | T-100 | phase:Foundations, area:ci, prio:P1
+T-103 | OpenAPI lint and TS type generation | T-100 | phase:Foundations, area:api, prio:P1
+T-104 | Pre-commit hooks: require __review__/CONFESSION.md and DEFENSE.md; block TODO/FIXME in staged code | T-100 | phase:Foundations, area:ci, prio:P1
+T-105 | Secrets policy: server-only env access, redact tokens in logs, add leakage test | T-100 | phase:Foundations, area:ci, prio:P1
+T-201 | Build SF Socrata index (registry:socrata:sf) | T-101 | phase:Registry, area:registry, prio:P1
+T-202 | Profile SF datasets (edit __docs__/catalogs/sf-socrata-profile.md) | T-201 | phase:Registry, area:docs, prio:P1
+T-203 | Build Detroit Socrata index (optional) | T-101 | phase:Registry, area:registry, prio:P2
+T-204 | Detroit profile + delta vs SF (edit __docs__/catalogs/detroit-socrata-profile.md) | T-203,T-202 | phase:Registry, area:docs, prio:P2
+T-205a | SocrataAdapter: SoQL translation ($select/$where/$order/$limit/$offset) | T-102,T-202 | phase:Registry, area:adapter, prio:P1
+T-205b | SocrataAdapter: Zod schemas + runtime validation (fail-fast) | T-205a | phase:Registry, area:adapter, prio:P1
+T-205c | SocrataAdapter: I/O policy (timeouts, retries, backoff for 429/5xx) | T-205a | phase:Registry, area:adapter, prio:P1
+T-206 | Seed registry DB (registry.sources, registry.assets) | T-201 | phase:Registry, area:db, prio:P1
+T-301 | Fill normalization-map.md (edit __docs__/catalogs/normalization-map.md) | T-202 | phase:Branch, area:docs, prio:P1
+T-302 | Design sf.housing.permits branch (edit __docs__/catalogs/branch-sf-housing-permits.md) | T-301,T-202 | phase:Branch, area:docs, prio:P1
+T-303 | Implement plan/fetch/fuse for sf.housing.permits | T-205a,T-302 | phase:Branch, area:branch, prio:P1
+T-304 | Golden tests for fuse() (dedupe/scoring) | T-303 | phase:Branch, area:branch, prio:P1
+T-305 | Generator script: pnpm gen:branch | T-301 | phase:Branch, area:branch, prio:P2
+T-306 | Branch engine observability hooks (rows_fetched, dedupe_rate, freshness_lag, source_errors) | T-303 | phase:Branch, area:observability, prio:P1
+T-307 | Rate-limit smoke tests (Socrata): bursts + backoff verification | T-205c | phase:Branch, area:branch, prio:P2
+T-401 | Implement /v1/health route | T-103 | phase:API, area:api, prio:P1
+T-402 | Implement /v1/search/hybrid (wire to Branch Engine) | T-103,T-303 | phase:API, area:api, prio:P1
+T-403 | Implement /v1/reports/permits (rollup; enforce max page size server-side) | T-103,T-303 | phase:API, area:api, prio:P1
+T-404 | Contract tests vs openapi.yaml (health, hybrid, permits) | T-401,T-402,T-403 | phase:API, area:api, prio:P1
+T-501 | Vector strategy decision: per-city vs global (edit __docs__/architecture/vector-strategy.md) | T-202,T-302 | phase:Vector, area:vector, prio:P1
+T-502 | Create core.items + core.item_embeddings schema (vector extension) | T-501 | phase:DB, area:db, prio:P1
+T-503 | Implement ingest job jobs/ingest-branch.ts (read activation, upsert items, trigger embeddings) | T-303,T-502 | phase:Vector, area:vector, prio:P1
+T-504 | Upsert items and compute embeddings (model client, batching) | T-503 | phase:Vector, area:vector, prio:P1
+T-505 | Enforce embedding model + dimension guard (CHECK constraint + runtime assert) | T-502 | phase:DB, area:vector, prio:P1
+T-601 | Nightly registry rebuild (PR on change; attach profile diff) | T-201 | phase:CI, area:ci, prio:P2
+T-602 | Hourly branch ingest schedule (worker dyno) | T-503 | phase:CI, area:ci, prio:P2
+T-603 | CI tests: typecheck, lint, unit, golden, contract | T-205b,T-205c,T-304,T-404,T-502 | phase:CI, area:ci, prio:P1
+T-701 | Metrics: rows fetched/deduped, freshness lag, error rates | T-503,T-402 | phase:Observability, area:observability, prio:P2
+T-702 | CorrelationId logs across adapters and API | T-205a,T-402 | phase:Observability, area:observability, prio:P2
+T-703 | Dashboards: API latency, ingest freshness, error budgets | T-701 | phase:Observability, area:observability, prio:P2
+
+# Dependencies
+tm add-dependency --id=T-101 --depends-on=T-100
+tm add-dependency --id=T-102 --depends-on=T-100
+tm add-dependency --id=T-103 --depends-on=T-100
+tm add-dependency --id=T-104 --depends-on=T-100
+tm add-dependency --id=T-105 --depends-on=T-100
+tm add-dependency --id=T-201 --depends-on=T-101
+tm add-dependency --id=T-202 --depends-on=T-201
+tm add-dependency --id=T-203 --depends-on=T-101
+tm add-dependency --id=T-204 --depends-on=T-203
+tm add-dependency --id=T-204 --depends-on=T-202
+tm add-dependency --id=T-205a --depends-on=T-102
+tm add-dependency --id=T-205a --depends-on=T-202
+tm add-dependency --id=T-205b --depends-on=T-205a
+tm add-dependency --id=T-205c --depends-on=T-205a
+tm add-dependency --id=T-206 --depends-on=T-201
+tm add-dependency --id=T-301 --depends-on=T-202
+tm add-dependency --id=T-302 --depends-on=T-301
+tm add-dependency --id=T-302 --depends-on=T-202
+tm add-dependency --id=T-303 --depends-on=T-205a
+tm add-dependency --id=T-303 --depends-on=T-302
+tm add-dependency --id=T-304 --depends-on=T-303
+tm add-dependency --id=T-305 --depends-on=T-301
+tm add-dependency --id=T-306 --depends-on=T-303
+tm add-dependency --id=T-307 --depends-on=T-205c
+tm add-dependency --id=T-401 --depends-on=T-103
+tm add-dependency --id=T-402 --depends-on=T-103
+tm add-dependency --id=T-402 --depends-on=T-303
+tm add-dependency --id=T-403 --depends-on=T-103
+tm add-dependency --id=T-403 --depends-on=T-303
+tm add-dependency --id=T-404 --depends-on=T-401
+tm add-dependency --id=T-404 --depends-on=T-402
+tm add-dependency --id=T-404 --depends-on=T-403
+tm add-dependency --id=T-501 --depends-on=T-202
+tm add-dependency --id=T-501 --depends-on=T-302
+tm add-dependency --id=T-502 --depends-on=T-501
+tm add-dependency --id=T-503 --depends-on=T-303
+tm add-dependency --id=T-503 --depends-on=T-502
+tm add-dependency --id=T-504 --depends-on=T-503
+tm add-dependency --id=T-505 --depends-on=T-502
+tm add-dependency --id=T-601 --depends-on=T-201
+tm add-dependency --id=T-602 --depends-on=T-503
+tm add-dependency --id=T-603 --depends-on=T-205b
+tm add-dependency --id=T-603 --depends-on=T-205c
+tm add-dependency --id=T-603 --depends-on=T-304
+tm add-dependency --id=T-603 --depends-on=T-404
+tm add-dependency --id=T-603 --depends-on=T-502
+tm add-dependency --id=T-701 --depends-on=T-503
+tm add-dependency --id=T-701 --depends-on=T-402
+tm add-dependency --id=T-702 --depends-on=T-205a
+tm add-dependency --id=T-702 --depends-on=T-402
+tm add-dependency --id=T-703 --depends-on=T-701

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "667d-aah6",
+    "name": "Invest in Neighborhood Areas",
+    "description": "The City of San Francisco owes much of its global appeal to the unique character of its neighborhood commercial districts. OEWD’s Neighborhood Economic Development Division is responsible for the ongoing support and improvement of the City’s many neighborhood commercial districts. The overall goals of the division are to create cleaner, safer and more vibrant neighborhoods in order to increase the quality of life for the City’s residents and workers; and to create economic opportunities for residents of the City’s low- and moderate-income neighborhoods. The Invest in Neighborhoods Initiative, one of the 17 points of Mayor Lee’s plan for jobs and economic opportunity, provides focused, customized assistance to meet the specific needs of San Francisco’s neighborhood commercial corridors.",
+    "resource_url": "https://data.sfgov.org/resource/667d-aah6.json",
+    "permalink": "https://data.sfgov.org/d/667d-aah6",
+    "category": "Economy and Community",
+    "tags": [],
+    "domain": "data.sfgov.org"
+  },
+  {
+    "id": "sfnk-6tdn",
+    "name": "Green_Roofs",
+    "description": "his layer is the data feeding into the San Francisco Green Roofs web map. This map and further information about green roofs in San Francisco can be found at the Planning Department's Green Roofs website: http://www.sf-planning.org/index.aspx?page=3839. If you know of any other green roofs in San Francisco please contact Andrew Perry (Andrew.Perry@sfgov.org) and he will add it to the map.",
+    "resource_url": "https://data.sfgov.org/resource/sfnk-6tdn.json",
+    "permalink": "https://data.sfgov.org/d/sfnk-6tdn",
+    "category": "Housing and Buildings",
+    "tags": [
+      "shapefile",
+      "green",
+      "roofs",
+      "gis"
+    ],
+    "domain": "data.sfgov.org"
+  },
+  {
+    "id": "3nje-yn2u",
+    "name": "RPD Parks",
+    "description": "Park Lands layer developed by the San Francisco Recreation and Parks Department. Note the wide extent of the map is because RPD manages Camp Mather to the West.",
+    "resource_url": "https://data.sfgov.org/resource/3nje-yn2u.json",
+    "permalink": "https://data.sfgov.org/d/3nje-yn2u",
+    "category": "Culture and Recreation",
+    "tags": [],
+    "domain": "data.sfgov.org"
+  },
+  {
+    "id": "bt7b-fdtx",
+    "name": "Elect_StAsmbly_Dists",
+    "description": "A historical map of the California State Assembly Districts based on the 2011 boundaries.",
+    "resource_url": "https://data.sfgov.org/resource/bt7b-fdtx.json",
+    "permalink": "https://data.sfgov.org/d/bt7b-fdtx",
+    "category": "Geographic Locations and Boundaries",
+    "tags": [],
+    "domain": "data.sfgov.org"
+  }
+]
