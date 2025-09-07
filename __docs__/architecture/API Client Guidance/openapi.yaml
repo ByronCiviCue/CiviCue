@@ -1,0 +1,149 @@
+openapi: 3.0.3
+info:
+  title: Example API
+  version: 1.0.0
+  description: |
+    Public JSON API. This file is the source of truth for
+    endpoints and is used to generate Postman collections and docs.
+  x-docs-example-version: v0.1.0
+  x-docs-updated: 2025-09-06
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: https://api-dev.example.com
+    description: Development
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+    PermitItem:
+      type: object
+      properties:
+        id: { type: string }
+        address: { type: string }
+        status: { type: string }
+        sources: { type: array, items: { type: string } }
+        provenance:
+          type: object
+          properties:
+            system: { type: string }
+            retrieved_at: { type: string, format: date-time }
+            license: { type: string }
+        freshness: { type: number }
+        trust_score: { type: number }
+      required: [id]
+    HybridItem:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        sources: { type: array, items: { type: string } }
+        provenance:
+          type: object
+          properties:
+            system: { type: string }
+            retrieved_at: { type: string, format: date-time }
+            license: { type: string }
+        freshness: { type: number }
+        trust_score: { type: number }
+      required: [id]
+    Meta:
+      type: object
+      properties:
+        correlationId: { type: string }
+        page: { type: integer }
+        limit: { type: integer }
+        stale_at: { type: string, format: date-time }
+  responses:
+    Error401:
+      description: Unauthorized
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Error429:
+      description: Too Many Requests
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Error500:
+      description: Internal Server Error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+paths:
+  /v1/health:
+    get:
+      summary: Liveness
+      description: Readiness/liveness endpoint.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  time: { type: string, format: date-time }
+  /v1/reports/permits:
+    get:
+      summary: Permit rollup by filters
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: geo, in: query, schema: { type: string }, description: Geo filter (WKT/bbox) }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PermitItem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '429': { $ref: '#/components/responses/Error429' }
+        '500': { $ref: '#/components/responses/Error500' }
+  /v1/search/hybrid:
+    get:
+      summary: Hybrid search across structured and unstructured sources
+      security: [{ ApiKeyAuth: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: department, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/HybridItem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '401': { $ref: '#/components/responses/Error401' }
+        '429': { $ref: '#/components/responses/Error429' }
+        '500': { $ref: '#/components/responses/Error500' }

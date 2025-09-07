@@ -1,0 +1,6 @@
+{
+  "$schema": "https://example.com/civicue/activation.schema.json",
+  "notes": "Template for Detroit; set enabled=true per dataset id.",
+  "defaults": { "enabled": false, "cadence": "weekly" },
+  "datasets": {}
+}

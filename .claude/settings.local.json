@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "mcp__task-master-ai__use_tag",
+      "mcp__task-master-ai__get_tasks",
+      "mcp__task-master-ai__validate_dependencies",
+      "mcp__task-master-ai__analyze_project_complexity",
+      "mcp__task-master-ai__complexity_report",
+      "mcp__task-master-ai__expand_all",
+      "mcp__task-master-ai__next_task",
+      "mcp__task-master-ai__get_task"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "task-master-ai"
+  ]
+}

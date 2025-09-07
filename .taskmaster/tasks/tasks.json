@@ -1,0 +1,501 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Configure Task Master models (.taskmaster/config.json)",
+        "description": "Configure the AI models (GPT-5, Claude, Gemini) for the Task Master tool by creating and populating the `.taskmaster/config.json` file.",
+        "details": "Create a `.taskmaster/config.json` file. Define model identifiers for `main`, `research`, and `fallback` keys as specified: `main=GPT-5`, `research=claude-code/sonnet`, `fallback=gemini-2.5-pro`.",
+        "testStrategy": "Manual verification: Run a command that utilizes the Task Master tool and check logs or output to confirm the correct models are being invoked.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Env setup: .env with SOCRATA_APP_ID and provider keys",
+        "description": "Set up environment variables for Socrata and AI provider API keys.",
+        "details": "Create a `.env` file template (`.env.example`) and document the required variables like `SOCRATA_APP_ID` and keys for the configured AI providers. The application should access these variables for authentication.",
+        "testStrategy": "The application should fail to start or log a clear error if required variables are missing. Verify by running the app with and without the `.env` file.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Cohesive ESM migration",
+        "description": "Migrate the entire codebase to use ECMAScript Modules (ESM) for better standardization and performance.",
+        "details": "Update `tsconfig.json` to use `module: \"NodeNext\"`, adjust build scripts in `package.json`, configure the test runner (e.g., Vitest) for ESM, and update all imports to use file extensions and path aliases correctly.",
+        "testStrategy": "The entire test suite should pass, and the application should build and run successfully after the migration. CI pipeline should confirm build and test success.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "OpenAPI lint and TS type generation",
+        "description": "Set up a process to lint the OpenAPI specification and automatically generate TypeScript types from it.",
+        "details": "Integrate an OpenAPI linter (e.g., Spectral) into the CI pipeline. Use a code generation tool (e.g., `openapi-typescript`) to create TypeScript interfaces from `openapi.yaml`, ensuring API handlers and clients are strongly typed.",
+        "testStrategy": "CI job should fail on an invalid OpenAPI spec. Verify that generated types match the spec and cause compile errors when misused in the code.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Pre-commit hooks for code quality",
+        "description": "Implement pre-commit hooks to enforce code quality standards before code is committed.",
+        "details": "Using a tool like Husky, configure pre-commit hooks to: 1. Require the existence of `__review__/CONFESSION.md` and `DEFENSE.md` files. 2. Block commits if `TODO` or `FIXME` markers are present in staged code.",
+        "testStrategy": "Manual verification: Attempt to commit code with a 'TODO' comment and confirm the commit is blocked. Attempt to commit without the required review files and confirm it's blocked.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Implement Secrets Policy",
+        "description": "Establish and enforce a strict policy for handling secrets and sensitive tokens.",
+        "details": "Ensure environment variables are only accessible on the server. Implement log redaction to prevent tokens from being logged. Add a CI test that scans for hardcoded secrets or leakage patterns.",
+        "testStrategy": "Add a unit test for the logging utility to confirm it redacts known token patterns. The CI leakage test should fail if a fake secret is added to the codebase.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Build SF Socrata index (registry:socrata:sf)",
+        "description": "Create a script to crawl the San Francisco Socrata portal and build a local index of all available datasets.",
+        "details": "The script will use the Socrata Discovery API to fetch metadata for all datasets in the SF portal. The output should be a structured file (e.g., JSON) representing the registry, stored at `registry:socrata:sf`.",
+        "testStrategy": "Run the script and verify that the output index file is created and contains a plausible number of dataset entries with correct metadata fields.",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Profile SF datasets",
+        "description": "Analyze the generated SF Socrata index to create a human-readable profile of the data catalog.",
+        "details": "Create a script that processes the SF index to generate summary statistics (e.g., total datasets, update frequency, common tags). The output should be written to `__docs__/catalogs/sf-socrata-profile.md`.",
+        "testStrategy": "Manual review of the generated `sf-socrata-profile.md` file to ensure the information is accurate and well-formatted.",
+        "priority": "high",
+        "dependencies": [
+          7
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Build Detroit Socrata index (optional)",
+        "description": "Create a script to crawl the Detroit Socrata portal and build a local index of its datasets.",
+        "details": "This task is similar to the SF index builder but targeted at the Detroit Socrata portal. The output should be a structured file representing the Detroit registry.",
+        "testStrategy": "Run the script and verify that the output index file is created and contains dataset entries from the Detroit portal.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Profile Detroit datasets and compare with SF",
+        "description": "Analyze the Detroit index and create a profile, including a comparison against the San Francisco catalog.",
+        "details": "Generate a profile for the Detroit catalog similar to the SF one. Additionally, perform a delta analysis comparing the two catalogs (e.g., overlapping themes, differences in data volume). Update `__docs__/catalogs/detroit-socrata-profile.md`.",
+        "testStrategy": "Manual review of the generated markdown file to check the accuracy of the Detroit profile and the validity of the comparison with SF.",
+        "priority": "medium",
+        "dependencies": [
+          8,
+          9
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "SocrataAdapter: SoQL translation",
+        "description": "Implement the core query translation logic in the SocrataAdapter to convert a generic query object into a Socrata Query Language (SoQL) string.",
+        "details": "The adapter method should accept a structured query object and correctly map its properties (`$select`, `$where`, `$order`, `$limit`, `$offset`) to the corresponding SoQL clauses. Ensure proper URL encoding of parameters.",
+        "testStrategy": "Unit tests with various query object combinations to assert the generated SoQL string is correct. Include edge cases like empty clauses or special characters.",
+        "priority": "high",
+        "dependencies": [
+          3,
+          8
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "SocrataAdapter: Zod schemas and runtime validation",
+        "description": "Implement fail-fast runtime validation for Socrata API responses using Zod schemas.",
+        "details": "Define Zod schemas that match the expected structure of Socrata API responses. The SocrataAdapter should parse all incoming data against these schemas and throw an error immediately if the data is malformed.",
+        "testStrategy": "Unit tests that provide mock API responses, both valid and invalid, to the adapter. Assert that invalid responses throw the expected validation errors.",
+        "priority": "high",
+        "dependencies": [
+          11
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "SocrataAdapter: I/O policy (timeouts, retries, backoff)",
+        "description": "Make the SocrataAdapter resilient to network issues and rate limiting by implementing a robust I/O policy.",
+        "details": "Configure network requests with appropriate timeouts. Implement a retry mechanism with exponential backoff specifically for transient errors like `429 Too Many Requests` and 5xx server errors.",
+        "testStrategy": "Integration tests using a mock server (e.g., `msw`) that can be configured to return 429 or 5xx status codes. Verify that the adapter retries the request according to the backoff strategy.",
+        "priority": "high",
+        "dependencies": [
+          11
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Seed registry DB (registry.sources, registry.assets)",
+        "description": "Create a script to populate the main database with data from the generated Socrata index file.",
+        "details": "The script will read the `registry:socrata:sf` index file and insert records into the `registry.sources` and `registry.assets` tables in the database.",
+        "testStrategy": "Run the seed script and query the database to verify that the tables are populated correctly and the record counts match the source index file.",
+        "priority": "high",
+        "dependencies": [
+          7
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Fill normalization-map.md",
+        "description": "Document the strategy for normalizing disparate data fields from various sources into a unified schema.",
+        "details": "Edit the `__docs__/catalogs/normalization-map.md` file to define canonical field names (e.g., `address`, `permit_type`) and map source-specific field names to them.",
+        "testStrategy": "Peer review of the markdown document for clarity, completeness, and logical consistency of the normalization strategy.",
+        "priority": "high",
+        "dependencies": [
+          8
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Design sf.housing.permits branch",
+        "description": "Create a detailed design document for the `sf.housing.permits` data branch.",
+        "details": "Edit `__docs__/catalogs/branch-sf-housing-permits.md` to specify the source datasets, the fusion logic (how records are merged and deduplicated), and the final schema for the unified housing permits data.",
+        "testStrategy": "Peer review of the design document to ensure it is feasible, well-defined, and aligns with the normalization map.",
+        "priority": "high",
+        "dependencies": [
+          8,
+          15
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "Implement plan/fetch/fuse for sf.housing.permits",
+        "description": "Implement the core logic for the `sf.housing.permits` branch engine.",
+        "details": "Based on the design doc, implement the three stages: `plan` (determine which data to fetch), `fetch` (retrieve data from sources using the SocrataAdapter), and `fuse` (normalize, deduplicate, and merge the data into a single collection).",
+        "testStrategy": "Unit tests for each stage. The `fuse` stage in particular should be tested for its deduplication and normalization logic against mock datasets.",
+        "priority": "high",
+        "dependencies": [
+          11,
+          16
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Golden tests for fuse() (dedupe/scoring)",
+        "description": "Create golden file tests to lock in the behavior of the data fusion and scoring logic.",
+        "details": "Create a set of input data files and a corresponding 'golden' output file that represents the correct result of the `fuse()` function. The test will run `fuse()` on the input and fail if the output differs from the golden file.",
+        "testStrategy": "The golden test itself is the strategy. It will run in CI to prevent unintended regressions in the complex fusion logic.",
+        "priority": "high",
+        "dependencies": [
+          17
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 19,
+        "title": "Generator script: pnpm gen:branch",
+        "description": "Create a command-line script to scaffold a new data branch.",
+        "details": "Develop a script, accessible via `pnpm gen:branch`, that generates the boilerplate files (design doc, implementation file, test file) for a new branch, following a standard template.",
+        "testStrategy": "Run the script and verify that it creates the expected file structure and content. The generated code should be lint-free.",
+        "priority": "medium",
+        "dependencies": [
+          15
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Branch engine observability hooks",
+        "description": "Add observability hooks into the branch engine to emit key operational metrics.",
+        "details": "Instrument the `plan/fetch/fuse` process to track and log metrics such as `rows_fetched`, `dedupe_rate`, `freshness_lag` (time since source data was updated), and `source_errors`.",
+        "testStrategy": "Unit tests should verify that the metric-emitting functions are called with the correct values during a simulated branch run.",
+        "priority": "high",
+        "dependencies": [
+          17
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Rate-limit smoke tests (Socrata)",
+        "description": "Create a smoke test to verify the Socrata adapter's rate-limiting and backoff behavior.",
+        "details": "Write a test that intentionally makes a burst of requests to a mock Socrata endpoint. The mock will respond with 429 errors. The test should verify that the adapter retries requests and successfully completes after the mock stops returning errors.",
+        "testStrategy": "Automated test run in CI. The test asserts that the retry and backoff logic functions as designed under simulated rate-limiting conditions.",
+        "priority": "medium",
+        "dependencies": [
+          13
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "Implement /v1/health route",
+        "description": "Create a public health check endpoint for the API.",
+        "details": "Implement a GET `/v1/health` endpoint that returns a 200 OK status and a simple JSON body (e.g., `{\"status\": \"ok\"}`) to indicate that the service is running.",
+        "testStrategy": "Unit test for the route handler. An API contract test will also validate its conformance to the OpenAPI spec.",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 23,
+        "title": "Implement /v1/search/hybrid",
+        "description": "Implement the hybrid search endpoint and connect it to the Branch Engine.",
+        "details": "Create the `/v1/search/hybrid` endpoint. This endpoint will take a search query, pass it to the appropriate branch engine (e.g., `sf.housing.permits`), and return the fused, deduplicated results.",
+        "testStrategy": "Integration test that calls the endpoint and verifies that it correctly invokes the branch engine and returns structured data. A contract test will validate the API schema.",
+        "priority": "high",
+        "dependencies": [
+          4,
+          17
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 24,
+        "title": "Implement /v1/reports/permits",
+        "description": "Implement a reporting endpoint for aggregated permit data.",
+        "details": "Create the `/v1/reports/permits` endpoint that provides rolled-up data from the `sf.housing.permits` branch. The implementation must enforce a maximum page size on the server side to prevent abuse.",
+        "testStrategy": "Integration test to verify the aggregation logic. Unit test to confirm that requests exceeding the max page size are rejected with a 400-level error. A contract test will validate the API schema.",
+        "priority": "high",
+        "dependencies": [
+          4,
+          17
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 25,
+        "title": "Contract tests vs openapi.yaml",
+        "description": "Create contract tests to validate that the API implementation conforms to the `openapi.yaml` specification.",
+        "details": "Use a contract testing library (e.g., `jest-openapi`) to automatically test the `/v1/health`, `/v1/search/hybrid`, and `/v1/reports/permits` endpoints. Tests should cover request and response validation against the OpenAPI definition.",
+        "testStrategy": "Automated contract tests run as part of the CI pipeline. The tests will fail if the API implementation deviates from the `openapi.yaml` contract.",
+        "priority": "high",
+        "dependencies": [
+          22,
+          23,
+          24
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 26,
+        "title": "Vector strategy decision document",
+        "description": "Decide and document the strategy for creating and storing vector embeddings.",
+        "details": "Analyze whether to use a single global vector space or a separate one for each city. Document the decision, rationale, and chosen embedding model in `__docs__/architecture/vector-strategy.md`.",
+        "testStrategy": "Peer review of the architecture document for soundness and clarity.",
+        "priority": "high",
+        "dependencies": [
+          8,
+          16
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "Create core.items and core.item_embeddings DB schema",
+        "description": "Define and create the database tables for storing unified items and their vector embeddings.",
+        "details": "Write a database migration to create the `core.items` table (for fused data from branches) and the `core.item_embeddings` table. The embeddings table should use a vector-supporting data type from a DB extension like `pgvector`.",
+        "testStrategy": "The migration script should be testable. After running the migration, verify the schema of the created tables using a database inspection tool or query.",
+        "priority": "high",
+        "dependencies": [
+          26
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 28,
+        "title": "Implement ingest job (jobs/ingest-branch.ts)",
+        "description": "Create a job to ingest data from a branch into the core items tables.",
+        "details": "Create the `jobs/ingest-branch.ts` script. It should read activated data from a branch, `upsert` records into the `core.items` table, and trigger a subsequent job or function to generate embeddings for new/updated items.",
+        "testStrategy": "Integration test that runs the job against a small, known dataset from a branch. Verify that the `core.items` table is correctly populated and that the embedding generation process is triggered.",
+        "priority": "high",
+        "dependencies": [
+          17,
+          27
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 29,
+        "title": "Implement embedding computation and upsert",
+        "description": "Create the logic to compute and store vector embeddings for items.",
+        "details": "Implement the service that takes items, calls an embedding model API (e.g., OpenAI), and upserts the resulting vectors into the `core.item_embeddings` table. Use batching to process items efficiently.",
+        "testStrategy": "Unit test with a mock embedding API. Verify that the service correctly batches items, calls the API, and constructs the correct upsert queries for the database.",
+        "priority": "high",
+        "dependencies": [
+          28
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 30,
+        "title": "Enforce embedding model and dimension guard",
+        "description": "Add database and runtime checks to ensure embedding consistency.",
+        "details": "Add a `CHECK` constraint to the `core.item_embeddings` table to enforce a specific vector dimension. Also add a runtime `assert` in the embedding computation code to ensure the model being used matches the one specified in the vector strategy.",
+        "testStrategy": "Database: Test the migration by trying to insert a vector with the wrong dimension and confirming it fails. Runtime: Unit test the assertion logic to ensure it throws an error if the model identifier is incorrect.",
+        "priority": "high",
+        "dependencies": [
+          27
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 31,
+        "title": "Nightly registry rebuild job",
+        "description": "Set up a CI job to rebuild the Socrata registry nightly and report changes.",
+        "details": "Create a scheduled CI job (e.g., GitHub Actions cron) that runs the registry build script every night. If the index has changed, the job should automatically create a Pull Request with the changes and attach the profile diff as a comment.",
+        "testStrategy": "Manually trigger the job and verify that it runs successfully. If changes are introduced to a mock registry, confirm that a PR is created.",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 32,
+        "title": "Hourly branch ingest schedule",
+        "description": "Schedule the branch ingest job to run hourly.",
+        "details": "Configure a scheduler (e.g., Heroku Scheduler, cron) to execute the `jobs/ingest-branch.ts` job every hour on a worker dyno or equivalent compute instance.",
+        "testStrategy": "Manual verification by checking the scheduler's dashboard and application logs to confirm the job is triggered hourly and completes successfully.",
+        "priority": "medium",
+        "dependencies": [
+          28
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 33,
+        "title": "CI tests: typecheck, lint, unit, golden, contract",
+        "description": "Configure the main CI pipeline to run a comprehensive suite of tests on every commit and pull request.",
+        "details": "The CI workflow (e.g., GitHub Actions) should include sequential steps for: 1. TypeScript type checking (`tsc --noEmit`), 2. Linting (`eslint`), 3. Unit tests, 4. Golden file tests, 5. API contract tests. The build must fail if any step fails.",
+        "testStrategy": "CI pipeline validation. Trigger the pipeline with a PR that intentionally fails one of the test steps (e.g., a linting error) to ensure it correctly blocks the merge.",
+        "priority": "high",
+        "dependencies": [
+          12,
+          13,
+          18,
+          25,
+          27
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 34,
+        "title": "Collect and expose key metrics",
+        "description": "Expose key operational metrics from the ingest process and API for monitoring.",
+        "details": "Ensure that metrics collected from the branch engine (`rows_fetched`, `dedupe_rate`) and API (error rates, latency) are exposed in a format consumable by a monitoring system (e.g., Prometheus, Datadog).",
+        "testStrategy": "After running the ingest job or making API calls, query the monitoring system to verify that the corresponding metrics have been received and are correct.",
+        "priority": "medium",
+        "dependencies": [
+          23,
+          28
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 35,
+        "title": "Implement CorrelationId in logs",
+        "description": "Add a unique correlation ID to trace a single request across different services (API and adapters).",
+        "details": "Generate a unique ID at the API entry point for each request. Pass this ID through to the SocrataAdapter and any other services. Include the correlation ID in all log messages related to that request.",
+        "testStrategy": "Make an API call that triggers the adapter, then inspect the logs. Verify that all log lines for that request, from both the API and adapter layers, share the same correlation ID.",
+        "priority": "medium",
+        "dependencies": [
+          11,
+          23
+        ],
+        "status": "todo",
+        "subtasks": []
+      },
+      {
+        "id": 36,
+        "title": "Create monitoring dashboards",
+        "description": "Build dashboards to visualize key service health and performance metrics.",
+        "details": "In your monitoring tool (e.g., Grafana, Datadog), create dashboards with widgets for: API latency (p95, p99), ingest job freshness, data deduplication rates, and error budgets.",
+        "testStrategy": "Manual review of the dashboards to ensure they are correctly configured, easy to read, and accurately reflect the state of the system under load.",
+        "priority": "medium",
+        "dependencies": [
+          34
+        ],
+        "status": "todo",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-09-07T01:06:26.219Z",
+      "updated": "2025-09-07T01:06:26.219Z",
+      "description": "Tasks for master context"
+    }
+  },
+  "api-branch-pgvector": {
+    "tasks": [],
+    "metadata": {
+      "created": "2025-09-07T01:06:37.299Z",
+      "updated": "2025-09-07T01:06:37.299Z",
+      "description": "API and branched client setup with pgvector design and ingest"
+    }
+  }
+}

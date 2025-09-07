@@ -1,0 +1,9 @@
+{
+  "$schema": "https://example.com/civicue/activation.schema.json",
+  "notes": "Toggle datasets for downstream vectorization. cadence cron-style or words.",
+  "defaults": { "enabled": false, "cadence": "weekly" },
+  "datasets": {
+    "vw6y-z8j6": { "enabled": true, "cadence": "daily", "vector": { "chunk": 2000 } },
+    "rqzj-sfat": { "enabled": false, "cadence": "weekly" }
+  }
+}

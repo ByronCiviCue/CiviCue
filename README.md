@@ -40,6 +40,19 @@ Upsert typed staging rows into core fact table using case_number as the business
 
 ### Planning
 See the project planning canvas at [docs/PLANNING.md](docs/PLANNING.md).
+
+### Dataset registries (Socrata catalogs)
+- Refresh SF catalog: `SOCRATA_APP_ID=... npm run registry:socrata:sf`
+- Refresh Detroit catalog: `SOCRATA_APP_ID=... npm run registry:socrata:detroit`
+- Refresh all: `npm run registry:refresh`
+- Merge to global: `npm run registry:merge` → `registries/socrata.json`
+- Load into Postgres: `npm run registry:load:pg` → `registry.socrata_assets`
+Outputs write to `municipalities/<STATE>/<CITY>/directory.json`. Not all cities use Socrata; non-Socrata sources will get their own builders with the same output shape.
+
+### Non‑Socrata registries
+- CKAN (example: San Diego): `SAN_DIEGO_CKAN_TOKEN=... npm run registry:ckan:sandiego`
+- ArcGIS (example query): `ARCGIS_TOKEN=... npm run registry:arcgis:example`
+These write `directory.ckan.json` / `directory.arcgis.json` alongside Socrata directories. The merge step includes all `directory*.json` files automatically.
 =======
 # CiviCue
 
@@ -174,3 +187,8 @@ civicue/
 **Project lead**: Byron Eppler  
 **Slack**: Beppler on SF CivicTech 
 **Email**: byron@civicue.io
+
+## Docs
+- Docs index: `__docs__/README.md`
+- Platform Keys: `__docs__/platform-keys.md`
+- Architecture: `__docs__/architecture/README.md`
