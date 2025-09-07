@@ -1,0 +1,23 @@
+[
+ {
+  "RuleID": "github-pat",
+  "Description": "Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.",
+  "StartLine": 2991,
+  "EndLine": 2991,
+  "StartColumn": 197,
+  "EndColumn": 236,
+  "Match": "REDACTED",
+  "Secret": "REDACTED",
+  "File": ".taskmaster/tasks/tasks.json",
+  "SymlinkFile": "",
+  "Commit": "557b14dad9f104de7ae1093cff05c21d1b6a6e03",
+  "Link": "https://github.com/ByronCiviCue/CiviCue/blob/557b14dad9f104de7ae1093cff05c21d1b6a6e03/.taskmaster/tasks/tasks.json#L2991",
+  "Entropy": 4.621928,
+  "Author": "Ian Armstrong",
+  "Email": "ian@armstrongs.org",
+  "Date": "2025-09-07T06:45:26Z",
+  "Message": "chore(env): tighten ESLint scope; add NodeNext env import smoke; minimal object-injection suppressions",
+  "Tags": [],
+  "Fingerprint": "557b14dad9f104de7ae1093cff05c21d1b6a6e03:.taskmaster/tasks/tasks.json:github-pat:2991"
+ }
+]

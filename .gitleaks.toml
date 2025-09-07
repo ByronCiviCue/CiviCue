@@ -1,33 +1,18 @@
 # Gitleaks configuration for CiviCue
-# This configuration enables secret scanning with redaction and path exclusions
+# https://github.com/gitleaks/gitleaks
 
-# Redact secrets in logs for security
-redact = true
+[extend]
+useDefault = true
 
-# Allowlist paths to exclude from scanning
 [allowlist]
-paths = [
-    # Generated files
-    "src/generated/",
-    
-    # Fingerprints directory
-    "fingerprints/",
-    
-    # Test fixtures
-    "test/fixtures/",
-    ".*/fixtures/",
-    
-    # Build/dist directories
-    "dist/",
-    "build/",
-    
-    # Node modules
-    "node_modules/",
-    
-    # Logs
-    "logs/",
-    ".*\\.log$"
+description = "generated artifacts & test fixtures"
+regexes = [
+    '''src/generated/.*''',
+    '''fingerprints/.*''',
+    '''tests/fixtures/.*''',
+    '''(.*/)?__fixtures__/.*''',
+    '''.*\.snap$'''
 ]
 
-# Use default gitleaks rules
-# Rules can be customized here if false positives occur
+# Redact secrets in output logs
+redact = true

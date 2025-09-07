@@ -2981,20 +2981,20 @@
         "id": 60,
         "title": "Env: add CI secret scan (gitleaks or similar)",
         "description": "Integrate secret scanning tool in CI pipeline to detect leaked credentials and define clear exit criteria for verification.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           58,
           "3.1"
         ],
         "priority": "high",
         "details": "Adopt gitleaks for CI secret scanning and enforce failures on findings.\n\nConfiguration\n- Add a repository-root .gitleaks.toml with:\n  - redact = true (ensure leaked values are redacted in logs)\n  - allowlist.paths to exclude generated and non-source content:\n    - src/generated/**\n    - fingerprints/**\n    - test fixtures (e.g., test/fixtures/** and **/__fixtures__/**)\n- Keep default rules plus any necessary project-specific tweaks only if false positives appear.\n\nCI Integration (GitHub Actions)\n- Add a workflow that runs on pull_request and fails the check if any leaks are detected.\n- Use the action gitleaks/gitleaks@v2.\n- Steps outline:\n  - actions/checkout@v4 with fetch-depth: 0 (ensures proper diff context)\n  - gitleaks/gitleaks@v2 with args: detect --redact --exit-code 1 --source . --config .gitleaks.toml\n- Name the workflow job \"gitleaks\" so it is clearly visible in the PR checks.\n- Surface findings as a failed PR check; the redaction setting prevents secrets from appearing in logs.\n\nScope and Behavior\n- Primary execution on PRs (incoming changes). The job must fail on any finding.\n- Exclusions ensure typegen artifacts and known fixture content are ignored to reduce noise.\n- Optional: provide a manual workflow_dispatch job for on-demand scans if needed later.\n\nNotifications\n- Rely on the failed GitHub check/PR status for notification. Consider adding CODEOWNERS to route reviews if desired.\n\nExit Criteria\n- The GitHub Actions UI shows a job named \"gitleaks\" on PRs.\n- Seeding a clearly marked fake secret in a non-excluded path causes the gitleaks job to fail with redacted output.\n- Removing the fake secret (or pushing a follow-up commit that removes it) results in the job passing.",
-        "testStrategy": "Automated CI validation and local spot checks\n1) PR failure on seeded test secret\n- Open a temporary test PR that adds a clearly marked dummy secret (e.g., TEST_SECRET=ghp_1234567890abcdefABCDEF1234567890abcdef) in a non-excluded path (e.g., src/app.ts comment). Expect the gitleaks job to fail, and the secret value to be redacted in logs. Remove the dummy secret before merging.\n2) Exclusion verification\n- Add the same dummy secret string inside src/generated/foo.txt (or a test fixture file). Expect the CI job to pass due to exclusions.\n3) Local run parity\n- Run locally: gitleaks detect --redact --exit-code 1 --source . --config .gitleaks.toml. Confirm it exits 1 with the dummy secret present in non-excluded paths and exits 0 once removed.\n4) Negative test\n- Open a PR with no secrets. Expect the job to pass cleanly.\n5) Exit criteria verification\n- On the temporary PR, confirm the GitHub Actions UI displays a job named \"gitleaks\". Verify fail→pass behavior by first observing the failure with the seeded secret and then the pass after removing it (new commit or amended PR).",
+        "testStrategy": "Automated CI validation and local spot checks\n1) PR failure on seeded test secret\n- Open a temporary test PR that adds a clearly marked dummy secret (e.g., TEST_SECRET=EXAMPLE_GITHUB_PAT_xxxxxxxxxxxxxxxxxxxxxxx) in a non-excluded path (e.g., src/app.ts comment). Expect the gitleaks job to fail, and the secret value to be redacted in logs. Remove the dummy secret before merging.\n2) Exclusion verification\n- Add the same dummy secret string inside src/generated/foo.txt (or a test fixture file). Expect the CI job to pass due to exclusions.\n3) Local run parity\n- Run locally: gitleaks detect --redact --exit-code 1 --source . --config .gitleaks.toml. Confirm it exits 1 with the dummy secret present in non-excluded paths and exits 0 once removed.\n4) Negative test\n- Open a PR with no secrets. Expect the job to pass cleanly.\n5) Exit criteria verification\n- On the temporary PR, confirm the GitHub Actions UI displays a job named \"gitleaks\". Verify fail→pass behavior by first observing the failure with the seeded secret and then the pass after removing it (new commit or amended PR).",
         "subtasks": [
           {
             "id": 1,
             "title": "Create .gitleaks.toml with redaction and exclusions",
             "description": "Add .gitleaks.toml at repo root with redact=true and allowlist for src/generated/**, fingerprints/**, and test fixtures (e.g., test/fixtures/**, **/__fixtures__/**). Keep default rules; only tune if false positives appear.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3003,7 +3003,7 @@
             "id": 2,
             "title": "Add GitHub Action to run gitleaks on PRs",
             "description": "Create .github/workflows/gitleaks.yml that runs on pull_request using gitleaks/gitleaks@v2. Checkout with fetch-depth: 0 and run detect with: --redact --exit-code 1 --source . --config .gitleaks.toml. Name the job \"gitleaks\" so it is clearly visible in PR checks and fails on any findings.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3012,7 +3012,7 @@
             "id": 3,
             "title": "Document usage and local reproduction",
             "description": "Add a CONTRIBUTING entry describing how to run gitleaks locally with the repo config and how exclusions/redaction work.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3021,7 +3021,7 @@
             "id": 4,
             "title": "Validate CI behavior with a temporary dummy secret",
             "description": "Open a short-lived test PR that introduces a dummy secret in a non-excluded path to confirm CI fails with redacted output; then remove it and confirm the job passes before merge (demonstrating fail→pass).",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3032,7 +3032,7 @@
         "id": 61,
         "title": "Docs: __docs__/setup/env.md (multi-dev, Doppler/1P/Railway)",
         "description": "Document environment variable management strategies for multi-developer workflows using secret management tools (Doppler, 1Password, Railway). Exit: __docs__/setup/env.md aligned with guard/CI behavior; references Doppler/1P/Railway.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           58,
           "3.1",
@@ -3047,16 +3047,16 @@
             "id": 1,
             "title": "Add Overview/Principles and recommended default workflow to env.md",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
-            "details": "",
+            "details": "<info added on 2025-09-07T06:54:39.852Z>\nStarting implementation by creating comprehensive environment variable documentation. Replacing existing basic env.md with full multi-developer workflow guide covering Doppler, 1Password, Railway, security practices, and CI integration.\n</info added on 2025-09-07T06:54:39.852Z>",
             "testStrategy": ""
           },
           {
             "id": 2,
             "title": "Document Doppler setup: project/configs, CLI usage, injection vs download, service tokens, rotation",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3065,7 +3065,7 @@
             "id": 3,
             "title": "Document 1Password setup: op CLI/shell plugin, vault structure, env injection/.env generation, rotation",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3074,7 +3074,7 @@
             "id": 4,
             "title": "Document Railway variables: environments, CLI linking, pulling vars for local dev, preview env strategy",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3083,7 +3083,7 @@
             "id": 5,
             "title": "Write Sync Strategies section: single source of truth, naming conventions, .env.local generation pattern",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3092,7 +3092,7 @@
             "id": 6,
             "title": "Add Team Onboarding section with step-by-step per tool",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3101,7 +3101,7 @@
             "id": 7,
             "title": "Add Rotation & Incident Response procedures covering all tools",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3110,7 +3110,7 @@
             "id": 8,
             "title": "Add CI/Security alignment: reference Task 60 secret scanning, .gitignore for .env*, do-not-commit guidance",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3119,7 +3119,7 @@
             "id": 9,
             "title": "Add Troubleshooting section with common errors and fixes",
             "description": "",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "details": "",
             "testStrategy": ""
@@ -3129,7 +3129,7 @@
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-07T06:13:17.412Z",
+      "updated": "2025-09-07T06:58:30.512Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",

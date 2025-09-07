@@ -29,7 +29,8 @@
       "Bash(gitleaks detect:*)",
       "Bash(pnpm -s typecheck)",
       "Bash(pnpm build:*)",
-      "Bash(pnpm check:env-import:*)"
+      "Bash(pnpm check:env-import:*)",
+      "Bash(sed:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

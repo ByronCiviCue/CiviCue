@@ -32,7 +32,8 @@
     "registry:all": "npm run registry:refresh && npm run registry:merge && npm run registry:load:pg",
     "env:local:init": "node scripts/env-local-init.mjs",
     "env:validate": "node scripts/env-validate.mjs",
-    "check:env-import": "node scripts/check-env-import.mjs"
+    "check:env-import": "node scripts/check-env-import.mjs",
+    "secret-scan": "sh -c 'command -v gitleaks >/dev/null 2>&1 && gitleaks detect --no-git --redact -c .gitleaks.toml || (echo \"gitleaks not found. Install: brew install gitleaks\" >&2; exit 1)'"
   },
   "keywords": [],
   "author": "",
