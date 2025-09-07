@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "rootDir": ".",
     "strict": true,
     "noEmit": true,
@@ -13,6 +15,17 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["services/**/*.ts", "scripts/**/*.ts", "config/**/*.ts", "src/**/*.ts", "tests/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "services/**/*.ts",
+    "scripts/**/*.ts",
+    "config/**/*.ts",
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "src/generated/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests/types/**/*.test-d.ts"
+  ]
 }

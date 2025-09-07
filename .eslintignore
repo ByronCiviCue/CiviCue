@@ -1,0 +1,3 @@
+
+# tsd compile-time tests (checked by pnpm spec:tsd, not ESLint)
+tests/types/**/*.test-d.ts

@@ -28,7 +28,8 @@ export default [
       '.turbo/**',
       '.next/**',
       'src/generated/**',
-      '**/*.d.ts'
+      '**/*.d.ts',
+      'tests/types/**/*.test-d.ts'  // tsd compile-time tests
     ]
   },
   
