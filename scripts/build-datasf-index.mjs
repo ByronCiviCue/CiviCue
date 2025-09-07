@@ -2,126 +2,122 @@
 // Defaults to DataSF but accepts flags:
 //   --domain=<socrata_domain>
 //   --out=<output_path>
-//   --tokenEnv=<ENV_VAR_NAME_WITH_APP_ID>
+//   --pageSize=<page_size>
+//   --dryRun
+//   --verbose
 // Usage examples:
-//   SOCRATA_APP_ID=... node scripts/build-datasf-index.mjs
-//   SOCRATA_APP_ID=... node scripts/build-datasf-index.mjs --domain=data.detroitmi.gov --out=municipalities/MI/Detroit/directory.json --tokenEnv=SOCRATA_APP_ID
+//   node scripts/build-datasf-index.mjs --help
+//   node scripts/build-datasf-index.mjs --dryRun
+//   SOCRATA_APP_TOKEN=... node scripts/build-datasf-index.mjs --domain=data.sfgov.org
+
+// Wired for Task 7.2 (not used in scaffold)
+// Note: .mjs requires compiled JS from dist/ (NodeNext .js suffix maps to .ts source)
+// eslint-disable-next-line no-unused-vars
+import { socrataFetch } from '../dist/src/lib/http/socrata.js';
+import { resolveSocrataAppToken } from '../dist/src/lib/env-providers/socrata.js';
+
 /**
- * Build a registry of Socrata datasets for a given domain.
- * Flags:
- *   --domain=<socrata_domain> (default: data.sfgov.org)
- *   --out=<output_path> (default: municipalities/CA/SF/directory.json)
- *   --tokenEnv=<ENV_VAR_WITH_APP_ID> (default: SOCRATA_APP_ID)
+ * Frozen schema for Socrata dataset registry objects.
+ * @typedef {Object} SocrataDatasetRecord
+ * @property {string} id - Dataset unique identifier
+ * @property {string} name - Human readable dataset name
+ * @property {string} type - Dataset type (e.g., "dataset", "chart")
+ * @property {string} domain - Socrata domain hosting this dataset
+ * @property {string} permalink - Direct link to dataset on Socrata portal
+ * @property {string} createdAt - ISO timestamp when dataset was created
+ * @property {string} updatedAt - ISO timestamp of last dataset modification
+ * @property {string[]} tags - Array of dataset tags
+ * @property {string[]} categories - Array of domain categories
+ * @property {string} owner - Dataset owner/author
+ * @property {string|null} license - Dataset license information
  */
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import crypto from 'node:crypto';
 
 const args = Object.fromEntries(
   process.argv.slice(2)
     .filter((a) => a.startsWith('--'))
     .map((a) => {
-      const [k, v = ''] = a.replace(/^--/, '').split('=');
+      const [k, v = true] = a.replace(/^--/, '').split('=');
       return [k, v];
     }),
 );
 
+// CLI argument defaults and validation
 const DOMAIN = args.domain || 'data.sfgov.org';
 const OUT_PATH = args.out || 'municipalities/CA/SF/directory.json';
-const TOKEN_ENV = args.tokenEnv || 'SOCRATA_APP_ID';
-const PAGE = 100; // Socrata Discovery API page size
+const PAGE_SIZE = Math.max(1, Math.min(1000, parseInt(args.pageSize || '1000', 10)));
+const DRY_RUN = args.dryRun === true || args.dryRun === 'true';
+const VERBOSE = args.verbose === true || args.verbose === 'true';
 
-/**
- * @param {number} [offset]
- * @returns {Promise<any>}
- */
-const TIMEOUT_MS = parseInt(process.env.HTTP_FETCH_TIMEOUT_MS || '20000', 10);
+function printHelp() {
+  console.log(`
+Usage: node scripts/build-datasf-index.mjs [options]
 
-async function fetchJson(url, options = {}) {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-    return res.json();
-  } finally {
-    clearTimeout(t);
-  }
-}
+Options:
+  --domain=<host>        Socrata domain (default: data.sfgov.org)
+  --out=<path>          Output file path (default: municipalities/CA/SF/directory.json)
+  --pageSize=<num>      Page size 1-1000 (default: 1000)
+  --dryRun              Parse args and show plan only, no network/disk I/O
+  --verbose             Enable verbose logging
+  --help                Show this help
 
-async function fetchPage(offset = 0) {
-  const url = new URL('https://api.us.socrata.com/api/catalog/v1');
-  url.searchParams.set('domains', DOMAIN);
-  url.searchParams.set('limit', String(PAGE));
-  url.searchParams.set('offset', String(offset));
+Examples:
+  node scripts/build-datasf-index.mjs --help
+  node scripts/build-datasf-index.mjs --dryRun
+  SOCRATA_APP_TOKEN=xyz node scripts/build-datasf-index.mjs
+  SOCRATA__data.sfgov.org__APP_TOKEN=xyz node scripts/build-datasf-index.mjs
+  node scripts/build-datasf-index.mjs --domain=data.detroitmi.gov --out=municipalities/MI/Detroit/directory.json
 
-  const headers = {};
-  const token = process.env[TOKEN_ENV] || process.env.SOCRATA_APP_ID || process.env.SFDATA_APP_ID;
-  if (token) headers['X-App-Token'] = token;
-
-  return fetchJson(url, { headers, cache: 'no-store' });
-}
-
-/** @returns {Promise<any[]>} */
-async function buildRegistry() {
-  const out = [];
-  for (let offset = 0; ; offset += PAGE) {
-    const data = await fetchPage(offset);
-    const results = data?.results ?? [];
-    if (!results.length) break;
-
-    for (const r of results) {
-      const id = r?.resource?.id;
-      const name = r?.resource?.name ?? '';
-      const description = r?.resource?.description ?? '';
-      const permalink = r?.permalink ?? `https://${DOMAIN}/d/${id}`;
-      const category = r?.classification?.domain_category ?? null;
-      const tags = r?.classification?.domain_tags ?? [];
-      if (!id) continue;
-      out.push({
-        id,
-        name,
-        description,
-        resource_url: `https://${DOMAIN}/resource/${id}.json`,
-        permalink,
-        category,
-        tags,
-      });
-    }
-  }
-  // Sort for stable diffs
-  out.sort((a, b) => a.name.localeCompare(b.name));
-  return out;
+Environment:
+  SOCRATA_APP_TOKEN     Global app token for Socrata API rate limit increases
+  SOCRATA__<HOST>__APP_TOKEN  Host-specific token override (e.g., SOCRATA__data.sfgov.org__APP_TOKEN)
+  SOCRATA_APP_ID        Legacy token name (still supported by resolver)
+`);
 }
 
 async function main() {
-  const assets = await buildRegistry();
-  const json = JSON.stringify(assets, null, 2);
-
-  // Ensure destination folder exists
-  const outDir = OUT_PATH.split('/').slice(0, -1).join('/');
-  if (outDir) await mkdir(outDir, { recursive: true });
-
-  // Avoid rewriting unchanged files; print hashes for quick checks
-  let prev = '';
-  try {
-    prev = await readFile(OUT_PATH, 'utf8');
-  } catch {}
-
-  const newHash = crypto.createHash('sha256').update(json).digest('hex').slice(0, 12);
-  const oldHash = prev ? crypto.createHash('sha256').update(prev).digest('hex').slice(0, 12) : null;
-
-  if (prev && prev === json) {
-    console.log(`No changes (${assets.length} assets, hash ${newHash}) at ${OUT_PATH}`);
+  if (args.help) {
+    printHelp();
     return;
   }
 
-  await writeFile(OUT_PATH, json);
-  console.log(
-    `Wrote ${assets.length} assets to ${OUT_PATH} (hash ${newHash}${oldHash ? `, was ${oldHash}` : ''})`,
-  );
+  console.log(`SF Socrata Registry Builder (Task 7.1 Scaffold)`);
+  console.log(`Domain: ${DOMAIN}`);
+  console.log(`Output: ${OUT_PATH}`);
+  console.log(`Page Size: ${PAGE_SIZE}`);
+  console.log(`Mode: ${DRY_RUN ? 'DRY RUN' : 'LIVE'}`);
+  
+  if (VERBOSE) {
+    const token = resolveSocrataAppToken(DOMAIN);
+    const tokenStatus = token ? 'configured' : 'not configured';
+    console.log(`Verbose mode enabled`);
+    console.log(`App Token: ${tokenStatus}`);
+  }
+
+  if (DRY_RUN) {
+    console.log(`
+DRY RUN PLAN:
+1. Connect to Socrata Discovery API: https://api.us.socrata.com/api/catalog/v1
+2. Filter by domain: ${DOMAIN}
+3. Paginate with limit=${PAGE_SIZE}
+4. Transform results to frozen schema: id,name,type,domain,permalink,createdAt,updatedAt,tags[],categories[],owner,license
+5. Sort by name for stable diffs
+6. Write to: ${OUT_PATH}
+
+No network calls or file writes performed in this scaffold version.
+Next: Implement actual fetching in Task 7.2
+`);
+    return;
+  }
+
+  // TODO: Task 7.2 will implement actual fetching with socrataFetch()
+  // const results = await fetchAllPages();
+  // await writeRegistry(results);
+  
+  console.log('Live mode not implemented yet. Use --dryRun for now.');
+  process.exit(1);
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('Error:', err);
   process.exit(1);
 });

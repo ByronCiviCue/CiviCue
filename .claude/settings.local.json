@@ -33,7 +33,12 @@
       "Bash(sed:*)",
       "Bash(test:*)",
       "Bash(find:*)",
-      "Bash(pnpm -s build)"
+      "Bash(pnpm -s build)",
+      "Bash(pnpm openapi:lint:*)",
+      "Bash(pnpm spectral lint:*)",
+      "Bash(pnpm tsd:*)",
+      "Bash(pnpm -s lint)",
+      "Bash(cat:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

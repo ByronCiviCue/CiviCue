@@ -163,7 +163,7 @@
         "testStrategy": "CI job should fail on an invalid OpenAPI spec. Verify that generated types match the spec and cause compile errors when misused in the code.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -171,7 +171,7 @@
             "description": "Add required dev dependencies and baseline scripts to lint the OpenAPI spec and generate TypeScript types from openapi.yaml.",
             "dependencies": [],
             "details": "- Ensure the OpenAPI spec lives at the repo root as openapi.yaml (or adjust scripts accordingly).\n- Install dev dependencies:\n  - pnpm add -D @stoplight/spectral-cli openapi-typescript typescript\n- Create directory for generated types:\n  - mkdir -p src/generated && git add src/generated && (optional) add an empty .gitkeep\n- In package.json, add scripts:\n  - \"openapi:lint\": \"spectral lint openapi.yaml\"\n  - \"openapi:lint:ci\": \"spectral lint openapi.yaml --fail-severity=warn\"\n  - \"openapi:gen\": \"openapi-typescript openapi.yaml -o src/generated/openapi-types.d.ts --export-type\"\n  - \"openapi:check\": \"pnpm -s openapi:gen && git diff --exit-code -- src/generated/openapi-types.d.ts\"\n  - \"typecheck\": \"tsc --noEmit\"\n- Ensure tsconfig.json includes the generated folder (add to include if needed):\n  - { \"include\": [\"src\", \"src/generated\"] }\n- Decide commit policy for generated types:\n  - Recommended: commit src/generated/openapi-types.d.ts, and use openapi:check in CI to enforce up-to-date output.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Run pnpm openapi:lint to ensure the CLI is wired.\n- Run pnpm openapi:gen and confirm src/generated/openapi-types.d.ts is created.\n- Run pnpm typecheck to verify TypeScript compiles including generated types."
           },
           {
@@ -182,7 +182,7 @@
               "4.1"
             ],
             "details": "- Add a .spectral.yaml at the repo root:\n  ---\n  extends:\n    - spectral:oas\n  rules:\n    operation-operationId-unique: error\n    operation-tags: warn\n    operation-tag-defined: warn\n    tags-alphabetical: off\n    info-contact: warn\n    no-$ref-siblings: error\n    oas3-schema: error\n    oas3-valid-schema-example: error\n    operation-parameters: error\n    operation-default-response: warn\n  ---\n- Optional: Add a .spectral-ignore file to temporarily suppress known issues while refactoring:\n  # Example\n  # openapi.yaml:123: oas3-valid-schema-example\n- Run pnpm openapi:lint and iterate on openapi.yaml until no errors remain. Aim for zero warnings over time; CI will fail on warnings via openapi:lint:ci.\n- Document any temporary ignores with links to issues for cleanup.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Run pnpm openapi:lint locally and ensure it passes.\n- Introduce a deliberate spec error (e.g., duplicate operationId) to confirm Spectral reports it, then revert."
           },
           {
@@ -193,7 +193,7 @@
               "4.1"
             ],
             "details": "- Use the existing script: pnpm openapi:gen which generates src/generated/openapi-types.d.ts.\n- Ensure tsconfig.json includes the generated directory (already suggested in 4.1). If using path aliases, optionally add:\n  - compilerOptions.paths: { \"@generated/*\": [\"src/generated/*\"] }\n- Run pnpm openapi:gen and commit the generated file to stabilize downstream consumers.\n- Usage guidance for API code (example):\n  - import type { paths } from \"../generated/openapi-types\";\n  - type HealthOk = paths[\"/v1/health\"][\"get\"][\"responses\"][200][\"content\"][\"application/json\"];\n  - type SearchHybridParams = paths[\"/v1/search/hybrid\"][\"get\"][\"parameters\"][\"query\"];\n- If the spec path differs, update package.json scripts accordingly.\n- Optionally add a developer convenience command:\n  - \"openapi:regen\": \"pnpm openapi:gen && pnpm typecheck\"",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Run pnpm openapi:gen twice and confirm no diffs (deterministic output).\n- Import the generated types into one handler/client file and run pnpm typecheck to verify no TS errors."
           },
           {
@@ -205,7 +205,7 @@
               "4.3"
             ],
             "details": "- For GitHub Actions, create .github/workflows/openapi.yml:\n  name: openapi-lint-and-types\n  on:\n    pull_request:\n    push:\n      branches: [ main ]\n  jobs:\n    validate-openapi:\n      runs-on: ubuntu-latest\n      steps:\n        - uses: actions/checkout@v4\n        - uses: pnpm/action-setup@v3\n          with:\n            version: 9\n        - uses: actions/setup-node@v4\n          with:\n            node-version: 20\n            cache: 'pnpm'\n        - run: pnpm install --frozen-lockfile\n        - name: Lint OpenAPI (fail on warnings)\n          run: pnpm openapi:lint:ci\n        - name: Generate and verify types are up-to-date\n          run: pnpm openapi:check\n- For other CI providers, replicate the steps: install deps → run openapi:lint:ci → run openapi:check.\n- Ensure the workflow runs on PRs to block merges on spec/type issues.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Push a branch with a Spectral warning (e.g., missing operationId) to verify CI fails.\n- Modify openapi.yaml without committing regenerated types to verify openapi:check fails via git diff."
           },
           {
@@ -217,7 +217,7 @@
               "4.4"
             ],
             "details": "- Update API handlers/clients to import generated types:\n  - import type { paths } from \"../generated/openapi-types\";\n  - Example: type PermitsResp = paths[\"/v1/reports/permits\"][\"get\"][\"responses\"][200][\"content\"][\"application/json\"];\n- Add tsd for type-level tests:\n  - pnpm add -D tsd\n  - package.json scripts: \"tsd\": \"tsd\"\n  - Create test-d/api-types.test-d.ts with assertions that rely on the spec:\n    import { expectError } from 'tsd';\n    import type { paths } from '../src/generated/openapi-types';\n    type Health = paths['/v1/health']['get'];\n    declare const health: Health;\n    // Accessing an invalid property should be a type error\n    // eslint-disable-next-line @typescript-eslint/ban-ts-comment\n    // @ts-expect-error - property should not exist\n    // (tsd also supports expectError on expressions)\n    // @ts-ignore\n    // The following line should cause a type error picked up by tsd\n    // @ts-expect-error\n    // @ts-ignore\n    // @tsd: expect error when accessing non-existent property\n    expectError((health as any).nonExistentProp);\n    type Search = paths['/v1/search/hybrid']['get'];\n    // Ensure incorrect path key fails\n    // @ts-expect-error\n    type BadPath = paths['/not/exist'];\n- Update CI workflow (from 4.4) to run type checks after generation:\n  - Add a step after openapi:check: run: pnpm tsd && pnpm typecheck\n- Provide developer doc note: Run pnpm tsd locally to validate types after changing openapi.yaml.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Run pnpm tsd: tests should pass when spec keys exist and incorrect usages are flagged.\n- Break a type usage in code (e.g., mismatched field) and confirm pnpm typecheck fails, ensuring strong typing end-to-end."
           }
         ]
@@ -230,7 +230,7 @@
         "testStrategy": "Manual verification: Attempt to commit code with a 'TODO' comment and confirm the commit is blocked. Attempt to commit without the required review files and confirm it's blocked.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -238,7 +238,7 @@
             "description": "Set up Husky in the repository and ensure a consistent structure for hook scripts.",
             "dependencies": [],
             "details": "1) Install Husky and enable the prepare script:\n- npm: npm install -D husky && npm pkg set scripts.prepare=\"husky\" && npx husky init\n- yarn: yarn add -D husky && npm pkg set scripts.prepare=\"husky\" && npx husky init\n- pnpm: pnpm add -D husky && npm pkg set scripts.prepare=\"husky\" && pnpm dlx husky-init\nThis will create the .husky directory and a default .husky/pre-commit file.\n2) Clean up the default hook content if it runs \"npm test\"; we will replace it later.\n3) Create a scripts directory at the repo root for our Node-based checks: mkdir -p scripts\n4) Ensure the repository has a __review__ directory (if not, you can create it, but the hook will enforce the specific files exist).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify .husky/ folder exists, .husky/_/ files are present, and scripts/ exists. Run: git config core.hooksPath and confirm it points to .husky (Husky manages this internally)."
           },
           {
@@ -249,7 +249,7 @@
               "5.1"
             ],
             "details": "Create scripts/check-review-files.js:\n- Determine repo root robustly: run `git rev-parse --show-toplevel` via child_process to get the absolute path.\n- Construct absolute paths to repoRoot/__review__/CONFESSION.md and repoRoot/__review__/DEFENSE.md.\n- Use fs.existsSync for both files.\n- If either is missing, print a clear error to stderr, including which file(s) are missing and instructions to add them, then process.exit(1).\n- If both exist, process.exit(0).\nNotes:\n- Do not auto-create these files; the policy is to require their presence.\n- Keep the script fast and with zero external dependencies.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Temporarily remove or rename one of the required files, run: node scripts/check-review-files.js, expect non-zero exit and clear error message. With both files present, expect zero exit."
           },
           {
@@ -260,7 +260,7 @@
               "5.1"
             ],
             "details": "Create scripts/scan-staged-for-todos.js with the following behavior:\n- Use child_process.execFileSync to get the list of staged files: `git diff --cached --name-only --diff-filter=ACMR` (Add/Copy/Modify/Rename). If no files, exit(0).\n- For cross-platform reliability and to read staged contents, invoke git grep against the index: `git grep --cached -nI -E \"(TODO|FIXME)\" -- <file...>` where <file...> is the list from the previous step. Notes:\n  - `--cached` makes git grep read staged blobs from the index, not the working tree.\n  - `-I` ignores binary files; `-n` prints line numbers; `-E` enables extended regex.\n- Interpret exit codes from git grep:\n  - 0 => matches found: print a header explaining the policy, echo each offending line, then exit(1).\n  - 1 => no matches found: exit(0).\n  - >1 => git error: print stderr and exit(2).\n- If the staged file list is long, chunk arguments to avoid OS arg limits (optional; usually unnecessary).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Stage a file containing 'TODO' or 'FIXME' and run: node scripts/scan-staged-for-todos.js, expect non-zero exit and a list of offending lines. Remove the markers or unstage the file and re-run; expect zero exit."
           },
           {
@@ -272,7 +272,7 @@
               "5.3"
             ],
             "details": "Edit .husky/pre-commit to contain:\n#!/usr/bin/env sh\n. \"$(dirname \"$0\")/_/husky.sh\"\n\nnode scripts/check-review-files.js || exit 1\nnode scripts/scan-staged-for-todos.js || exit 1\nEnsure the hook file is executable: chmod +x .husky/pre-commit.\nOptional: add an npm script to run both checks without Husky (useful in CI or manual runs):\n- In package.json: \"scripts\": { \"verify:precommit\": \"node scripts/check-review-files.js && node scripts/scan-staged-for-todos.js\" }",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Manual: 1) Commit with no changes to confirm hook runs and passes. 2) Stage a file with 'TODO' and try to commit; expect commit to be blocked with informative output. 3) Temporarily remove __review__/CONFESSION.md or DEFENSE.md and try to commit; expect commit to be blocked. 4) Restore files and remove TODO; commit should succeed."
           },
           {
@@ -283,7 +283,7 @@
               "5.4"
             ],
             "details": "Update README.md (or CONTRIBUTING.md) with:\n- Policy summary: Commits are blocked if __review__/CONFESSION.md and __review__/DEFENSE.md are missing or if staged changes contain TODO/FIXME.\n- Setup: Requires Node and Git; Husky installs via the prepare script on npm/yarn/pnpm install.\n- Commands: How to run checks manually (npm run verify:precommit) and how to bypass in emergencies (git commit --no-verify), noting that bypass should be used sparingly and may be disallowed by CI/review.\n- Troubleshooting: Ensure hooks are installed (.husky present), verify executable bit, confirm git is available on PATH, Windows-specific note to run Git Bash or WSL.\n- Examples: Show failing and passing commit scenarios.\nOptionally add a PR checklist item reminding contributors that these checks must pass.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Have a teammate fresh-clone the repo, run install, and attempt the three manual verification scenarios: missing review files, TODO present, and a clean commit. Confirm documentation is sufficient for them to succeed."
           }
         ]
@@ -296,7 +296,7 @@
         "testStrategy": "Add a unit test for the logging utility to confirm it redacts known token patterns. The CI leakage test should fail if a fake secret is added to the codebase.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -304,7 +304,7 @@
             "description": "Create a formal secrets handling policy and implement immediate repository protections to prevent accidental leakage.",
             "dependencies": [],
             "details": "- Create SECRETS.md (or add to SECURITY.md) covering: what is a secret, allowed storage (e.g., cloud secret manager/Vault), rotation cadence, naming conventions, and the rule: only PUBLIC_ prefixed variables can be exposed to client bundles.\n- Add .env.example with non-sensitive placeholders and update .gitignore to exclude .env*, secrets.*, private keys, and build artifacts.\n- Remove any tokens from committed config files (e.g., .npmrc) and replace with environment-based auth.\n- Add a pre-commit hook using Husky or pre-commit to run a lightweight secret scan (e.g., gitleaks --staged) and block commits with findings; add an allowlist file for known test fixtures.\n- Document developer workflow for retrieving secrets (e.g., from 1Password/Vault), local development using dotenv (server-only), and incident response (revocation/rotation steps).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Manual validation: attempt to commit a file containing a fake token and confirm the pre-commit hook blocks it.\n- Peer review the policy document; ensure .env files are ignored by Git and an .env.example exists."
           },
           {
@@ -315,7 +315,7 @@
               "6.1"
             ],
             "details": "- Create src/server/config/secrets.(ts|js) that reads process.env and validates via a schema (e.g., zod/joi). Throw on missing/invalid secrets at startup.\n- Export only the minimal getters needed by server code; do not export entire env.\n- Ensure this module is server-only: place under src/server, add ESLint import/no-restricted-paths or folder boundaries so client code cannot import it.\n- Configure bundler/framework to only expose explicitly whitelisted public variables (e.g., Vite PUBLIC_*, Next.js NEXT_PUBLIC_*). Document that secrets must never be whitelisted.\n- Refactor code to replace direct process.env access with the config module. Search-and-replace and code review to enforce the pattern.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Unit tests for the config module: missing required envs should throw; valid envs should load.\n- Static checks: ESLint rule to block process.env usage outside the config (added in subtask 6.5) and a CI step verifying no client imports from src/server."
           },
           {
@@ -326,7 +326,7 @@
               "6.1"
             ],
             "details": "- Implement src/server/lib/logger.(ts|js) using a structured logger (e.g., pino/winston). Provide logger redaction middleware/serializers for http request/response objects.\n- Redact by key path for common sensitive fields: headers.authorization, headers.cookie, set-cookie, x-api-key, body.token, body.password.\n- Add message-level regex redaction for tokens (replace with [REDACTED]):\n  - JWT: \\beyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\b\n  - AWS Access Key ID: \\bAKIA[0-9A-Z]{16}\\b\n  - AWS Secret Key: (?i)aws(.{0,20})?(secret|access)[^a-z0-9]?([A-Za-z0-9/+=]{40})\n  - Bearer tokens: (?i)bearer\\s+[A-Za-z0-9._-]{15,}\n  - Generic 32+ hex/base64-ish strings near keywords (token|secret|key)\n  - Private key blocks: -----BEGIN [A-Z ]*PRIVATE KEY-----\n- Replace console.* usage with the logger and add HTTP middleware to ensure all request/response logging flows through redactors.\n- Ensure logs never include full query strings or bodies unless redacted; provide safe, minimal context.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Unit tests for the redaction function covering each pattern and header/body redaction paths.\n- Integration test for request logging: simulate a request with Authorization and Set-Cookie headers and assert the emitted log contains [REDACTED] instead of token values."
           },
           {
@@ -337,7 +337,7 @@
               "6.1"
             ],
             "details": "- Add .gitleaks.toml with curated rules and allowlist for known test files. Include patterns for JWTs, AWS keys, generic high-entropy strings, Bearer tokens, and private keys.\n- Create a CI job (e.g., GitHub Actions, GitLab CI):\n  1) Checkout; run gitleaks detect on the repo (must pass).\n  2) Create a temporary file (e.g., tmp/leak_canary.txt) with a fake secret like AKIA1111111111111111 or a known JWT-like token.\n  3) Run gitleaks detect -s tmp/leak_canary.txt and assert it returns non-zero. Treat non-zero as success for the canary step; if zero, fail the pipeline because detection is broken.\n- Add npm scripts: scan:secrets (repo scan) and scan:secrets:canary (writes temp secret and asserts detection). Wire scan:secrets into CI on push/PR.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- CI validation: normal repo scan passes; the canary scan intentionally fails detection and the job asserts this (pipeline continues). Add a PR check to block merges if the repo scan finds leaks."
           },
           {
@@ -350,7 +350,7 @@
               "6.4"
             ],
             "details": "- ESLint rules:\n  - Ban console.* (except in logger implementation files) and suggest using the logger utility.\n  - Ban direct process.env access outside src/server/config/secrets.* using no-restricted-imports/no-restricted-syntax.\n  - Optionally add eslint-plugin-no-secrets or custom rule to flag suspicious literals.\n- Add unit tests for logger redaction (covering headers, body fields, and regex patterns). Place under tests/logger.redaction.test.*\n- Add an integration test that performs a request with Authorization: Bearer <token> and confirms captured logs include [REDACTED].\n- Add a static test that ensures client-side code does not import src/server/config/secrets.* (e.g., ESLint rule run in CI).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "- Run unit tests for logger redaction and ensure all cases pass.\n- Run ESLint in CI; a violation (console.* or process.env outside config) fails the build.\n- Confirm that adding a fake secret literal in a code file is caught by lint or CI secret scan (from subtask 6.4)."
           }
         ]
@@ -3129,7 +3129,7 @@
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-07T11:14:02.097Z",
+      "updated": "2025-09-07T22:00:43.828Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",
