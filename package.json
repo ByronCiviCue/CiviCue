@@ -55,7 +55,8 @@
     "spec:check-types": "pnpm -s spec:types && git diff --exit-code -- src/generated/openapi.ts",
     "spec:tsd": "tsd",
     "spec:all": "pnpm -s spec:lint && pnpm -s spec:check-types && pnpm -s spec:tsd",
-    "verify:precommit": "node scripts/check-review-files.mjs && node scripts/scan-staged-for-todos.mjs"
+    "verify:precommit": "node scripts/check-review-files.mjs && node scripts/scan-staged-for-todos.mjs",
+    "secret:staged": "node -e \"if(process.env.GITLEAKS_ALLOW==='1'){console.log('gitleaks bypassed (GITLEAKS_ALLOW=1)');process.exit(0)}\" && gitleaks detect --staged --redact -v"
   },
   "keywords": [],
   "author": "",

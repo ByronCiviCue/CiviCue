@@ -15,4 +15,7 @@ node scripts/check-review-files.mjs || exit 1
 # Scan staged files for TODO/FIXME markers
 node scripts/scan-staged-for-todos.mjs || exit 1
 
+# Scan staged files for secrets
+pnpm -s secret:staged || exit 1
+
 echo "✅ Pre-commit checks passed"

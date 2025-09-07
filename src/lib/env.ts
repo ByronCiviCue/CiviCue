@@ -30,7 +30,8 @@ const envSchema = z.object({
     port: z.coerce.number().int().positive().default(3000),
     requestTimeoutMs: z.coerce.number().int().positive().default(10000),
     retryMaxAttempts: z.coerce.number().int().positive().default(3),
-    retryBaseDelayMs: z.coerce.number().int().positive().default(250)
+    retryBaseDelayMs: z.coerce.number().int().positive().default(250),
+    logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info').optional()
   })
 });
 
@@ -69,7 +70,8 @@ function buildRaw() {
       port: process.env.PORT,
       requestTimeoutMs: process.env.REQUEST_TIMEOUT_MS,
       retryMaxAttempts: process.env.RETRY_MAX_ATTEMPTS,
-      retryBaseDelayMs: process.env.RETRY_BASE_DELAY_MS
+      retryBaseDelayMs: process.env.RETRY_BASE_DELAY_MS,
+      logLevel: process.env.LOG_LEVEL
     }
   };
 }
