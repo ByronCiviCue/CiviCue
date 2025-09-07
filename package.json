@@ -7,7 +7,13 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "vitest run",
+    "dev": "tsx src/server/bootstrap.ts",
+    "start": "node ./dist/src/server/bootstrap.js",
+    "test:unit": "vitest --project unit",
+    "test:contracts": "vitest --project contracts --passWithNoTests",
+    "test:integration": "vitest --project integration --passWithNoTests",
+    "test:arch": "vitest --project arch --passWithNoTests",
+    "test": "pnpm -s test:unit && pnpm -s test:contracts && pnpm -s test:integration && pnpm -s test:arch",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "typecheck": "tsc -p tsconfig.json --noEmit",

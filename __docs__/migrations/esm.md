@@ -75,6 +75,49 @@ npm run test       # Runs tests with ESM
 3. **Strict Imports**: NodeNext requires explicit file extensions, preventing import ambiguity
 4. **Split Configs**: Separate typecheck and build configs for cleaner development workflow
 
+## Scripts & Runtime
+
+The project now uses tsx for development and direct Node execution for production:
+
+```bash
+# Development server
+pnpm dev              # Runs tsx src/server/bootstrap.ts
+
+# Production build and run  
+pnpm build            # Compiles to dist/ via tsconfig.build.json
+pnpm start            # Executes node ./dist/server/bootstrap.js
+
+# TypeScript checking
+pnpm typecheck        # tsc --noEmit (no build artifacts)
+```
+
+**Key changes:**
+- `dev` and `start` scripts added for the main server entry point
+- tsx replaces ts-node throughout; ts-node is not supported in ESM mode
+- Build output maintains ESM format with `.js` extensions in dist/
+
+**Rollback:** To revert ESM migration, restore the commit before this change.
+
+## Testing under ESM
+
+Vitest is configured to run in ESM mode with Node environment:
+
+```bash
+# Run tests once
+pnpm test              # vitest run --reporter=dot
+
+# Watch mode for development  
+pnpm test:watch        # vitest
+
+# UI mode for interactive testing
+pnpm test:ui           # vitest --ui
+```
+
+**Configuration:**
+- Vitest runs in Node environment with globals enabled
+- Test files: `tests/**/*.ts` and `**/__tests__/**/*.ts` 
+- Excludes build artifacts and node_modules
+
 ## Breaking Changes
 
 - All relative imports must use `.js` extensions

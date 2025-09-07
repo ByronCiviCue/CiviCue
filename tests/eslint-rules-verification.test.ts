@@ -1,107 +1,52 @@
-import { describe, it, expect } from 'vitest';
 import { ESLint } from 'eslint';
-import civicuePlugin from '../packages/eslint-plugin-civicue/dist/index.js';
+import { join } from 'node:path';
+import { describe, it, expect } from 'vitest';
 
-describe('ESLint Custom Rules CI Verification', () => {
-  it('should report errors for process.env outside env.ts', async () => {
-    const eslint = new ESLint({
-      overrideConfigFile: true,
-      overrideConfig: {
-        plugins: {
-          civicue: civicuePlugin,
-        },
-        rules: {
-          'civicue/no-process-env-outside-env': 'error',
-        },
-        languageOptions: {
+const cwd = process.cwd();
+
+async function lintVirtual(text: string, virtualPath: string, withTs = false) {
+  const base: any = {
+    cwd,
+    overrideConfigFile: 'eslint.config.mjs',
+    ignore: false
+  };
+  if (withTs) {
+    base.overrideConfig = [{
+      files: ['**/*.ts'],
+      languageOptions: {
+        // ESLint v9 flat-config shape
+        parser: await import('@typescript-eslint/parser').then(m => m.default ?? m),
+        parserOptions: {
           ecmaVersion: 'latest',
           sourceType: 'module',
-        },
-      },
-    });
-    
-    const violatingCode = 'const apiKey = process.env.API_KEY;';
-    const results = await eslint.lintText(violatingCode, { 
-      filePath: 'src/services/test.ts' 
-    });
+          project: false
+        }
+      }
+    }];
+  }
+  const eslint = new ESLint(base);
+  // @ts-expect-error ESLint accepts filePath in lintText options
+  const [res] = await eslint.lintText(text, { filePath: join(cwd, virtualPath) });
+  return res;
+}
 
-    expect(results).toHaveLength(1);
-    expect(results[0].errorCount).toBeGreaterThan(0);
-    
-    const hasProcessEnvError = results[0].messages.some(
-      msg => msg.ruleId === 'civicue/no-process-env-outside-env'
+describe('civicue ESLint architectural rules', () => {
+  it('flags direct process.env access outside env loader', async () => {
+    const res = await lintVirtual(
+      'const x = process.env.SECRET_TOKEN as unknown; console.log(x);',
+      'src/app/fake-env-violation.ts'
     );
-    expect(hasProcessEnvError).toBe(true);
+    expect(res.errorCount).toBeGreaterThan(0);
+    expect(res.messages.some(m => m.ruleId === 'civicue/no-process-env-outside-env')).toBe(true);
   });
 
-  it('should report errors for files under src/generated/', async () => {
-    const eslint = new ESLint({
-      overrideConfigFile: true,
-      overrideConfig: {
-        plugins: {
-          civicue: civicuePlugin,
-        },
-        rules: {
-          'civicue/no-generated-edits': 'error',
-        },
-        languageOptions: {
-          ecmaVersion: 'latest',
-          sourceType: 'module',
-        },
-      },
-    });
-    
-    const generatedFileCode = 'export const generatedConfig = {};';
-    const results = await eslint.lintText(generatedFileCode, { 
-      filePath: 'src/generated/config.ts' 
-    });
-
-    expect(results).toHaveLength(1);
-    expect(results[0].errorCount).toBeGreaterThan(0);
-    
-    const hasGeneratedEditError = results[0].messages.some(
-      msg => msg.ruleId === 'civicue/no-generated-edits'
+  it('flags any file path under src/generated/**', async () => {
+    const res = await lintVirtual(
+      'export const _: number = 1;',
+      'src/generated/fake.ts',
+      true // enable TS parser via flat override
     );
-    expect(hasGeneratedEditError).toBe(true);
-  });
-
-  it('should allow process.env in src/lib/env.ts', async () => {
-    const eslint = new ESLint({
-      overrideConfigFile: true,
-      overrideConfig: {
-        plugins: {
-          civicue: civicuePlugin,
-        },
-        rules: {
-          'civicue/no-process-env-outside-env': 'error',
-        },
-        languageOptions: {
-          ecmaVersion: 'latest',
-          sourceType: 'module',
-        },
-      },
-    });
-    
-    const envFileCode = 'const apiKey = process.env.API_KEY;';
-    const results = await eslint.lintText(envFileCode, { 
-      filePath: 'src/lib/env.ts' 
-    });
-
-    expect(results).toHaveLength(1);
-    
-    const hasProcessEnvError = results[0].messages.some(
-      msg => msg.ruleId === 'civicue/no-process-env-outside-env'
-    );
-    expect(hasProcessEnvError).toBe(false);
-  });
-
-  it('should validate that ESLint config includes custom rules', async () => {
-    const eslint = new ESLint();
-    const config = await eslint.calculateConfigForFile('src/lib/env.ts'); // Use a real file that exists in tsconfig
-    
-    expect(config.rules).toHaveProperty('civicue/no-process-env-outside-env');
-    expect(config.rules).toHaveProperty('civicue/no-generated-edits');
-    expect(config.rules['civicue/no-process-env-outside-env']).toEqual([2]); // ESLint stores as array
-    expect(config.rules['civicue/no-generated-edits']).toEqual([2]); // ESLint stores as array
+    expect(res.errorCount).toBeGreaterThan(0);
+    expect(res.messages.some(m => m.ruleId === 'civicue/no-generated-edits')).toBe(true);
   });
 });

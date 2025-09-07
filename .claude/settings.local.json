@@ -30,7 +30,8 @@
       "Bash(pnpm -s typecheck)",
       "Bash(pnpm build:*)",
       "Bash(pnpm check:env-import:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(test:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
