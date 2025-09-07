@@ -7,6 +7,7 @@
     "test": "tests"
   },
   "scripts": {
+    "prepare": "husky",
     "dev": "tsx src/server/bootstrap.ts",
     "start": "node ./dist/src/server/bootstrap.js",
     "test:unit": "vitest run --project unit",
@@ -53,7 +54,8 @@
     "spec:types": "openapi-typescript openapi.yaml -o src/generated/openapi.ts --export-type",
     "spec:check-types": "pnpm -s spec:types && git diff --exit-code -- src/generated/openapi.ts",
     "spec:tsd": "tsd",
-    "spec:all": "pnpm -s spec:lint && pnpm -s spec:check-types && pnpm -s spec:tsd"
+    "spec:all": "pnpm -s spec:lint && pnpm -s spec:check-types && pnpm -s spec:tsd",
+    "verify:precommit": "node scripts/check-review-files.mjs && node scripts/scan-staged-for-todos.mjs"
   },
   "keywords": [],
   "author": "",
@@ -81,6 +83,7 @@
     "openapi-typescript": "^7.9.1",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
+    "husky": "^9.1.6",
     "tsd": "^0.33.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",

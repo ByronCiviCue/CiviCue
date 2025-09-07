@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Skip pre-commit checks if environment variable is set
+if [ "$SKIP_PRECOMMIT_CHECKS" = "1" ] || [ "$SKIP_PRECOMMIT_CHECKS" = "true" ]; then
+  echo "⚠️  Skipping pre-commit checks (SKIP_PRECOMMIT_CHECKS is set)"
+  exit 0
+fi
+
+echo "🔍 Running pre-commit quality checks..."
+
+# Check for required review files
+node scripts/check-review-files.mjs || exit 1
+
+# Scan staged files for TODO/FIXME markers
+node scripts/scan-staged-for-todos.mjs || exit 1
+
+echo "✅ Pre-commit checks passed"
