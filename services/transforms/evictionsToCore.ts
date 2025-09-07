@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import { env } from '../../src/lib/env.js';
 import { Client } from 'pg';
 import pino from 'pino';
 
@@ -6,11 +6,7 @@ const logger = pino({ level: 'info' });
 
 async function main(): Promise<void> {
   const client = new Client({
-    host: process.env.PGHOST || 'localhost',
-    port: parseInt(process.env.PGPORT || '5432'),
-    user: process.env.PGUSER || 'dev',
-    password: process.env.PGPASSWORD || 'dev',
-    database: process.env.PGDATABASE || 'civicue'
+    connectionString: env.db.url
   });
 
   try {
@@ -42,13 +38,14 @@ async function main(): Promise<void> {
     process.exit(0);
     
   } catch (error) {
-    logger.error('Upsert failed:', error);
+    logger.error(error, 'Upsert failed');
     process.exit(1);
   } finally {
     await client.end();
   }
 }
 
-if (require.main === module) {
+// ESM equivalent of require.main === module
+if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }

@@ -1,5 +1,7 @@
 node_modules/
-.env*
+.env
+.env.local
+.env.runtime
 dist/
 coverage/
 .DS_Store
@@ -98,8 +100,7 @@ yarn-debug.log*
 yarn-error.log*
 dev-debug.log
 # Dependency directories
-# Environment variables
-.env
+# Environment variables (duplicates removed above)
 # Editor directories and files
 .idea
 .vscode

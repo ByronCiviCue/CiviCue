@@ -52,7 +52,7 @@ async function gather() {
   for (const stateDir of await listDirs(MUNICIPALITIES_DIR)) {
     for (const cityDir of await listDirs(stateDir)) {
       // Pick up any directory*.json to support multiple sources (socrata, ckan, arcgis)
-      const files = (await readdir(cityDir)).filter((f) => /^directory(\.[a-z]+)?\.json$/.test(f));
+      const files = (await readdir(cityDir)).filter((f) => /^directory(?:\.[a-z]+)?\.json$/.test(f));
       if (!files.length) continue;
       const rel = path.relative(MUNICIPALITIES_DIR, cityDir).split(path.sep);
       const [state, city] = rel;

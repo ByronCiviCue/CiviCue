@@ -19,7 +19,7 @@ describe('env validation', () => {
     process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/test';
     process.env.EMBEDDING_MODEL = 'text-embedding-3-large';
 
-    const { env } = await import('../src/lib/env');
+    const { env } = await import('../src/lib/env.js');
 
     expect(env.socrata.appId).toBe('test-app-id');
     expect(env.db.url).toBe('postgres://user:pass@localhost:5432/test');
@@ -34,7 +34,7 @@ describe('env validation', () => {
     process.env.EMBEDDING_MODEL = 'text-embedding-3-large';
     delete process.env.DATABASE_URL;
 
-    await expect(() => import('../src/lib/env')).rejects.toThrow(
+    await expect(() => import('../src/lib/env.js')).rejects.toThrow(
       'Environment validation failed: db.url: Invalid input'
     );
   });
@@ -44,7 +44,7 @@ describe('env validation', () => {
     process.env.EMBEDDING_MODEL = 'text-embedding-3-large';
     delete process.env.SOCRATA_APP_ID;
 
-    await expect(() => import('../src/lib/env')).rejects.toThrow(
+    await expect(() => import('../src/lib/env.js')).rejects.toThrow(
       'Environment validation failed: socrata.appId: Invalid input'
     );
   });
@@ -54,7 +54,7 @@ describe('env validation', () => {
     process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/test';
     delete process.env.EMBEDDING_MODEL;
 
-    await expect(() => import('../src/lib/env')).rejects.toThrow(
+    await expect(() => import('../src/lib/env.js')).rejects.toThrow(
       'Environment validation failed: ai.embeddingModel: Invalid input'
     );
   });
@@ -65,7 +65,7 @@ describe('env validation', () => {
     process.env.EMBEDDING_MODEL = 'text-embedding-3-large';
     process.env.PGVECTOR_DIM = '-5';
 
-    await expect(() => import('../src/lib/env')).rejects.toThrow(
+    await expect(() => import('../src/lib/env.js')).rejects.toThrow(
       'Environment validation failed'
     );
   });
@@ -76,7 +76,7 @@ describe('env validation', () => {
     delete process.env.SOCRATA_APP_ID;
 
     try {
-      await import('../src/lib/env');
+      await import('../src/lib/env.js');
     } catch (error) {
       const errorMessage = (error as Error).message;
       expect(errorMessage).not.toContain('secret');
@@ -99,7 +99,7 @@ describe('env validation', () => {
     process.env.NODE_ENV = 'production';
     process.env.PORT = '8080';
 
-    const { env } = await import('../src/lib/env');
+    const { env } = await import('../src/lib/env.js');
 
     expect(env.socrata.appSecret).toBe('test-secret');
     expect(env.db.vectorDim).toBe(768);
@@ -118,7 +118,7 @@ describe('env validation', () => {
     process.env.EMBEDDING_MODEL = 'text-embedding-3-large';
     process.env.CUSTOM_KEY = 'custom-value';
 
-    const { requireKey } = await import('../src/lib/env');
+    const { requireKey } = await import('../src/lib/env.js');
 
     expect(requireKey('CUSTOM_KEY')).toBe('custom-value');
     expect(() => requireKey('MISSING_KEY')).toThrow(

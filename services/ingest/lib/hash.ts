@@ -2,14 +2,16 @@ import crypto from 'crypto';
 
 type JSONLike = null | string | number | boolean | JSONLike[] | { [k: string]: JSONLike };
 
-function normalize(value: any): JSONLike {
+function normalize(value: unknown): JSONLike {
   if (value === undefined || value === null) return null;
   if (Array.isArray(value)) return value.map(normalize);
   if (typeof value === 'object') {
     const out: Record<string, JSONLike> = {};
     for (const k of Object.keys(value).sort((a, b) => a.localeCompare(b))) {
       const lk = k.toLowerCase();
-      const v = (value as any)[k];
+      // eslint-disable-next-line security/detect-object-injection
+      const v = (value as Record<string, unknown>)[k];
+      // eslint-disable-next-line security/detect-object-injection
       out[lk] = typeof v === 'string' ? v.trim() : normalize(v);
     }
     return out;

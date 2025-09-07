@@ -102,7 +102,7 @@
             "description": "Switch the project to ESM at the config level by updating tsconfig and package.json, ensuring NodeNext semantics and Node version compatibility.",
             "dependencies": [],
             "details": "1) tsconfig.json (root): set \"module\": \"NodeNext\", \"moduleResolution\": \"NodeNext\", \"target\": \"ES2022\" (or higher), \"resolveJsonModule\": true, \"esModuleInterop\": true, \"skipLibCheck\": true, and optionally \"verbatimModuleSyntax\": true to keep import/export forms. Keep \"noEmit\": true for the root config. Add/verify \"baseUrl\": \".\" and path aliases under \"paths\" if used.\n2) Create tsconfig.build.json extending the root: set \"noEmit\": false, \"outDir\": \"./dist\", \"declaration\": true, \"declarationMap\": true, and include src files (e.g., \"include\": [\"src\"]). Ensure it inherits \"module\": \"NodeNext\".\n3) package.json: set \"type\": \"module\"; add \"engines.node\": \">=18.17\" (or Node 20 LTS recommended). If publishing a package, set \"main\": \"./dist/index.js\", \"types\": \"./dist/index.d.ts\", and an \"exports\" field mapping \"./package.json\" and the entry point to ESM. If this is an app (not a library), ensure only \"type\": \"module\" and correct entry fields.\n4) If any files must remain CommonJS (e.g., some tool configs), plan to rename them to .cjs; pure ESM configs can stay .js under type:module or .mjs.\n5) Document the minimum Node version in README and commit a Node version file (.nvmrc / .tool-versions) if the repo uses it.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run: node -e \"import('node:fs').then(() => console.log('esm ok'))\" to confirm ESM runtime. Run: npx tsc --showConfig | jq '.compilerOptions.module' and expect \"NodeNext\". Ensure Node version check: node -v >= specified."
           },
           {
@@ -2587,11 +2587,549 @@
         ],
         "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": 54,
+        "title": "Lint: add ESLint flat config for Node/TS/ESM",
+        "description": "Configure ESLint with flat config format for Node.js, TypeScript, and ESM compatibility",
+        "status": "done",
+        "dependencies": [
+          3,
+          "3.1"
+        ],
+        "priority": "high",
+        "details": "Set up ESLint 9 with flat config using an ESM config file (eslint.config.mjs) that supports Node.js, TypeScript, and ESM modules. Configure base rules for code quality and consistency and wire up the plugin/resolver suite that will be installed in Task 55. Include proper file globs and ignore patterns, and add a pnpm script to run linting.\n\nImplementation notes:\n- Config file: create eslint.config.mjs at the repo root and export default an array of flat config objects.\n- ESM: use ESM imports and export default [...].\n- Language options: ecmaVersion: \"latest\", sourceType: \"module\". Set env for node.\n- Files: apply to JS/TS files (e.g., **/*.ts, **/*.tsx, **/*.mts, **/*.cts, **/*.js, **/*.mjs, **/*.cjs).\n- Ignores: node_modules, dist, build, coverage, .turbo, .next (if present), and src/generated/**.\n- TypeScript: set parser to @typescript-eslint/parser; set parserOptions with tsconfigRootDir and project pointing to tsconfig.json for type-aware rules (fall back gracefully if project references are not available).\n- Extends/base: include @eslint/js recommended rules and enable/merge recommended rule sets from the installed plugins (typescript-eslint, import, n, promise, sonarjs, security, regexp). Configure import/resolver with typescript and node.\n- Scripts: add to package.json: \"lint\": \"eslint . --max-warnings=0\".\n\nExit criteria:\n- eslint.config.mjs is present at the repo root and checked in.\n- pnpm lint runs locally without error (after dependencies from Task 55 are installed).",
+        "testStrategy": "- Verify config file presence: eslint.config.mjs exists at the repo root and exports an array of flat config objects.\n- Verify script: package.json contains a \"lint\" script that runs \"eslint . --max-warnings=0\".\n- Local run (after Task 55 installs dependencies): run \"pnpm lint\" at the repo root; it should execute ESLint without crashing and produce lint results for TS/JS files.\n- Spot checks:\n  - Run \"pnpm exec eslint --print-config src/index.ts\" (or any TS file) to confirm the parser and plugins are applied.\n  - Confirm ignores: add a dummy file under src/generated/ and ensure it is not linted.\n\nExit: eslint.config.mjs present; pnpm lint runs locally.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create ESM flat config file",
+            "description": "Add eslint.config.mjs at repo root using ESM imports/exports and export default an array of flat config entries.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Configure Node/TS/ESM settings",
+            "description": "Set languageOptions (ecmaVersion latest, sourceType module), env for node, files globs for JS/TS (ts, tsx, mts, cts, js, mjs, cjs), and ignores (node_modules, dist, build, coverage, src/generated/**).",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Wire TypeScript parser and plugin",
+            "description": "Use @typescript-eslint/parser and plugin; set parserOptions.tsconfigRootDir and project (tsconfig.json) for type-aware rules; include the recommended config(s).",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Enable core and plugin rule sets",
+            "description": "Include @eslint/js recommended rules and configure plugins: import (with resolver: typescript, node), n, promise, sonarjs, security, regexp. Merge in their recommended rules as applicable for flat config.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Add lint script",
+            "description": "Add \"lint\": \"eslint . --max-warnings=0\" to package.json scripts.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Validate exit criteria",
+            "description": "After Task 55 completes, run \"pnpm lint\" locally and ensure it executes successfully. Confirm eslint.config.mjs is present and committed.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 55,
+        "title": "Lint: install eslint@9 + plugins (ts, n, promise, import, sonarjs, security, regexp)",
+        "description": "Install ESLint 9 (with @eslint/js) and the full plugin/resolver suite for TypeScript, Node.js, and code quality",
+        "status": "done",
+        "dependencies": [
+          54,
+          "3.1"
+        ],
+        "priority": "high",
+        "details": "Install the ESLint toolchain as devDependencies to support Node.js, TypeScript, and comprehensive linting:\n- eslint@^9\n- @eslint/js\n- typescript-eslint (parser+plugin): @typescript-eslint/parser and @typescript-eslint/eslint-plugin\n- eslint-plugin-import\n- eslint-import-resolver-typescript\n- eslint-plugin-n\n- eslint-plugin-promise\n- eslint-plugin-sonarjs\n- eslint-plugin-security\n- eslint-plugin-regexp\n- @types/eslint\n\nNotes:\n- This task is install-only; configuration will be handled in Task 54 (flat config). Ensure these packages are available for that configuration.\n- Use semver-compatible ranges (eslint@^9) and latest stable versions for the listed plugins/resolver/types.\n- Exit criteria: The TypeScript resolver must be available so that, once Task 54 config is in place, import/no-unresolved passes for TS ESM modules (i.e., resolver is correctly configured and functioning for ESM TypeScript).",
+        "testStrategy": "- Verify installation: run `npx eslint --version` and confirm it returns a 9.x version.\n- Resolve checks: run `node -e \"require.resolve('@eslint/js')\"` and the same for each installed plugin/resolver: `@typescript-eslint/parser`, `@typescript-eslint/eslint-plugin`, `eslint-plugin-import`, `eslint-import-resolver-typescript`, `eslint-plugin-n`, `eslint-plugin-promise`, `eslint-plugin-sonarjs`, `eslint-plugin-security`, `eslint-plugin-regexp`, and `@types/eslint`.\n- Package.json validation: confirm all listed packages are present under devDependencies with the expected version ranges.\n- Exit: Resolver configured; import/no-unresolved passes for TS ESM. After Task 54 is applied (flat config), run ESLint on a small TS ESM sample or existing TS ESM files and confirm there are no `import/no-unresolved` errors. Example approach:\n  1) If needed, create temporary files:\n     - src/tmp/a.ts: `export const x = 1;`\n     - src/tmp/b.ts (ESM import): `import { x } from './a.js'; console.log(x);`\n  2) Run: `npx eslint src/tmp --rule 'import/no-unresolved:error'`.\n  3) Expect: no `import/no-unresolved` errors (resolver-typescript resolves `.ts` via ESM semantics). Remove tmp files afterward.\n- (Optional) `npx eslint --print-config src/tmp/b.ts` and confirm settings include import/resolver with `typescript` to validate resolver presence.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add ESLint toolchain devDependencies to package.json",
+            "description": "Add: eslint@^9, @eslint/js, @typescript-eslint/parser, @typescript-eslint/eslint-plugin, eslint-plugin-import, eslint-import-resolver-typescript, eslint-plugin-n, eslint-plugin-promise, eslint-plugin-sonarjs, eslint-plugin-security, eslint-plugin-regexp, @types/eslint.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Install dependencies",
+            "description": "Run the project's package manager install (e.g., npm/pnpm/yarn) to fetch all listed devDependencies and lock them.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Add lint scripts to package.json",
+            "description": "Add scripts: \"lint\": \"eslint .\", and \"lint:fix\": \"eslint . --fix\".",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Smoke test: verify modules resolve",
+            "description": "Run require.resolve for each installed plugin/resolver/types to ensure they are installed and discoverable by Node.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Exit check: resolver configured; import/no-unresolved passes for TS ESM",
+            "description": "After Task 54 applies the flat config, run ESLint against a TS ESM sample (or existing TS ESM files) to ensure `eslint-plugin-import` with `eslint-import-resolver-typescript` resolves imports and no `import/no-unresolved` errors are reported.",
+            "status": "done",
+            "dependencies": [],
+            "details": "If the repo lacks TS ESM files, create a temporary pair under src/tmp: a.ts exporting a value and b.ts importing it using an ESM path (e.g., './a.js'). Lint the folder and ensure no unresolved import errors. Delete the tmp files afterward.\n<info added on 2025-09-07T05:48:18.477Z>\nVerification complete. The `import/no-unresolved` rule passes for TypeScript ESM files, confirming that `eslint-import-resolver-typescript` is configured and working correctly.\n</info added on 2025-09-07T05:48:18.477Z>",
+            "testStrategy": "Run: `npx eslint src/tmp --rule 'import/no-unresolved:error'` (or target existing TS ESM files). Expect zero import/no-unresolved errors."
+          }
+        ]
+      },
+      {
+        "id": 56,
+        "title": "Lint: implement custom rules (no process.env outside env.ts, no edits under src/generated/**)",
+        "description": "Create a local ESLint plugin (eslint-plugin-civicue) that exposes custom rules to enforce environment variable access patterns and protect generated files. Rules: no-process-env-outside-env, no-generated-edits.\n\nExit criteria: Both custom rules are enabled as errors in the repo ESLint config, and representative failing examples for each rule cause ESLint to report errors in CI (i.e., CI would fail on violations).",
+        "status": "done",
+        "dependencies": [
+          54,
+          "3.1",
+          55
+        ],
+        "priority": "high",
+        "details": "Implement custom ESLint rules and ship them as a local plugin package.\n\nRules to implement:\n1) no-process-env-outside-env\n- Disallow any direct access to process.env (e.g., process.env.FOO, process['env'].BAR, destructuring from process.env) in any file except src/lib/env.ts.\n- Allowed: within exactly src/lib/env.ts (path check via context.getFilename()).\n- Report on the MemberExpression (or the Identifier inside) with a clear message and no fixer.\n\n2) no-generated-edits\n- Disallow any edits to files under src/generated/** by making ESLint error on any file whose filename matches that glob.\n- Implement by reporting a single error at Program for matching files.\n- No fixer. The rule should be effectively always failing in those files to prevent manual edits.\n\nPlugin packaging and exports:\n- Create a local plugin package that registers both rules and exposes them via the standard ESLint plugin interface.\n- In src/index.ts, export rules: { 'no-process-env-outside-env': ruleImpl, 'no-generated-edits': ruleImpl } and optionally a recommended config preset that enables both rules as \"error\".\n- Implementation should consider all common AST patterns for process.env access: MemberExpression, computed properties (process[\"env\"].FOO), and destructuring (const { FOO } = process.env).\n- The rule should not block usage of safe wrappers or functions (e.g., getEnv()) unless they directly access process.env outside env.ts.\n\nOutputs:\n- packages/eslint-plugin-civicue/src/index.ts\n- packages/eslint-plugin-civicue/src/rules/*.ts\n- packages/eslint-plugin-civicue/package.json\n\nNotes:\n- Default paths are hard-coded per requirements (src/lib/env.ts, src/generated/**). If you add options for configurability, ensure defaults enforce the above and tests cover defaults.\n- Use @typescript-eslint/parser in tests so TypeScript syntax is supported.\n\nExit criteria:\n- Both rules are active (enabled as \"error\") in the repo ESLint config (directly or via the plugin's recommended config).\n- In CI, running ESLint against representative failing examples for each rule results in reported errors (non-zero errorCount), ensuring violations would fail CI.",
+        "testStrategy": "Unit tests using ESLint RuleTester:\n- Parser: @typescript-eslint/parser.\n\nno-process-env-outside-env tests:\n- Valid: process.env access inside src/lib/env.ts (filename passed to RuleTester), code that references variables from env.ts without using process.env, code not using process.env at all.\n- Invalid: process.env.FOO in any other file; process[\"env\"].BAR; const { BAZ } = process.env; (ensure each pattern is reported). Verify messageId and that no fixer is provided.\n- Edge: ensure rule does not report in src/lib/env.ts even with multiple process.env accesses.\n\nno-generated-edits tests:\n- Invalid: any non-empty file under src/generated/** (filename provided via RuleTester) should report one error at Program.\n- Valid: same code outside src/generated/** should pass.\n\nIntegration/config tests:\n- Ensure plugin index exports both rules and an optional recommended config. Load a temporary ESLint instance with the plugin, enable both rules as error, and verify violations are reported as expected across virtual files with appropriate filenames.\n\nCI exit verification:\n- Add a test that programmatically runs ESLint (ESLint class) against representative failing code samples for each rule with appropriate filenames and asserts results.errorCount > 0. This test runs in CI and proves that failing examples trigger errors (non-zero) in CI.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Scaffold eslint-plugin-civicue package and exports",
+            "description": "Create packages/eslint-plugin-civicue with package.json and src/index.ts exporting the rules map and optional recommended config. Ensure TS build or direct TS execution is supported in tests.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Implement rule: no-process-env-outside-env",
+            "description": "Detect all forms of process.env access (member, computed, destructuring) and report outside src/lib/env.ts. Include clear messageIds and docs meta; no fixer.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Implement rule: no-generated-edits",
+            "description": "Report a single error at Program for any file whose path matches src/generated/**. No fixer. Include docs meta.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Add RuleTester unit tests for both rules",
+            "description": "Write tests covering valid/invalid cases with filenames to simulate src/lib/env.ts and src/generated/**. Use @typescript-eslint/parser.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Enable rules in repo ESLint config and run in CI",
+            "description": "Wire plugin into the top-level ESLint config, enabling both rules as errors. Verify CI runs lint and fails on violations.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Enable both rules as \"error\" in the repo ESLint config (or extend the plugin's recommended config). Add a CI check that runs a small test harness which invokes ESLint against representative failing samples (without committing violating code to src/) to demonstrate that violations result in errors.",
+            "testStrategy": "Create a jest (or equivalent) test that instantiates ESLint with the plugin and config enabling both rules, runs it against in-memory code strings with filenames simulating disallowed cases, and asserts results.errorCount > 0. This test runs in CI and fulfills the exit criteria that failing examples trigger errors."
+          }
+        ]
+      },
+      {
+        "id": 57,
+        "title": "Docs: __docs__/linting.md (rules, commands, CI)",
+        "description": "Document ESLint configuration, custom rules, and integration with development workflow (rules, commands, CI). Explicitly exclude pre-commit hook setup from this page. Exit: __docs__/linting.md matches actual config (rules list + commands).",
+        "status": "done",
+        "dependencies": [
+          56,
+          "3.1",
+          "55"
+        ],
+        "priority": "medium",
+        "details": "Create comprehensive linting documentation in __docs__/linting.md covering:\n- Overview and goals of linting in the repo.\n- Configured ESLint rules and their rationale: summarize extends, parser, plugins, environments, and key custom rules; link to .eslintrc.* and any rule directories.\n- Commands (npm scripts): how to run lint and lint:fix locally; include command examples and expected outputs/exit codes.\n- Editor integration: brief notes on recommended ESLint extension/settings for VS Code or common IDEs.\n- CI integration: how linting runs in CI, including the command invoked, where it fits in the pipeline, and a minimal example (e.g., GitHub Actions or other CI) showing caching and failure behavior.\n- Troubleshooting: common issues (e.g., parser errors, TypeScript project references, plugin missing, conflicting Prettier/ESLint rules, performance tips) with fixes.\n\nScope clarification\n- This page no longer documents pre-commit hook setup for linting. If needed, reference the dedicated pre-commit documentation (separate page/tasks) and keep this page focused on rules, commands, and CI behavior.\n\nDeliverables\n- Updated __docs__/linting.md with the above sections.\n- Ensure examples and commands match the actual package.json and CI configuration used in the repository.\n\nExit criteria\n- The documented ESLint rules summary (extends, parser, plugins, envs, and key custom rules) and the commands (e.g., npm run lint, npm run lint:fix) exactly match the current repository configuration.",
+        "testStrategy": "Documentation acceptance checks\n- The __docs__/linting.md file includes: Overview, ESLint config and key rules, Commands (lint/lint:fix), Editor integration, CI integration with an example, and Troubleshooting.\n- All command snippets (e.g., npm run lint, npm run lint:fix) match the project’s package.json and work locally.\n- CI section accurately reflects the current pipeline: correct job/step name, uses the same command the pipeline runs, and notes failure conditions (non-zero exit on lint errors). Example configuration is valid YAML/command syntax for the chosen CI.\n- Page contains no setup instructions for pre-commit linting; if any previously existed, they are removed or replaced with a brief note pointing to separate pre-commit docs.\n- Links to configuration files (e.g., .eslintrc.*, eslint config directories) are correct.\n- Troubleshooting items reproduce and resolve at least two common developer issues.\n- Exit criteria: __docs__/linting.md matches the actual ESLint configuration (extends, parser, plugins, environments, and key custom rules) and the available npm scripts/commands in package.json (rules list + commands).",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Audit and remove pre-commit linting content from __docs__/linting.md",
+            "description": "Identify and delete or rewrite any sections that describe pre-commit hook setup for linting. Add a brief note that pre-commit integration is documented elsewhere.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Document ESLint configuration and key custom rules with rationale",
+            "description": "Summarize extends, parser, plugins, envs, and highlight important custom rules. Link to .eslintrc.* and any rule files.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Ensure the summarized rules and settings reflect the current .eslintrc.* content (extends, parserOptions, plugins, env, and notable rule overrides).",
+            "testStrategy": "Open the active ESLint config file(s) and verify that all listed extends/plugins/envs and highlighted rule overrides match exactly. Update the doc if any discrepancy is found."
+          },
+          {
+            "id": 3,
+            "title": "List and explain available commands (npm scripts) for linting",
+            "description": "Include examples for running lint and fix modes, expected exit codes, and typical output.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Document the exact npm/yarn/pnpm scripts as defined in package.json (e.g., lint, lint:fix), including any arguments used by CI.",
+            "testStrategy": "Cross-check commands against package.json and run them locally to confirm behavior and exit codes. Update documentation to match actual script names and flags."
+          },
+          {
+            "id": 4,
+            "title": "Add CI integration section with example configuration",
+            "description": "Describe how CI runs lint, where it fits in the pipeline, and provide a minimal example (e.g., GitHub Actions) including caching and failure behavior.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Show the command invoked in CI and provide a minimal, valid example workflow that mirrors the repository's configuration, including caching where applicable.",
+            "testStrategy": "Validate that the example workflow uses the same command and step/job names as the repo’s CI and that it would fail on lint errors (non-zero exit)."
+          },
+          {
+            "id": 5,
+            "title": "Add troubleshooting section for common lint issues",
+            "description": "Cover parser/config errors, missing plugins, TS project references, Prettier conflicts, and performance tips.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Include actionable fixes and references to upstream docs for each issue type.",
+            "testStrategy": "Ensure at least two issues can be reproduced and resolved using the provided guidance."
+          },
+          {
+            "id": 6,
+            "title": "Validate doc against package.json and CI config",
+            "description": "Ensure commands, paths, and CI steps in the doc match the repository configuration; update if mismatches are found. Also confirm the ESLint rules summary reflects the actual .eslintrc.* (extends, parser, plugins, envs, key custom rules).",
+            "status": "done",
+            "dependencies": [],
+            "details": "Perform a final cross-check:\n- Compare documented rules and settings against .eslintrc.* (or eslint.config.*) and any rule directories.\n- Verify documented npm scripts (lint, lint:fix) match package.json exactly.\n- Verify CI command and step/job names match the current pipeline configuration.\n<info added on 2025-09-07T06:06:21.721Z>\nCross-check complete. The documentation at `__docs__/linting.md` is confirmed to be accurate. It correctly reflects the ESLint flat config (`eslint.config.mjs`), including all plugins, custom rules (`no-process-env-outside-env`, `no-generated-edits`), and the `--max-warnings=0` setting. The documented npm scripts (`lint`, `lint:fix`) match `package.json` exactly, and the CI integration details align with the current GitHub Actions workflow. Commands were verified locally. A comprehensive troubleshooting section has also been added.\n</info added on 2025-09-07T06:06:21.721Z>",
+            "testStrategy": "Manually diff the documentation against .eslintrc.* and package.json, and open the CI config to confirm parity. Run npm run lint and npm run lint:fix to ensure behavior matches what is documented. Update the doc until all items match. This fulfills the exit criteria (rules list + commands)."
+          }
+        ]
+      },
+      {
+        "id": 58,
+        "title": "Env: standardize local workflow (.env.example, .env.local, .env.ci)",
+        "description": "Augment the existing environment variable workflow (.env.example/.env.local/.env.ci) by reusing and updating the files introduced in Task #2—no parallel or duplicate files. Maintain clear separation between example, local, and CI configurations while avoiding duplication of variable definitions. Exit criteria must explicitly cover .env.local generation patterns and a clear policy for when to inject secrets at runtime vs when to generate ephemeral env files.",
+        "status": "done",
+        "dependencies": [
+          3,
+          "3.1"
+        ],
+        "priority": "high",
+        "details": "Build on the artifacts from Task #2 rather than creating new copies.\n\nAuthoritative files and responsibilities\n- .env.example (tracked): Single source of truth for variable names, comments, and safe placeholders (e.g., SOCRATA_APP_ID and AI provider keys). No secrets.\n- .env.local (gitignored): Developer-only overrides and secrets for local development. Never tracked or used in CI.\n- .env.ci (tracked, optional): CI-specific overrides or mappings only; no secrets and no wholesale duplication of variables already in .env.example. Use to map CI secret names to app variable names or to set CI-only toggles.\n\nDeterministic loading order (no .env)\n- Local development: Load .env.example as defaults, then overlay .env.local. Allow .env.local to override defaults. Do not rely on a plain .env file.\n- CI/CD: Prefer injection from the CI secret store via environment variables. If .env.ci is present, load it with override=false so it never overwrites already-injected secrets. Do not require .env.local in CI.\n\nGeneration vs injection policy (exit criteria-aligned)\n- Preferred: Do not generate env files in CI/containers; inject via runtime environment variables from secret stores (GitHub Actions secrets, Vault, etc.).\n- Allowed exception: If a tool mandates a dotenv file in CI, generate an ephemeral file (e.g., .env.runtime) at job runtime from injected secrets, use it for the step, and delete it before job completion. Ensure it is gitignored and never uploaded as an artifact.\n- Local developer convenience: Provide a script (pnpm env:local:init) that scaffolds .env.local from .env.example with empty values and comments. Script is idempotent (no overwrite without --force) and never runs in CI.\n\nGuardrails\n- Ensure .env and .env.local are gitignored. Fail CI if any non-example env file is tracked.\n- Validate that all required keys referenced by the code exist in .env.example.\n- Detect duplicate/conflicting definitions across env files and prohibit redundant base key redefinition in .env.ci.\n- Integrate with Task 6 secrets policy: scan for secrets in tracked files, redact sensitive logs, and fail if ephemeral env files (.env.runtime, etc.) persist beyond their step.\n\nDocumentation\n- Add a decision tree describing when to inject at runtime vs when to generate files, with explicit local vs CI guidance and examples. Include migration guidance from any existing .env to .env.local.",
+        "testStrategy": "Verification must cover developer and CI paths, reuse Task #2 assets, and validate exit criteria for generation vs injection:\n\nFile structure and git hygiene\n- Assert .env.local and .env are gitignored; .env.example (tracked) and .env.ci (tracked template/CI file without secrets) are present.\n- CI check fails if any non-example env file (.env, .env.local, .env.runtime, etc.) is tracked or uploaded as an artifact.\n- Integrate secret scanning from Task 6 to fail on secrets-like patterns in tracked files.\n\nLocal generation pattern (.env.local)\n- Run pnpm env:local:init with no .env.local present: verify it is created with all keys from .env.example, empty/safe placeholders, and comments preserved. Confirm idempotency (re-run does not overwrite without --force) and that it is gitignored.\n- Verify local start uses .env.example defaults and .env.local overrides; app fails with clear errors when required vars are missing and succeeds when provided in .env.local.\n\nCI runtime injection vs file generation\n- Injection path (default): Run CI job with required secrets injected as environment variables. Confirm app starts without any .env.local and without generating an env file. Ensure .env.ci, if present, loads with override=false and does not override injected values.\n- Ephemeral generation path (exception): In a controlled CI job, generate .env.runtime from injected secrets for a tool that requires dotenv. Confirm it is used by that step, then deleted. Add a post-step that asserts the file no longer exists. Fail the job if it persists.\n\nParity and duplication checks\n- Script validates all required variables referenced by the code exist in .env.example.\n- Script fails on conflicting duplicates across files (e.g., redundant base key redefinition in .env.ci) except intentional, documented CI-only overrides. In CI mode, ensure dotenv loading does not override already-injected variables.\n\nDocumentation accuracy\n- Follow README to migrate from any existing .env to .env.local, run locally, and configure CI. Verify the decision tree for injection vs generation is present and correct, with examples that work as documented.\n\nSecurity\n- Confirm no secrets exist in tracked files; logs redact sensitive values as per Task 6.\n- CI fails if ephemeral env files are not cleaned up or are uploaded as artifacts.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Audit and migrate existing env setup from Task #2 (no duplication)",
+            "description": "Inventory current env files created in Task #2. Ensure there is a single tracked .env.example; remove any tracked .env. Migrate any developer secrets guidance to .env.local usage. Confirm .env.example contains placeholders (no secrets) for SOCRATA_APP_ID and AI provider keys.",
+            "status": "done",
+            "dependencies": [],
+            "details": "- Ensure .env and .env.local are listed in .gitignore and not tracked.\n- Remove any parallel/duplicate env example files introduced after Task #2.\n- Align with generation vs injection policy: .env.local is local-only; CI relies on injection or ephemeral generation when strictly necessary.",
+            "testStrategy": "- Repo has exactly one tracked .env.example; no tracked .env/.env.local.\n- git check-ignore confirms .env and .env.local are ignored.\n- Secret scan passes on .env.example.\n- CI pipeline fails if .env or .env.local exists in the repo history or working tree."
+          },
+          {
+            "id": 2,
+            "title": "Finalize .env.example as the single source of variable names",
+            "description": "Update .env.example to list all required variables with comments and safe placeholders. Do not duplicate this content elsewhere. Include notes on expected formats where helpful.",
+            "status": "done",
+            "dependencies": [],
+            "details": "- Enumerate all required variables referenced by the code.\n- Add comments indicating sensitivity and expected format (e.g., URLs, IDs, tokens).\n- Do not include secrets; use obvious placeholders.",
+            "testStrategy": "- Static check verifies every required variable in code exists in .env.example.\n- Secret scanner reports zero findings in .env.example.\n- Reviewer can set up locally using only .env.example + .env.local as per docs."
+          },
+          {
+            "id": 3,
+            "title": "Introduce and document .env.local (gitignored) for developer secrets",
+            "description": "Add .env.local to .gitignore and document how developers should populate it. Ensure local start scripts read .env.local with .env.example as defaults.",
+            "status": "done",
+            "dependencies": [],
+            "details": "- Add pnpm env:local:init that scaffolds .env.local from .env.example with empty values and comments.\n- Script is idempotent; supports --force to regenerate; never runs in CI (guard with CI env var).\n- Local runtime loads .env.example first, then .env.local (override=true).",
+            "testStrategy": "- Running pnpm env:local:init creates .env.local when absent; re-running without --force does not overwrite; with --force, it regenerates.\n- Local startup reads .env.local and overrides .env.example defaults.\n- CI job fails if pnpm env:local:init is executed."
+          },
+          {
+            "id": 4,
+            "title": "Add .env.ci for CI/CD without duplicating base variables",
+            "description": "Create a CI-specific .env.ci that only includes CI overrides or mappings (no secrets committed, no duplication of variables already defined in .env.example). Update CI pipeline to load it.",
+            "status": "done",
+            "dependencies": [],
+            "details": "- Prefer runtime injection from the CI secret store; treat .env.ci as optional mapping for non-standard names or CI-only toggles.\n- When loading .env.ci in CI, use override=false so injected env vars remain authoritative.",
+            "testStrategy": "- CI pipeline loads environment from injected secrets; app starts without requiring .env.local.\n- If .env.ci exists, verify it does not contain secrets and does not override injected vars (override=false).\n- Duplicate base key redefinitions in .env.ci are flagged by the validation script."
+          },
+          {
+            "id": 5,
+            "title": "Implement deterministic env loading in app/scripts",
+            "description": "Configure the runtime and scripts to load env files in order: local dev uses .env.local over .env.example; CI uses .env.ci. Consider dotenv-flow or equivalent. Remove any reliance on a plain .env file.",
+            "status": "done",
+            "dependencies": [],
+            "details": "- Implement loader that:\n  - Local: load .env.example, then .env.local (override=true).\n  - CI: if .env.ci exists, load with override=false so process.env stays authoritative.\n- Never read a plain .env file.\n- Log which files were loaded (without printing values) and warn on missing required vars.",
+            "testStrategy": "- Unit/integration tests simulate local and CI modes and assert correct file load order and override behavior.\n- Logs show deterministic load order and do not leak secrets.\n- Starting app with missing required vars emits a clear error."
+          },
+          {
+            "id": 6,
+            "title": "Add validation and guardrails",
+            "description": "Add scripts/CI checks to: (a) fail on tracked secrets or tracked .env/.env.local, (b) ensure all required keys exist in .env.example, and (c) detect duplicate/conflicting definitions across env files. Integrate with Task 6 secret scanning if available.",
+            "status": "done",
+            "dependencies": [],
+            "details": "- Add a script (pnpm env:validate) that checks:\n  - No tracked .env/.env.local or other non-example env files.\n  - All required keys referenced in code exist in .env.example.\n  - No redundant base key duplication in .env.ci; report conflicts.\n  - In CI, ephemeral files (e.g., .env.runtime) do not persist after their step.\n- Integrate with Task 6 secret scanning and redact sensitive logs.",
+            "testStrategy": "- Run pnpm env:validate locally and in CI; expect failures when rules are violated and clear messages.\n- CI fails if ephemeral env files exist at the end of a job or are uploaded as artifacts.\n- Secret scanning passes on tracked files."
+          },
+          {
+            "id": 7,
+            "title": "Update documentation and migration notes",
+            "description": "Revise README/Contributing to explain the augmented workflow, migration from any existing .env to .env.local, how to run locally and in CI, and the no-duplication policy.",
+            "status": "done",
+            "dependencies": [],
+            "details": "- Add a decision tree: when to inject at runtime vs when to generate files.\n- Provide examples for: local (.env.example + .env.local), CI with injection, and CI with ephemeral dotenv file.\n- Include migration steps: rename/move any existing .env to .env.local and run pnpm env:local:init to backfill missing keys.",
+            "testStrategy": "- Follow README to complete local setup using env:local:init and run the app.\n- Follow CI setup docs to run both injection and ephemeral file scenarios successfully.\n- Confirm no references to deprecated or parallel env files remain."
+          },
+          {
+            "id": 8,
+            "title": "Define exit criteria for env generation vs injection and implement supporting scripts",
+            "description": "Codify exit criteria for .env.local generation patterns and the policy for when to inject at runtime vs generate files. Implement pnpm env:local:init and CI examples for ephemeral generation (if needed), plus validation hooks.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Exit criteria:\n- .env.local generation: A documented, idempotent pnpm env:local:init exists; it never runs in CI; it does not overwrite without --force; it mirrors keys from .env.example with empty values and comments.\n- Injection-first policy: CI is configured to run with injected environment variables; .env.ci (if used) loads with override=false and contains no secrets.\n- Ephemeral generation in CI (exception): Example job demonstrates generating, using, and deleting an ephemeral dotenv file; validation fails if the file persists.\n- Guardrails: pnpm env:validate and secret scanning are wired into CI to enforce the above.",
+            "testStrategy": "- Demonstrate all exit criteria in PR checks: env:local:init behavior, successful CI via injection-only, and optional ephemeral file job with cleanup.\n- Reviewers can follow docs to reproduce local generation and CI behaviors exactly as described."
+          }
+        ]
+      },
+      {
+        "id": 59,
+        "title": "Env: add pre-commit guard to block .env* commits",
+        "description": "Implement a native Git pre-commit hook (no Husky) that blocks commits containing any .env* files (including .env and .envrc) and also runs the project's lint:changed task on staged changes. Exit criteria: attempting to commit a dummy .env at the repo root triggers hook failure and aborts the commit with a clear error message.",
+        "status": "done",
+        "dependencies": [
+          58,
+          "3.1"
+        ],
+        "priority": "high",
+        "details": "- Do NOT use Husky. Implement a native Git hook.\n- Create a POSIX shell script at .git/hooks/pre-commit and make it executable (chmod +x .git/hooks/pre-commit).\n- The hook must:\n  1) Enumerate staged files only: git diff --cached --name-only -z\n  2) Block the commit if any staged path matches the regex: ^\\.env(\\.|$)|\\.envrc\n     - This should catch .env, .env.local, .env.production, .env.example, and .envrc at the repo root.\n     - Print a clear, actionable error message listing the offending files and explaining why the commit is blocked.\n     - Exit non-zero to abort the commit.\n  3) If no matches, run the code quality step: npm run lint:changed\n     - If lint:changed fails, abort the commit and surface the linter output.\n- Fail fast: if sensitive files are detected, do not run lint:changed.\n- Provide clear messaging, e.g.:\n  - \"Pre-commit blocked: sensitive env files staged (X, Y). Remove them from the index before committing.\"\n  - On lint failure: \"Pre-commit blocked: lint:changed failed. Fix lint issues or adjust your changes.\"\n- Notes:\n  - Keep this implementation strictly as a native Git hook (no Husky, no core.hooksPath changes required).\n  - The provided regex is intended for repo-root file names. If needed in the future, we can extend it to nested paths, but for this task use the exact pattern provided.\n- Exit criteria:\n  - Committing a dummy .env at the repo root reliably triggers hook failure (non-zero exit) with a clear error listing .env and guidance to unstage/remove it.",
+        "testStrategy": "Manual verification\n\nPrerequisites\n- Ensure .git/hooks/pre-commit exists and is executable (chmod +x .git/hooks/pre-commit).\n- Ensure npm run lint:changed is defined and exits non-zero on lint failures.\n\nExit criteria\n- echo \"DUMMY=1\" > .env\n- git add .env && git commit -m \"test: dummy .env\"\n- Expect: Commit is rejected. Output lists .env and explains why it’s blocked. Hook exits non-zero.\n\nTests\n1) Blocks .env at root\n- echo \"FOO=bar\" > .env\n- git add .env && git commit -m \"test: add .env\"\n- Expect: Commit is rejected. Output lists .env and explains why it’s blocked.\n\n2) Blocks .env.local at root\n- echo \"FOO=bar\" > .env.local\n- git add .env.local && git commit -m \"test: add .env.local\"\n- Expect: Commit is rejected with the same style of message.\n\n3) Blocks .envrc at root\n- touch .envrc\n- git add .envrc && git commit -m \"test: add .envrc\"\n- Expect: Commit is rejected with a clear error.\n\n4) Blocks .env.example at root (intentional per regex)\n- echo \"FOO=example\" > .env.example\n- git add .env.example && git commit -m \"test: add .env.example\"\n- Expect: Commit is rejected (matches ^\\.env(\\.|$)).\n\n5) Runs lint:changed and allows commit on success\n- Modify a normal source file (e.g., src/foo.ts) with lint-clean changes.\n- git add src/foo.ts && git commit -m \"test: lint ok\"\n- Expect: Hook runs npm run lint:changed; commit succeeds.\n\n6) Runs lint:changed and blocks on failure\n- Intentionally introduce a lint error in a staged file (e.g., add an unused variable).\n- git add the file and attempt commit.\n- Expect: lint:changed fails; commit is aborted with linter output surfaced.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create native Git pre-commit hook shell script",
+            "description": "Write .git/hooks/pre-commit (POSIX sh) that lists staged files (git diff --cached --name-only -z), checks for matches to ^\\.env(\\.|$)|\\.envrc, prints clear errors with the offending paths, and exits non-zero if matched. Make it executable with chmod +x.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Integrate lint:changed into the hook",
+            "description": "If no env files are detected, run `npm run lint:changed` from the hook. On failure, abort the commit and show the output.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "User guidance and setup note",
+            "description": "Add a short note (e.g., in CONTRIBUTING.md) explaining that the project uses a native Git hook (no Husky), the hook lives at .git/hooks/pre-commit, and must be executable. Include basic troubleshooting tips.",
+            "status": "done",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 60,
+        "title": "Env: add CI secret scan (gitleaks or similar)",
+        "description": "Integrate secret scanning tool in CI pipeline to detect leaked credentials and define clear exit criteria for verification.",
+        "status": "in-progress",
+        "dependencies": [
+          58,
+          "3.1"
+        ],
+        "priority": "high",
+        "details": "Adopt gitleaks for CI secret scanning and enforce failures on findings.\n\nConfiguration\n- Add a repository-root .gitleaks.toml with:\n  - redact = true (ensure leaked values are redacted in logs)\n  - allowlist.paths to exclude generated and non-source content:\n    - src/generated/**\n    - fingerprints/**\n    - test fixtures (e.g., test/fixtures/** and **/__fixtures__/**)\n- Keep default rules plus any necessary project-specific tweaks only if false positives appear.\n\nCI Integration (GitHub Actions)\n- Add a workflow that runs on pull_request and fails the check if any leaks are detected.\n- Use the action gitleaks/gitleaks@v2.\n- Steps outline:\n  - actions/checkout@v4 with fetch-depth: 0 (ensures proper diff context)\n  - gitleaks/gitleaks@v2 with args: detect --redact --exit-code 1 --source . --config .gitleaks.toml\n- Name the workflow job \"gitleaks\" so it is clearly visible in the PR checks.\n- Surface findings as a failed PR check; the redaction setting prevents secrets from appearing in logs.\n\nScope and Behavior\n- Primary execution on PRs (incoming changes). The job must fail on any finding.\n- Exclusions ensure typegen artifacts and known fixture content are ignored to reduce noise.\n- Optional: provide a manual workflow_dispatch job for on-demand scans if needed later.\n\nNotifications\n- Rely on the failed GitHub check/PR status for notification. Consider adding CODEOWNERS to route reviews if desired.\n\nExit Criteria\n- The GitHub Actions UI shows a job named \"gitleaks\" on PRs.\n- Seeding a clearly marked fake secret in a non-excluded path causes the gitleaks job to fail with redacted output.\n- Removing the fake secret (or pushing a follow-up commit that removes it) results in the job passing.",
+        "testStrategy": "Automated CI validation and local spot checks\n1) PR failure on seeded test secret\n- Open a temporary test PR that adds a clearly marked dummy secret (e.g., TEST_SECRET=ghp_1234567890abcdefABCDEF1234567890abcdef) in a non-excluded path (e.g., src/app.ts comment). Expect the gitleaks job to fail, and the secret value to be redacted in logs. Remove the dummy secret before merging.\n2) Exclusion verification\n- Add the same dummy secret string inside src/generated/foo.txt (or a test fixture file). Expect the CI job to pass due to exclusions.\n3) Local run parity\n- Run locally: gitleaks detect --redact --exit-code 1 --source . --config .gitleaks.toml. Confirm it exits 1 with the dummy secret present in non-excluded paths and exits 0 once removed.\n4) Negative test\n- Open a PR with no secrets. Expect the job to pass cleanly.\n5) Exit criteria verification\n- On the temporary PR, confirm the GitHub Actions UI displays a job named \"gitleaks\". Verify fail→pass behavior by first observing the failure with the seeded secret and then the pass after removing it (new commit or amended PR).",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create .gitleaks.toml with redaction and exclusions",
+            "description": "Add .gitleaks.toml at repo root with redact=true and allowlist for src/generated/**, fingerprints/**, and test fixtures (e.g., test/fixtures/**, **/__fixtures__/**). Keep default rules; only tune if false positives appear.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Add GitHub Action to run gitleaks on PRs",
+            "description": "Create .github/workflows/gitleaks.yml that runs on pull_request using gitleaks/gitleaks@v2. Checkout with fetch-depth: 0 and run detect with: --redact --exit-code 1 --source . --config .gitleaks.toml. Name the job \"gitleaks\" so it is clearly visible in PR checks and fails on any findings.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Document usage and local reproduction",
+            "description": "Add a CONTRIBUTING entry describing how to run gitleaks locally with the repo config and how exclusions/redaction work.",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Validate CI behavior with a temporary dummy secret",
+            "description": "Open a short-lived test PR that introduces a dummy secret in a non-excluded path to confirm CI fails with redacted output; then remove it and confirm the job passes before merge (demonstrating fail→pass).",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 61,
+        "title": "Docs: __docs__/setup/env.md (multi-dev, Doppler/1P/Railway)",
+        "description": "Document environment variable management strategies for multi-developer workflows using secret management tools (Doppler, 1Password, Railway). Exit: __docs__/setup/env.md aligned with guard/CI behavior; references Doppler/1P/Railway.",
+        "status": "pending",
+        "dependencies": [
+          58,
+          "3.1",
+          59,
+          60
+        ],
+        "priority": "medium",
+        "details": "Extend __docs__/setup/env.md with practical guidance for multi-developer environment variable management using Doppler, 1Password (1P), and Railway. Cover:\n- Overview and principles: do not commit secrets; per-environment separation (local/dev/preview/staging/prod); least privilege; auditability; mapping of env keys across tools.\n- Tool-specific sections:\n  - Doppler: project/config setup (dev/stg/prod), CLI install/login, doppler setup/connect, pulling/injecting envs (run vs secrets download), service tokens for CI, key rotation procedures, and team access management.\n  - 1Password: op CLI install/login, using 1Password shell plugins vs op run, vault structure for environments, referencing env items, generating .env.local from 1P, rotation and sharing policies, and onboarding via group access.\n  - Railway: using Railway variables for services/environments, CLI/project linking, pulling env vars for local dev, preview environment strategies, and service tokens.\n- Sync strategies: single source of truth vs hybrid; recommended approach for this repo; mapping naming conventions so keys are consistent across tools; .env.local generation patterns; when to inject at runtime vs generate files.\n- Team onboarding: prerequisites, minimal steps per tool for new developers, granting access, verifying setup.\n- Rotation and incident response: standard operating procedure (who, how, timeline), tool-specific steps, and coordination when multiple tools are involved.\n- CI/Security alignment: reference Task 60 secret scanning in CI (e.g., gitleaks), ensure .env* patterns in .gitignore, guidance on avoiding plaintext secrets in commits/PRs, and handling secret exposure.\n- Troubleshooting: common issues (CLI auth, missing variables, permission errors), quick checks, and links to official docs.\nInclude concrete command examples for each tool, example .env.local generation flow, and a short recommendation for the preferred default workflow for contributors.\nAdditionally, ensure the document aligns with our guard/CI behavior (e.g., secret scanning, environment injection policies) and explicitly references Doppler, 1Password, and Railway in relevant sections.",
+        "testStrategy": "Documentation acceptance checks\n- The __docs__/setup/env.md file includes the following sections: Overview/Principles, Doppler, 1Password, Railway, Sync strategies, Team onboarding, Rotation/Incident response, CI/Security, Troubleshooting.\n- Each tool section contains: install/login steps, how to pull/inject env vars for local dev, example commands, and rotation steps. Commands are verified to be syntactically correct per tool docs.\n- The doc provides a recommended default workflow for contributors and a mapping/naming convention for env keys.\n- CI/Security guidance references Task 60 secret scanning and includes .gitignore guidance for .env* files.\n- A new developer can follow the onboarding steps to obtain a working .env.local or equivalent injection setup and run the app locally without manual secret copying.\n- Exit: __docs__/setup/env.md aligned with guard/CI behavior; references Doppler/1P/Railway.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add Overview/Principles and recommended default workflow to env.md",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Document Doppler setup: project/configs, CLI usage, injection vs download, service tokens, rotation",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Document 1Password setup: op CLI/shell plugin, vault structure, env injection/.env generation, rotation",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Document Railway variables: environments, CLI linking, pulling vars for local dev, preview env strategy",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Write Sync Strategies section: single source of truth, naming conventions, .env.local generation pattern",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Add Team Onboarding section with step-by-step per tool",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Add Rotation & Incident Response procedures covering all tools",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Add CI/Security alignment: reference Task 60 secret scanning, .gitignore for .env*, do-not-commit guidance",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Add Troubleshooting section with common errors and fixes",
+            "description": "",
+            "status": "pending",
+            "dependencies": [],
+            "details": "",
+            "testStrategy": ""
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-07T04:26:04.698Z",
+      "updated": "2025-09-07T06:13:17.412Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",

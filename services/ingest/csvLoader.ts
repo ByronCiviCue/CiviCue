@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import { env } from '../../src/lib/env.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
@@ -6,7 +6,7 @@ import * as csv from 'fast-csv';
 import { Client } from 'pg';
 import copyFrom from 'pg-copy-streams';
 import pino from 'pino';
-import { stableRowHash } from './lib/hash';
+import { stableRowHash } from './lib/hash.js';
 
 const logger = pino({ level: 'info' });
 
@@ -54,7 +54,7 @@ async function getCSVFiles(rawDir: string): Promise<string[]> {
     return files
       .filter(file => file.toLowerCase().endsWith('.csv'))
       .map(file => path.join(fullPath, file));
-  } catch (error) {
+  } catch {
     logger.info(`Directory ${rawDir} not found or inaccessible`);
     return [];
   }
@@ -63,7 +63,7 @@ async function getCSVFiles(rawDir: string): Promise<string[]> {
 async function countCSVRows(filePath: string): Promise<number> {
   return new Promise((resolve, reject) => {
     let rowCount = 0;
-    const stream = createReadStream(filePath)
+    createReadStream(filePath)
       .pipe(csv.parse({ headers: true, objectMode: true }))
       .on('data', () => rowCount++)
       .on('end', () => resolve(rowCount))
@@ -84,11 +84,7 @@ async function processCSVFile(filePath: string, dataset: DatasetConfig, dryRun: 
 
   // Non-dry run: process and load to database
   const client = new Client({
-    host: process.env.PGHOST || 'localhost',
-    port: parseInt(process.env.PGPORT || '5432'),
-    user: process.env.PGUSER || 'dev',
-    password: process.env.PGPASSWORD || 'dev',
-    database: process.env.PGDATABASE || 'civicue'
+    connectionString: env.db.url
   });
 
   try {
@@ -104,7 +100,7 @@ async function processCSVFile(filePath: string, dataset: DatasetConfig, dryRun: 
     await new Promise<void>((resolve, reject) => {
       createReadStream(filePath)
         .pipe(csv.parse({ headers: true, objectMode: true }))
-        .on('data', (row: any) => {
+        .on('data', (row: Record<string, unknown>) => {
           rowCount++;
           const jsonData = JSON.stringify(row);
           const hash = stableRowHash(row);
@@ -125,11 +121,11 @@ async function processCSVFile(filePath: string, dataset: DatasetConfig, dryRun: 
 
     // Execute COPY command
     const copyQuery = `COPY ${dataset.landingTable} (source_file, row_number, data, row_hash) FROM STDIN WITH (FORMAT csv)`;
-    const stream = client.query(copyFrom.from(copyQuery));
+    const copyStream = client.query(copyFrom.from(copyQuery));
     const fileStream = createReadStream(tempCsvPath);
     
     await new Promise<void>((resolve, reject) => {
-      fileStream.pipe(stream)
+      fileStream.pipe(copyStream)
         .on('finish', () => resolve())
         .on('error', reject);
     });
@@ -141,7 +137,7 @@ async function processCSVFile(filePath: string, dataset: DatasetConfig, dryRun: 
     logger.info(`Loaded ${rowCount} rows from ${basename}`);
     
   } catch (error) {
-    logger.error(`Failed to process ${basename}:`, error);
+    logger.error(error, `Failed to process ${basename}`);
     throw error;
   } finally {
     await client.end();
@@ -150,7 +146,7 @@ async function processCSVFile(filePath: string, dataset: DatasetConfig, dryRun: 
 
 async function main(): Promise<void> {
   try {
-    const dryRun = process.env.DRY_RUN !== 'false';
+    const dryRun = env.runtime.nodeEnv !== 'production';
     logger.info(`Starting CSV loader in ${dryRun ? 'dry-run' : 'write'} mode`);
     
     await ensureLogDir();
@@ -171,11 +167,12 @@ async function main(): Promise<void> {
     logger.info('CSV loader completed successfully');
     
   } catch (error) {
-    logger.error('CSV loader failed:', error);
+    logger.error(error, 'CSV loader failed');
     process.exit(1);
   }
 }
 
-if (require.main === module) {
+// ESM equivalent of require.main === module
+if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }

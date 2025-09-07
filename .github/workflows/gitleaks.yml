@@ -1,0 +1,25 @@
+name: Gitleaks Secret Scanning
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for comprehensive secret scanning
+          fetch-depth: 0
+      
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Detect secrets with redaction enabled, exit with code 1 if found
+          args: detect --redact --exit-code 1 --source . --config .gitleaks.toml

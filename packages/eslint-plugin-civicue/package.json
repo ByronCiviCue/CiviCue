@@ -1,0 +1,23 @@
+{
+  "name": "eslint-plugin-civicue",
+  "version": "1.0.0",
+  "description": "Custom ESLint rules for CiviCue project",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "keywords": ["eslint", "eslint-plugin", "civicue"],
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  },
+  "scripts": {
+    "test": "tsx tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@typescript-eslint/parser": "^8.42.0",
+    "@types/eslint": "^9.0.0",
+    "tsx": "^4.20.5",
+    "vitest": "^3.2.4"
+  }
+}

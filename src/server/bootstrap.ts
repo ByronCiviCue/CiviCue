@@ -1,4 +1,4 @@
-import { env } from '../lib/env';
+import { env } from '../lib/env.js';
 
 // Environment validation happens during import
 // This file can be imported by server implementations to ensure

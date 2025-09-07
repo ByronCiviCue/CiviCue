@@ -1,6 +1,6 @@
-import { env as envConfig } from './env';
+import { env as envConfig } from './env.js';
 
-export { env, requireKey } from './env';
+export { env, requireKey } from './env.js';
 
 export const SOCRATA_HEADERS = {
   'X-App-Token': envConfig.socrata.appId,
