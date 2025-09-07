@@ -9,7 +9,8 @@
       "mcp__task-master-ai__complexity_report",
       "mcp__task-master-ai__expand_all",
       "mcp__task-master-ai__next_task",
-      "mcp__task-master-ai__get_task"
+      "mcp__task-master-ai__get_task",
+      "mcp__task-master-ai__set_task_status"
     ]
   },
   "enableAllProjectMcpServers": true,
