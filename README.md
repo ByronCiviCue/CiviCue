@@ -49,6 +49,16 @@ See the project planning canvas at [docs/PLANNING.md](docs/PLANNING.md).
 - Load into Postgres: `npm run registry:load:pg` → `registry.socrata_assets`
 Outputs write to `municipalities/<STATE>/<CITY>/directory.json`. Not all cities use Socrata; non-Socrata sources will get their own builders with the same output shape.
 
+### Socrata Registry (SF)
+Build and validate the San Francisco Socrata dataset index. See [__docs__/catalogs/sf-socrata-profile.md](__docs__/catalogs/sf-socrata-profile.md) for detailed specifications.
+
+Commands:
+- Build index: `pnpm run registry:socrata:sf:build`
+- Validate output: `pnpm run registry:socrata:sf:validate`
+- Build + validate: `pnpm run registry:socrata:sf:rebuild`
+
+Environment: `SOCRATA_APP_TOKEN` (optional, increases rate limits)
+
 ### Non‑Socrata registries
 - CKAN (example: San Diego): `SAN_DIEGO_CKAN_TOKEN=... npm run registry:ckan:sandiego`
 - ArcGIS (example query): `ARCGIS_TOKEN=... npm run registry:arcgis:example`

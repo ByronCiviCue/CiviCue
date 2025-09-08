@@ -195,3 +195,29 @@ The SF Socrata registry builder assembles and writes the final directory with th
 - 1: Safety threshold failure
 
 Note: No diagnostics or extra fields are written to the output file.
+
+## Validation & CI
+
+The SF Socrata registry includes strict validation to ensure data quality and schema compliance.
+
+### Validator Responsibilities
+The `scripts/validate-datasf-index.mjs` script enforces:
+- **Header validation**: schemaVersion===1, source==='socrata', valid ISO 8601 generatedAt
+- **Domain matching**: Validates domain matches expected value (default: data.sfgov.org)
+- **Retention dates**: YYYY-MM-DD format with since ≤ until
+- **Count integrity**: totalCount === datasets.length
+- **Dataset shape**: Exact 7.3 normalized schema with no extra keys
+- **Threshold enforcement**: Minimum 200 datasets (configurable via --allowLowCount for warnings only)
+
+### Exit Codes
+- 0: All validations passed
+- 1: Any validation failure (schema, counts, threshold)
+
+### CI Integration
+GitHub Actions runs the validator on PRs that modify:
+- `municipalities/CA/SF/directory.json`
+- `scripts/build-datasf-index.mjs`
+- `scripts/validate-datasf-index.mjs`
+- `__docs__/catalogs/sf-socrata-profile.md`
+
+The CI job runs without `--allowLowCount`, enforcing strict validation. Any validation failure blocks the PR.

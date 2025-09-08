@@ -53,3 +53,18 @@ jobs:
 
       - name: Build
         run: pnpm -s build
+
+      - name: Validate SF Socrata Registry
+        if: |
+          contains(github.event_name, 'pull_request') && (
+            contains(github.event.head_commit.modified, 'municipalities/CA/SF/directory.json') ||
+            contains(github.event.head_commit.modified, 'scripts/build-datasf-index.mjs') ||
+            contains(github.event.head_commit.modified, 'scripts/validate-datasf-index.mjs') ||
+            contains(github.event.head_commit.modified, '__docs__/catalogs/sf-socrata-profile.md')
+          )
+        run: |
+          if [ -f "municipalities/CA/SF/directory.json" ]; then
+            pnpm -s run registry:socrata:sf:validate
+          else
+            echo "Directory file not found, skipping validation"
+          fi
