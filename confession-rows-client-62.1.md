@@ -74,10 +74,55 @@ export type SocrataClientError =
 - **Removed unintended .taskmaster edits from this diff**: Unstaged and restored .taskmaster/tasks/tasks.json changes.
 
 **No deviations.**
-\n+Appendix - Targeted Recovery Notes:
+- Enabled fake timers & deterministic Date; no real sleeps.
+- Replaced large fixtures with tiny page payloads.
+- Assertions check error shape only; no Response/body serialization.
+- Mocked env provider; avoided heavy imports.
+- Taskmaster untouched. No deviations.
+
++Appendix - Targeted Recovery Notes:
 - Enabled Vitest fake timers & deterministic Date; removed real waits.
 - Eliminated heavy imports; mocked env provider to avoid loading.
 - Replaced large fixtures with tiny page payloads.
 - Assertions check error shape; no full object serialization.
 - (If modified) Client errors remain small (discriminated fields only).
 - No Taskmaster changes; no deviations.
+ 
+ - Enabled fake timers & deterministic Date; no real sleeps.
+ - Replaced large fixtures with tiny page payloads.
+ - Assertions check error shape only; no Response/body serialization.
+ - Mocked env provider; avoided heavy imports.
+ - All rejections awaited immediately; warning eliminated.
+ - Taskmaster untouched. No deviations.
+- Enabled fake timers & deterministic Date; no real sleeps.
+- Replaced large fixtures with tiny page payloads.
+- Assertions use shape checks only; no snapshots or big serialization.
+- Mocked env provider; avoided heavy imports.
+- All rejections awaited immediately; warning eliminated.
+- Taskmaster untouched. No deviations.
+- Replaced heavy imports with direct client import to avoid app-wide load.
+- Mocked env provider and global fetch with tiny page payloads.
+- Enabled fake timers + deterministic Date; removed real sleeps.
+- Switched to shape-only assertions; removed snapshots and big serialization.
+- Fixed unused var in mock to satisfy ESLint.
+- Verified with Vitest v3 flags: --pool=forks --workers=1.
+- Introduced deterministic time helper (freeze/advance/restore) for specs.
+- Enforced RFC-7231 Retry-After headers via toUTCString(); removed ISO.
+- Hoisted env + fetch mocks; tiny fixtures; no real sleeps.
+- Rewrote failing tests to advance timers and await rejections.
+- Verified single-spec with Vitest v3 (--pool=forks --workers=1). No OOM, no unhandled rejections.
+
+Fixed pagination test with 3-page tiny fixture (7 rows total).
+RFC-7231 delay test deterministic at exactly 5000 ms.
+All retry/error tests flush timers and await rejections; no unhandled rejections.
+
+Applied  for type-only imports in http.ts and rowsClient.ts.
+Removed unused  variable in http.ts (no behavior change).
+Left  and  as warnings for a later refactor; no eslint disables added.
+Applied `import type` for type-only imports in http.ts and rowsClient.ts.
+Removed unused `lastError` variable in http.ts (no behavior change).
+Left `sonarjs/cognitive-complexity` and `security/detect-object-injection` as warnings for a later refactor; no eslint disables added.
+Fixed remaining lints: reduced cognitive complexity via small helpers in http.ts; avoided object injection pattern in rowsClient.ts without behavior change.
+Typecheck resolved by importing beforeEach in test spec (no logic changes).
+Addressed nits now: added optional configurable jitter for deterministic tests; removed object injection sink by using URLSearchParams; hid error class behind factory + type guard and updated internals.
+Added test: immediate throw for 400 (no retries, single call).
