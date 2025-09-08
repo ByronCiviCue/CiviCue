@@ -363,7 +363,7 @@
         "testStrategy": "Run the script and verify that the output index file is created and contains a plausible number of dataset entries with correct metadata fields.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -371,7 +371,7 @@
             "description": "Create a standalone script to build the San Francisco Socrata registry and define configuration points (domain, output path, page size, app token).",
             "dependencies": [],
             "details": "Implementation steps:\n- Language/runtime: Node.js with TypeScript (ts-node) or plain Node.js. Create scripts/build-sf-index.(ts|js).\n- Define constants/config:\n  - SOCRATA_DISCOVERY_BASE = \"https://api.us.socrata.com/api/catalog/v1\"\n  - SF_DOMAIN = \"data.sfgov.org\"\n  - DEFAULT_PAGE_SIZE = 100 (tuneable via CLI arg or env)\n  - OUTPUT_URI = \"registry:socrata:sf\"; resolve to file path like ./registry/socrata/sf.json (create dirs if missing)\n- Add CLI options (yargs or simple argv parsing): --pageSize, --out, --verbose, --dryRun.\n- Read optional env: SOCRATA_APP_TOKEN to include in requests header X-App-Token.\n- Establish lightweight logger (console) with verbose flag.\n- Decide JSON output shape (top-level metadata + datasets array).",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Smoke test: run the script with --dryRun to ensure it parses config and logs planned actions without performing network I/O."
           },
           {
@@ -382,7 +382,7 @@
               "7.1"
             ],
             "details": "Implementation steps:\n- HTTP client: use fetch (node-fetch/undici) or axios with a 15s timeout.\n- Request builder:\n  - GET {SOC R ATA_DISCOVERY_BASE}?domains={SF_DOMAIN}&only=datasets&limit={pageSize}&offset={offset}\n  - Include headers: 'Accept: application/json', and 'X-App-Token' if SOCRATA_APP_TOKEN set.\n- Pagination loop:\n  - Initialize offset=0; do { fetch page; collect results; offset += page.length } while (page.length === pageSize)\n  - Guard against infinite loops by tracking seen IDs and max pages.\n- Resilience:\n  - Retry policy for transient errors (HTTP 429 and 5xx): exponential backoff (e.g., base 500ms, factor 2, jitter), maxRetries=5.\n  - Respect Retry-After header when present (parse seconds) overriding backoff for that attempt.\n  - Treat network timeouts/ECONNRESET as retryable.\n  - Non-retryable: 4xx (except 429) -> surface error with details.\n- Return an array of raw catalog items.\n- Instrument with verbose logs: page offsets, retries, response counts.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Use a mock server (e.g., msw/nock) to simulate: (1) multiple pages of results, (2) 429 with Retry-After, (3) 500 then success, (4) non-retryable 400. Assert pagination stops correctly and backoff logic is invoked."
           },
           {
@@ -393,7 +393,7 @@
               "7.2"
             ],
             "details": "Implementation steps:\n- Define a minimal registry schema interface:\n  - id (string): dataset UID\n  - name (string)\n  - description (string | null)\n  - type (string)\n  - domain (\"data.sfgov.org\")\n  - permalink/url (string)\n  - createdAt, updatedAt (ISO strings when available)\n  - tags (string[]), categories (string[])\n  - owner (name or id when available)\n  - license/provenance (optional strings)\n- Implement transformCatalogItem(item) that defensively reads fields typically present in Discovery API results (e.g., item.resource.id, item.resource.name, item.resource.type, item.permalink, item.metadata.createdAt/updatedAt, item.classification.tags/categories, item.owner, item.metadata.license). Use fallback defaults when missing and ensure strings are trimmed.\n- Ensure all IDs are lowercase and unique.\n- Add deduplication helper by id to guard against overlapping pages.\n- Validate output entry shape (lightweight runtime checks or optional zod schema) and log warnings for malformed items; skip if critical fields (id, name) are missing.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests on transformCatalogItem with crafted sample items: full item, missing optional fields, unexpected types. Assert normalized structure and reasonable fallbacks."
           },
           {
@@ -405,7 +405,7 @@
               "7.3"
             ],
             "details": "Implementation steps:\n- Orchestrator flow in main():\n  1) Fetch all raw items via the client (Subtask 7.2).\n  2) Map through transformCatalogItem (Subtask 7.3).\n  3) Deduplicate by id, sort by name asc (stable), and compute summary stats.\n  4) Build top-level object: { source: \"socrata\", domain: \"data.sfgov.org\", generatedAt: new Date().toISOString(), totalCount, datasets: [...] }.\n- Path resolution: map logical OUTPUT_URI (registry:socrata:sf) to a concrete path like ./registry/socrata/sf.json. Ensure directory exists (fs.mkdir({ recursive: true })).\n- Atomic write: write to a temp file (sf.json.tmp) then fs.rename to final path.\n- Support --dryRun to skip writing and only print summary.\n- Verbose logging: totals, first/last few IDs, output path.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "End-to-end dry-run against live API (or mock) to confirm dataset count, then real write and verify the file exists, is valid JSON, has expected top-level keys, and datasets.length equals totalCount."
           },
           {
@@ -416,7 +416,7 @@
               "7.4"
             ],
             "details": "Implementation steps:\n- Output schema check: define a minimal JSON schema for the registry file and a validate script (node script) that reads the file and validates it (ajv or zod). Fail with clear errors.\n- Add npm scripts: \"build:sf-index\" to run the crawler, \"validate:sf-index\" to validate the output, and \"rebuild:sf\" combining both.\n- Document in README: required env (SOC R ATA_APP_TOKEN optional), how to run, expected runtime, troubleshooting for 429, and where the file is stored.\n- CI (optional): add a job/workflow that runs on manual dispatch to build and upload the artifact (or commit the updated registry file) with caching and rate-limit respectful retries.\n- Add simple plausibility checks: fail if datasets.length < threshold (e.g., < 50) unless --allowLowCount is set.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run build then validate locally; in CI, assert that the validation step passes and that the artifact (sf.json) is produced and under a size threshold."
           }
         ]
@@ -3210,11 +3210,24 @@
             "parentTaskId": 62
           }
         ]
+      },
+      {
+        "id": 63,
+        "title": "Populate SF Registry Datasets",
+        "description": "Ingest and normalize the full San Francisco dataset registry (762 entries) into municipalities/CA/SF/directory.json. Ensure deduplication, retention horizon filtering, and validation against Socrata's /api/views. Serve as the authoritative index for downstream vector ingestion.",
+        "details": "",
+        "testStrategy": "Run build then validate locally; verify 762+ datasets populated with correct schema validation and atomic write completion.",
+        "status": "pending",
+        "dependencies": [
+          7
+        ],
+        "priority": "high",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-08T03:18:50.628Z",
+      "updated": "2025-09-08T07:39:08.392Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",
