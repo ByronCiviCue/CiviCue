@@ -3145,7 +3145,7 @@
             "title": "v2 dataset row client",
             "description": "Build a client for /resource/<id>.json with offset/limit pagination. Headers: X-App-Token via our env resolver; light retry + throttle knob. Return typed rows as unknown[] initially; no writes.",
             "details": "Implementation steps:\n- Create HTTP client for Socrata v2 dataset API endpoint /resource/<id>.json\n- Implement offset/limit pagination (not scroll - that's Discovery-only)\n- Add X-App-Token header support via existing env resolver (socrataHeadersFor)\n- Light retry logic: simple exponential backoff for 429/5xx, respect Retry-After\n- Throttling configuration knob (requests per second/minute)\n- Return raw rows as unknown[] array for type codec processing\n- No file writes - pure data fetching\n- Support for both authenticated and unauthenticated requests\n- Proper error handling with meaningful messages\n- Verbose logging for debugging pagination and retry behavior",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "parentTaskId": 62
           },
@@ -3272,7 +3272,7 @@
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-08T07:41:17.010Z",
+      "updated": "2025-09-08T21:15:30.433Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",
