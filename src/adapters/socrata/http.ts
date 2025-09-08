@@ -57,7 +57,7 @@ export async function fetchWithRetry(options: FetchWithRetryOptions): Promise<Re
       return false;
     }
     // For non-retryable statuses, throw immediately
-    throw createClientError({ kind: 'HttpError', status: response.status, url, message: `HTTP error (${response.status}) for ${url}` });
+    throw createClientError('HttpError', { status: response.status, url, message: `HTTP error (${response.status}) for ${url}` });
   }
 
   async function scheduleRetryOnError(attempt: number): Promise<boolean> {
@@ -75,12 +75,12 @@ export async function fetchWithRetry(options: FetchWithRetryOptions): Promise<Re
       if (response.ok) return response;
       if (await scheduleRetryOnResponse(response, attempt)) continue;
     } catch (error) {
-      if (isSocrataClientError(error)) throw error as Error;
+      if (isSocrataClientError(error)) throw error;
       if (await scheduleRetryOnError(attempt)) continue;
     }
   }
 
-  throw createClientError({ kind: 'RetryExhausted', url: options.url, attempts: options.retries + 1, message: `Retry exhausted after ${options.retries + 1} attempts for ${options.url}` });
+  throw createClientError('RetryExhausted', { url: options.url, attempts: options.retries + 1, message: `Retry exhausted after ${options.retries + 1} attempts for ${options.url}` });
 }
 
 export { buildSocrataUrl };

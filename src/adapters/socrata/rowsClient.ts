@@ -60,7 +60,7 @@ export class SocrataRowClient {
       if (this.maxRows !== undefined && totalFetched >= this.maxRows) break;
       const page = await this.fetchPage(offset);
       allRows.push(...page.rows);
-      totalFetched = page.totalFetched;
+      totalFetched = page.totalFetched ?? totalFetched;
       if (page.nextOffset === undefined) break;
       if (this.maxRows !== undefined && allRows.length >= this.maxRows) {
         allRows.splice(this.maxRows);
