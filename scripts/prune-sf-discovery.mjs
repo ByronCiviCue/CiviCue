@@ -51,7 +51,7 @@ function monthsBetween(a, b) {
 const CAT_KEYWORDS = {
   governance: [/ethic/i, /lobby/i, /campaign/i, /election/i, /contract/i, /procure/i, /budget/i, /finance/i, /compliance/i],
   housing: [/permit/i, /housing/i, /rent/i, /evict/i, /parcel/i, /apn/i, /land\s*use/i, /zoning/i, /planning/i],
-  safety: [/311/i, /incident/i, /crime/i, /police/i, /fire/i, /emergency/i, /calls?/i],
+  safety: [/311/, /incident/i, /crime/i, /police/i, /fire/i, /emergency/i, /calls?/i],
   infrastructure: [/street/i, /public works/i, /utility/i, /sewer/i, /water/i, /paving/i, /tree/i, /sidewalk/i],
   finance: [/budget/i, /spend/i, /payroll/i, /vendor/i, /checkbook/i, /revenue/i, /tax/i],
   transit: [/transit/i, /muni/i, /sfmta/i, /bart/i, /sfo\b/i, /airport/i, /bus/i, /rail/i, /bike/i],
@@ -60,9 +60,10 @@ const CAT_KEYWORDS = {
 
 const TRUSTED_OWNERS = [/^DataSF$/i, /City and County of San Francisco/i, /SFMTA/i, /San Francisco Police/i, /Controller/i, /Planning/i, /Ethics/i, /Treasurer/i, /Airport/i];
 
+// eslint-disable-next-line no-unused-vars
 function classifyRelevance(name, categories = [], tags = []) {
   const text = [name || '', ...categories, ...tags].join(' ').toLowerCase();
-  const hits = Object.entries(CAT_KEYWORDS).filter(([_, res]) => res.some((r) => r.test(text)));
+  const hits = Object.entries(CAT_KEYWORDS).filter(([, res]) => res.some((r) => r.test(text)));
   const cats = hits.map(([k]) => k);
   if (cats.length === 0) return { cats: [], relevance: 0 };
   // Strong match if multiple domains or exact keywords
@@ -78,8 +79,8 @@ function isArchivedLike(name, tags = []) {
 function isGlobalIrrelevant(name, categories = [], tags = []) {
   const text = [name || '', ...categories, ...tags].join(' ').toLowerCase();
   // Keep SF-centric only; drop obviously global context that isn't SF specific
-  const globalish = /\b(usa|united states|global|world|california)\b/.test(text);
-  const sfHint = /(san\s*francisco|sf\b|sfgov|city and county)/.test(text);
+  const globalish = /\b(?:usa|united states|global|world|california)\b/.test(text);
+  const sfHint = /(?:san\s*francisco|sf\b|sfgov|city and county)/.test(text);
   return globalish && !sfHint;
 }
 
@@ -93,16 +94,16 @@ function ownerTrustScore(owner) {
 
 function joinabilityScore(name, tags = []) {
   const text = [name || '', ...(tags || [])].join(' ').toLowerCase();
-  const joinKeys = [/\b(apn|parcel|block|lot|block\s*lot|case|permit|incident|neighborhood|tract|district)\b/];
+  const joinKeys = [/\b(?:apn|parcel|block|lot|block\s*lot|case|permit|incident|neighborhood|tract|district)\b/];
   const strong = joinKeys.some((r) => r.test(text));
   return strong ? 100 : 60;
 }
 
 function cadenceScore(name, categories = [], tags = []) {
   const text = [name || '', ...categories, ...tags].join(' ').toLowerCase();
-  if (/(311|crime|incident|calls?|service request)/.test(text)) return 100; // daily
-  if (/(permit|inspection|transit|muni|sfo|airport)/.test(text)) return 85; // weekly
-  if (/(budget|finance|ethics|lobby)/.test(text)) return 70; // monthly/quarterly
+  if (/(?:311|crime|incident|calls?|service request)/.test(text)) return 100; // daily
+  if (/(?:permit|inspection|transit|muni|sfo|airport)/.test(text)) return 85; // weekly
+  if (/(?:budget|finance|ethics|lobby)/.test(text)) return 70; // monthly/quarterly
   return 50; // unknown/low cadence
 }
 
@@ -127,11 +128,13 @@ function freshnessScore(updatedAt) {
   return 20;
 }
 
+// eslint-disable-next-line no-unused-vars
 function relevanceAllowed(cats) {
   const allowed = new Set(['governance', 'housing', 'safety', 'infrastructure', 'finance', 'transit', 'boundaries']);
   return cats.some((c) => allowed.has(c));
 }
 
+// eslint-disable-next-line no-unused-vars
 function categoryRetention(cats) {
   // Returns descriptive retention window
   if (cats.includes('safety') || cats.includes('governance') && /311/.test(cats.join(','))) return '36m';
@@ -143,6 +146,7 @@ function categoryRetention(cats) {
   return 'unspecified';
 }
 
+// eslint-disable-next-line no-unused-vars
 function computeScore({ relevance, updatedAt, owner, name, tags, categories }) {
   const freshness = freshnessScore(updatedAt);
   const ownerTrust = ownerTrustScore(owner);
@@ -162,6 +166,7 @@ function computeScore({ relevance, updatedAt, owner, name, tags, categories }) {
   return { score, components: { relevance, freshness, ownerTrust, joinability, cadence, sizeSanity } };
 }
 
+// eslint-disable-next-line no-unused-vars
 function shouldDropBasic(item) {
   const reasons = [];
   if (!item) { reasons.push('invalid-item'); return reasons; }
@@ -174,6 +179,7 @@ function shouldDropBasic(item) {
   return reasons;
 }
 
+// eslint-disable-next-line no-unused-vars
 function dropArcGisConnectorDupes(items) {
   // Heuristic: if multiple items have similar names and one has permalink to arcgis.com, drop that one.
   // Build index by normalized name key
@@ -187,7 +193,7 @@ function dropArcGisConnectorDupes(items) {
   const dropIds = new Set();
   for (const group of byKey.values()) {
     if (group.length <= 1) continue;
-    const hasCurated = group.some((g) => /(datasf|data\.sfgov\.org|open ?data)/i.test(g.domain || 'data.sfgov.org') || TRUSTED_OWNERS.some((re) => re.test(g.owner || '')));
+    const hasCurated = group.some((g) => /(?:datasf|data\.sfgov\.org|open ?data)/i.test(g.domain || 'data.sfgov.org') || TRUSTED_OWNERS.some((re) => re.test(g.owner || '')));
     if (!hasCurated) continue;
     const arcgisLike = group.filter((g) => /arcgis\.com/i.test(g.permalink || ''));
     for (const g of arcgisLike) dropIds.add(g.id);

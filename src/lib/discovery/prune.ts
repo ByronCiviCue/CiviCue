@@ -67,7 +67,7 @@ function monthsBetween(a: Date, b: Date): number {
 const CAT_KEYWORDS: Record<string, RegExp[]> = {
   governance: [/ethic/i, /lobby/i, /campaign/i, /election/i, /contract/i, /procure/i, /budget/i, /finance/i, /compliance/i],
   housing: [/permit/i, /housing/i, /rent/i, /evict/i, /parcel/i, /apn/i, /land\s*use/i, /zoning/i, /planning/i],
-  safety: [/311/i, /incident/i, /crime/i, /police/i, /fire/i, /emergency/i, /calls?/i],
+  safety: [/311/, /incident/i, /crime/i, /police/i, /fire/i, /emergency/i, /calls?/i],
   infrastructure: [/street/i, /public works/i, /utility/i, /sewer/i, /water/i, /paving/i, /tree/i, /sidewalk/i],
   finance: [/budget/i, /spend/i, /payroll/i, /vendor/i, /checkbook/i, /revenue/i, /tax/i],
   transit: [/transit/i, /muni/i, /sfmta|mta/i, /bart/i, /sfo\b/i, /airport/i, /bus/i, /rail/i, /bike/i],
@@ -78,7 +78,7 @@ const DEFAULT_TRUSTED_OWNERS = [/DataSF/i, /City and County/i, /Planning/i, /Eth
 
 function classifyRelevance(name?: string | null, categories: string[] = [], tags: string[] = []) {
   const text = [name || '', ...categories, ...tags].join(' ');
-  const hits = Object.entries(CAT_KEYWORDS).filter(([_, res]) => res.some((r) => r.test(text)));
+  const hits = Object.entries(CAT_KEYWORDS).filter(([, res]) => res.some((r) => r.test(text)));
   const cats = hits.map(([k]) => k);
   if (cats.length === 0) return { cats: [] as string[], relevance: 0 };
   const relevance = Math.min(100, 40 + cats.length * 20);
@@ -92,8 +92,8 @@ function isArchivedLike(name?: string | null, tags: string[] = []) {
 
 function isGlobalIrrelevant(name?: string | null, categories: string[] = [], tags: string[] = []) {
   const text = [name || '', ...categories, ...tags].join(' ');
-  const globalish = /\b(usa|united states|global|world|california)\b/i.test(text);
-  const sfHint = /(san\s*francisco|\bsf\b|sfgov|city and county)/i.test(text);
+  const globalish = /\b(?:usa|united states|global|world|california)\b/i.test(text);
+  const sfHint = /(?:san\s*francisco|\bsf\b|sfgov|city and county)/i.test(text);
   return globalish && !sfHint;
 }
 
@@ -106,15 +106,15 @@ function ownerTrustScore(owner?: string | null, trusted: RegExp[] = DEFAULT_TRUS
 
 function joinabilityScore(name?: string | null, tags: string[] = []) {
   const text = [name || '', ...tags].join(' ');
-  const joinKeys = [/\b(apn|parcel|block|lot|block\s*lot|case|permit|incident|neighborhood|tract|district)\b/i];
+  const joinKeys = [/\b(?:apn|parcel|block|lot|block\s*lot|case|permit|incident|neighborhood|tract|district)\b/i];
   return joinKeys.some((r) => r.test(text)) ? 100 : 60;
 }
 
 function cadenceScore(name?: string | null, categories: string[] = [], tags: string[] = []) {
   const text = [name || '', ...categories, ...tags].join(' ');
-  if (/(311|crime|incident|calls?|service request)/i.test(text)) return 100;
-  if (/(permit|inspection|transit|muni|sfo|airport)/i.test(text)) return 85;
-  if (/(budget|finance|ethics|lobby)/i.test(text)) return 70;
+  if (/(?:311|crime|incident|calls?|service request)/i.test(text)) return 100;
+  if (/(?:permit|inspection|transit|muni|sfo|airport)/i.test(text)) return 85;
+  if (/(?:budget|finance|ethics|lobby)/i.test(text)) return 70;
   return 50;
 }
 
@@ -145,7 +145,7 @@ function relevanceAllowed(cats: string[]) {
 }
 
 function categoryRetention(cats: string[]) {
-  if (cats.includes('safety') || (cats.includes('governance') && /311/i.test(cats.join(',')))) return '36m';
+  if (cats.includes('safety') || (cats.includes('governance') && /311/.test(cats.join(',')))) return '36m';
   if (cats.includes('housing')) return '10y';
   if (cats.includes('finance') || cats.includes('governance')) return '12y';
   if (cats.includes('transit')) return '10y';
@@ -188,12 +188,13 @@ function dropArcGisConnectorDupes(items: DatasetRecord[], trusted: RegExp[]) {
   for (const it of items) {
     const k = keyFor(it.name);
     if (!byKey.has(k)) byKey.set(k, []);
-    byKey.get(k)!.push(it);
+    const items = byKey.get(k);
+    if (items) items.push(it);
   }
   const dropIds = new Set<string>();
   for (const group of byKey.values()) {
     if (group.length <= 1) continue;
-    const hasCurated = group.some((g) => /(datasf|data\.sfgov\.org|open ?data)/i.test(g.domain || '') || trusted.some((re) => re.test(g.owner || '')));
+    const hasCurated = group.some((g) => /(?:datasf|data\.sfgov\.org|open ?data)/i.test(g.domain || '') || trusted.some((re) => re.test(g.owner || '')));
     if (!hasCurated) continue;
     const arcgisLike = group.filter((g) => /arcgis\.com/i.test(g.permalink || ''));
     for (const g of arcgisLike) dropIds.add(g.id);
@@ -201,6 +202,7 @@ function dropArcGisConnectorDupes(items: DatasetRecord[], trusted: RegExp[]) {
   return dropIds;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 export function pruneCatalog(payload: CatalogPayload, opts: PruneOptions = {}): PruneResult {
   const datasets = Array.isArray(payload.datasets) ? payload.datasets : [];
   const now = new Date();
@@ -270,7 +272,8 @@ export function pruneCatalog(payload: CatalogPayload, opts: PruneOptions = {}): 
     if (rel.cats.includes('boundaries')) {
       const key = (item.categories && item.categories[0]) || 'boundaries';
       if (!boundariesIndex.has(key)) boundariesIndex.set(key, []);
-      boundariesIndex.get(key)!.push(keptItem);
+      const items = boundariesIndex.get(key);
+      if (items) items.push(keptItem);
     }
   }
 
@@ -281,7 +284,7 @@ export function pruneCatalog(payload: CatalogPayload, opts: PruneOptions = {}): 
       arr.sort((a, b) => {
         const da = parseISODate(a.updatedAt) || new Date(0);
         const db = parseISODate(b.updatedAt) || new Date(0);
-        return (db as any) - (da as any);
+        return db.getTime() - da.getTime();
       });
       const allowed = new Set(arr.slice(0, 2).map((x) => x.id));
       for (const it of arr.slice(2)) {
