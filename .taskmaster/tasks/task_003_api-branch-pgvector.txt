@@ -1,0 +1,63 @@
+# Task ID: 3
+# Title: Cohesive ESM migration
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Migrate the entire codebase to use ECMAScript Modules (ESM) for better standardization and performance.
+# Details:
+Update `tsconfig.json` to use `module: "NodeNext"`, adjust build scripts in `package.json`, configure the test runner (e.g., Vitest) for ESM, and update all imports to use file extensions and path aliases correctly.
+
+# Test Strategy:
+The entire test suite should pass, and the application should build and run successfully after the migration. CI pipeline should confirm build and test success.
+
+# Subtasks:
+## 1. Set ESM foundation in TypeScript and package metadata [done]
+### Dependencies: None
+### Description: Switch the project to ESM at the config level by updating tsconfig and package.json, ensuring NodeNext semantics and Node version compatibility.
+### Details:
+1) tsconfig.json (root): set "module": "NodeNext", "moduleResolution": "NodeNext", "target": "ES2022" (or higher), "resolveJsonModule": true, "esModuleInterop": true, "skipLibCheck": true, and optionally "verbatimModuleSyntax": true to keep import/export forms. Keep "noEmit": true for the root config. Add/verify "baseUrl": "." and path aliases under "paths" if used.
+2) Create tsconfig.build.json extending the root: set "noEmit": false, "outDir": "./dist", "declaration": true, "declarationMap": true, and include src files (e.g., "include": ["src"]). Ensure it inherits "module": "NodeNext".
+3) package.json: set "type": "module"; add "engines.node": ">=18.17" (or Node 20 LTS recommended). If publishing a package, set "main": "./dist/index.js", "types": "./dist/index.d.ts", and an "exports" field mapping "./package.json" and the entry point to ESM. If this is an app (not a library), ensure only "type": "module" and correct entry fields.
+4) If any files must remain CommonJS (e.g., some tool configs), plan to rename them to .cjs; pure ESM configs can stay .js under type:module or .mjs.
+5) Document the minimum Node version in README and commit a Node version file (.nvmrc / .tool-versions) if the repo uses it.
+
+## 2. Migrate build and runtime scripts for ESM [done]
+### Dependencies: 3.1
+### Description: Adjust build and start tooling to be ESM-friendly and preserve path aliases in emitted code.
+### Details:
+1) Replace ts-node with tsx (or ensure your runner supports ESM). package.json scripts: "dev": "tsx watch src/index.ts"; "start": "node ./dist/index.js".
+2) Build pipeline: If using tsc, set "build": "tsc -p tsconfig.build.json". If you rely on TS path aliases at runtime, add tsc-alias: "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json". Alternatively, use tsup/esbuild to bundle as ESM: e.g., "build": "tsup src/index.ts --format esm --dts --out-dir dist" and mirror path aliases in bundler config.
+3) For CLIs, ensure the compiled dist files retain the shebang and that "bin" in package.json points at "./dist/cli.js". If required, add a build step to preserve the shebang (tsup --shims or a banner).
+4) If you have config scripts that tools load as CJS, rename them to .cjs (e.g., webpack.config.cjs) and adjust invocations. Keep runtime Node flags to a minimum; do not rely on --experimental-specifier-resolution.
+5) Verify that emitted files are .js and that relative import specifiers in the output are correct (with .js extensions).
+
+## 3. Configure Vitest and testing stack for ESM [done]
+### Dependencies: 3.1
+### Description: Update the test runner and related configs to run under ESM, align aliases, and ensure mocking works.
+### Details:
+1) Convert vitest.config.ts to ESM style: use "export default defineConfig({...})" and ESM imports from "vitest/config". Ensure the file extension and syntax match the repository ESM setup.
+2) Map TS path aliases to Vitest/Vite resolve.alias. Optionally use a tsconfig-paths resolver plugin, or manually mirror aliases.
+3) Set test environment to node and configure deps handling for any CJS-heavy modules (e.g., test: { environment: 'node', deps: { inline: [] } }).
+4) Update package.json scripts: "test": "vitest run", "test:watch": "vitest". Remove any CommonJS-specific test bootstrap code; convert setup files to ESM.
+5) If tests import JSON, prefer fs read in tests or use Node ESM JSON import with assertions (import data from './x.json' assert { type: 'json' }). Ensure TS supports it (TS >=5.3) or gate behind createRequire in tests.
+
+## 4. Refactor source to ESM syntax and fix import specifiers [done]
+### Dependencies: 3.1, 3.2, 3.3
+### Description: Convert remaining CommonJS modules to ESM, add required file extensions to imports, and address interop cases.
+### Details:
+1) Replace require/module.exports patterns with ESM: use "import ... from 'x'" or named imports; replace "module.exports =" with "export default" (or named exports); convert "exports.foo = foo" to "export { foo }".
+2) Update relative imports to include file extensions that will exist at runtime (e.g., import './utils.js'), even in .ts source when using NodeNext. Keep directory index imports explicit (e.g., './dir/index.js').
+3) Maintain type-only imports using the "type" modifier to avoid runtime import overhead (e.g., import type { Foo } from './types.js'). Consider enabling "verbatimModuleSyntax" in TS to enforce correctness.
+4) Handle CJS-only dependencies: use createRequire from 'node:module' when needed (const require = createRequire(import.meta.url); const pkg = require('cjs-only')). For JSON at runtime, either read via fs (recommended) or use import assertions where supported. Replace __dirname/__filename with fileURLToPath(import.meta.url) equivalents.
+5) Rename any files that must remain CJS to .cjs (or in TS to .cts) and ESM-only files to .mjs/.mts as necessary. Update any tool configs expecting specific module types. Run incremental conversions and commit in small batches.
+
+## 5. Finalize CI and verification for ESM migration [done]
+### Dependencies: 3.2, 3.3, 3.4
+### Description: Update CI to Node >= LTS with ESM-compatible steps, run full build/test, and add safeguards for import resolution and regressions.
+### Details:
+1) CI: set Node version to >=18.17 (prefer 20 LTS). Ensure steps: install, typecheck (tsc --noEmit), build, test. If using pnpm/yarn, enable corepack.
+2) Add a job to fail on unresolved ESM specifiers: run tsc with --noEmit and optionally a script that greps for extensionless relative imports (e.g., './foo' without '.js').
+3) Ensure coverage and reporters still work under ESM (Vitest flags). Update any CI caching keys if tools changed (e.g., tsx, tsup).
+4) Do a runtime smoke test in CI: after build, run "node dist/index.js" or a minimal health check command to verify startup under ESM.
+5) Document migration notes and add a checklist to PR template to keep new code ESM-compliant (explicit extensions, no require/module.exports).
+

@@ -1,0 +1,96 @@
+# Task ID: 7
+# Title: Build SF Socrata index (registry:socrata:sf)
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create a script to crawl the San Francisco Socrata portal and build a local index of all available datasets.
+# Details:
+The script will use the Socrata Discovery API to fetch metadata for all datasets in the SF portal. The output should be a structured file (e.g., JSON) representing the registry, stored at `registry:socrata:sf`.
+
+# Test Strategy:
+Run the script and verify that the output index file is created and contains a plausible number of dataset entries with correct metadata fields.
+
+# Subtasks:
+## 1. Scaffold index builder script and configuration [pending]
+### Dependencies: None
+### Description: Create a standalone script to build the San Francisco Socrata registry and define configuration points (domain, output path, page size, app token).
+### Details:
+Implementation steps:
+- Language/runtime: Node.js with TypeScript (ts-node) or plain Node.js. Create scripts/build-sf-index.(ts|js).
+- Define constants/config:
+  - SOCRATA_DISCOVERY_BASE = "https://api.us.socrata.com/api/catalog/v1"
+  - SF_DOMAIN = "data.sfgov.org"
+  - DEFAULT_PAGE_SIZE = 100 (tuneable via CLI arg or env)
+  - OUTPUT_URI = "registry:socrata:sf"; resolve to file path like ./registry/socrata/sf.json (create dirs if missing)
+- Add CLI options (yargs or simple argv parsing): --pageSize, --out, --verbose, --dryRun.
+- Read optional env: SOCRATA_APP_TOKEN to include in requests header X-App-Token.
+- Establish lightweight logger (console) with verbose flag.
+- Decide JSON output shape (top-level metadata + datasets array).
+
+## 2. Implement Discovery API client with pagination and resilience [pending]
+### Dependencies: 7.1
+### Description: Build an API client to fetch all SF datasets from the Socrata Discovery API, handling pagination, timeouts, retries, and rate limiting.
+### Details:
+Implementation steps:
+- HTTP client: use fetch (node-fetch/undici) or axios with a 15s timeout.
+- Request builder:
+  - GET {SOC R ATA_DISCOVERY_BASE}?domains={SF_DOMAIN}&only=datasets&limit={pageSize}&offset={offset}
+  - Include headers: 'Accept: application/json', and 'X-App-Token' if SOCRATA_APP_TOKEN set.
+- Pagination loop:
+  - Initialize offset=0; do { fetch page; collect results; offset += page.length } while (page.length === pageSize)
+  - Guard against infinite loops by tracking seen IDs and max pages.
+- Resilience:
+  - Retry policy for transient errors (HTTP 429 and 5xx): exponential backoff (e.g., base 500ms, factor 2, jitter), maxRetries=5.
+  - Respect Retry-After header when present (parse seconds) overriding backoff for that attempt.
+  - Treat network timeouts/ECONNRESET as retryable.
+  - Non-retryable: 4xx (except 429) -> surface error with details.
+- Return an array of raw catalog items.
+- Instrument with verbose logs: page offsets, retries, response counts.
+
+## 3. Normalize catalog items into registry dataset entries [pending]
+### Dependencies: 7.2
+### Description: Define the registry schema and transform raw Discovery API results into normalized entries with consistent fields.
+### Details:
+Implementation steps:
+- Define a minimal registry schema interface:
+  - id (string): dataset UID
+  - name (string)
+  - description (string | null)
+  - type (string)
+  - domain ("data.sfgov.org")
+  - permalink/url (string)
+  - createdAt, updatedAt (ISO strings when available)
+  - tags (string[]), categories (string[])
+  - owner (name or id when available)
+  - license/provenance (optional strings)
+- Implement transformCatalogItem(item) that defensively reads fields typically present in Discovery API results (e.g., item.resource.id, item.resource.name, item.resource.type, item.permalink, item.metadata.createdAt/updatedAt, item.classification.tags/categories, item.owner, item.metadata.license). Use fallback defaults when missing and ensure strings are trimmed.
+- Ensure all IDs are lowercase and unique.
+- Add deduplication helper by id to guard against overlapping pages.
+- Validate output entry shape (lightweight runtime checks or optional zod schema) and log warnings for malformed items; skip if critical fields (id, name) are missing.
+
+## 4. Assemble full registry and write to storage [pending]
+### Dependencies: 7.2, 7.3
+### Description: Orchestrate crawling, normalization, and persistence to produce the final registry file at registry:socrata:sf.
+### Details:
+Implementation steps:
+- Orchestrator flow in main():
+  1) Fetch all raw items via the client (Subtask 7.2).
+  2) Map through transformCatalogItem (Subtask 7.3).
+  3) Deduplicate by id, sort by name asc (stable), and compute summary stats.
+  4) Build top-level object: { source: "socrata", domain: "data.sfgov.org", generatedAt: new Date().toISOString(), totalCount, datasets: [...] }.
+- Path resolution: map logical OUTPUT_URI (registry:socrata:sf) to a concrete path like ./registry/socrata/sf.json. Ensure directory exists (fs.mkdir({ recursive: true })).
+- Atomic write: write to a temp file (sf.json.tmp) then fs.rename to final path.
+- Support --dryRun to skip writing and only print summary.
+- Verbose logging: totals, first/last few IDs, output path.
+
+## 5. Add verification, documentation, and CI hook [pending]
+### Dependencies: 7.4
+### Description: Provide a validation command, basic schema check for the output, usage docs, and an optional CI job to refresh the index on demand.
+### Details:
+Implementation steps:
+- Output schema check: define a minimal JSON schema for the registry file and a validate script (node script) that reads the file and validates it (ajv or zod). Fail with clear errors.
+- Add npm scripts: "build:sf-index" to run the crawler, "validate:sf-index" to validate the output, and "rebuild:sf" combining both.
+- Document in README: required env (SOC R ATA_APP_TOKEN optional), how to run, expected runtime, troubleshooting for 429, and where the file is stored.
+- CI (optional): add a job/workflow that runs on manual dispatch to build and upload the artifact (or commit the updated registry file) with caching and rate-limit respectful retries.
+- Add simple plausibility checks: fail if datasets.length < threshold (e.g., < 50) unless --allowLowCount is set.
+

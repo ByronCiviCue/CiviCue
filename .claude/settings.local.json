@@ -38,7 +38,9 @@
       "Bash(pnpm spectral lint:*)",
       "Bash(pnpm tsd:*)",
       "Bash(pnpm -s lint)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "mcp__task-master-ai__add_subtask",
+      "mcp__task-master-ai__expand_task"
     ]
   },
   "enableAllProjectMcpServers": true,

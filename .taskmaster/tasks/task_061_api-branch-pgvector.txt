@@ -1,0 +1,87 @@
+# Task ID: 61
+# Title: Docs: __docs__/setup/env.md (multi-dev, Doppler/1P/Railway)
+# Status: done
+# Dependencies: 58, 3.1, 59, 60
+# Priority: medium
+# Description: Document environment variable management strategies for multi-developer workflows using secret management tools (Doppler, 1Password, Railway). Exit: __docs__/setup/env.md aligned with guard/CI behavior; references Doppler/1P/Railway.
+# Details:
+Extend __docs__/setup/env.md with practical guidance for multi-developer environment variable management using Doppler, 1Password (1P), and Railway. Cover:
+- Overview and principles: do not commit secrets; per-environment separation (local/dev/preview/staging/prod); least privilege; auditability; mapping of env keys across tools.
+- Tool-specific sections:
+  - Doppler: project/config setup (dev/stg/prod), CLI install/login, doppler setup/connect, pulling/injecting envs (run vs secrets download), service tokens for CI, key rotation procedures, and team access management.
+  - 1Password: op CLI install/login, using 1Password shell plugins vs op run, vault structure for environments, referencing env items, generating .env.local from 1P, rotation and sharing policies, and onboarding via group access.
+  - Railway: using Railway variables for services/environments, CLI/project linking, pulling env vars for local dev, preview environment strategies, and service tokens.
+- Sync strategies: single source of truth vs hybrid; recommended approach for this repo; mapping naming conventions so keys are consistent across tools; .env.local generation patterns; when to inject at runtime vs generate files.
+- Team onboarding: prerequisites, minimal steps per tool for new developers, granting access, verifying setup.
+- Rotation and incident response: standard operating procedure (who, how, timeline), tool-specific steps, and coordination when multiple tools are involved.
+- CI/Security alignment: reference Task 60 secret scanning in CI (e.g., gitleaks), ensure .env* patterns in .gitignore, guidance on avoiding plaintext secrets in commits/PRs, and handling secret exposure.
+- Troubleshooting: common issues (CLI auth, missing variables, permission errors), quick checks, and links to official docs.
+Include concrete command examples for each tool, example .env.local generation flow, and a short recommendation for the preferred default workflow for contributors.
+Additionally, ensure the document aligns with our guard/CI behavior (e.g., secret scanning, environment injection policies) and explicitly references Doppler, 1Password, and Railway in relevant sections.
+
+# Test Strategy:
+Documentation acceptance checks
+- The __docs__/setup/env.md file includes the following sections: Overview/Principles, Doppler, 1Password, Railway, Sync strategies, Team onboarding, Rotation/Incident response, CI/Security, Troubleshooting.
+- Each tool section contains: install/login steps, how to pull/inject env vars for local dev, example commands, and rotation steps. Commands are verified to be syntactically correct per tool docs.
+- The doc provides a recommended default workflow for contributors and a mapping/naming convention for env keys.
+- CI/Security guidance references Task 60 secret scanning and includes .gitignore guidance for .env* files.
+- A new developer can follow the onboarding steps to obtain a working .env.local or equivalent injection setup and run the app locally without manual secret copying.
+- Exit: __docs__/setup/env.md aligned with guard/CI behavior; references Doppler/1P/Railway.
+
+# Subtasks:
+## 1. Add Overview/Principles and recommended default workflow to env.md [done]
+### Dependencies: None
+### Description: 
+### Details:
+<info added on 2025-09-07T06:54:39.852Z>
+Starting implementation by creating comprehensive environment variable documentation. Replacing existing basic env.md with full multi-developer workflow guide covering Doppler, 1Password, Railway, security practices, and CI integration.
+</info added on 2025-09-07T06:54:39.852Z>
+
+## 2. Document Doppler setup: project/configs, CLI usage, injection vs download, service tokens, rotation [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+
+## 3. Document 1Password setup: op CLI/shell plugin, vault structure, env injection/.env generation, rotation [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+
+## 4. Document Railway variables: environments, CLI linking, pulling vars for local dev, preview env strategy [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+
+## 5. Write Sync Strategies section: single source of truth, naming conventions, .env.local generation pattern [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+
+## 6. Add Team Onboarding section with step-by-step per tool [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+
+## 7. Add Rotation & Incident Response procedures covering all tools [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+
+## 8. Add CI/Security alignment: reference Task 60 secret scanning, .gitignore for .env*, do-not-commit guidance [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+
+## 9. Add Troubleshooting section with common errors and fixes [done]
+### Dependencies: None
+### Description: 
+### Details:
+
+

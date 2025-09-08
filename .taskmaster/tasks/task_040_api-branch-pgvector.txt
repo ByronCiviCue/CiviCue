@@ -1,0 +1,84 @@
+# Task ID: 40
+# Title: Spike: type-extraction scaffold for ArcGIS adapter (FeatureServer query → TS + Zod)
+# Status: pending
+# Dependencies: 12
+# Priority: medium
+# Description: Prototype a CLI that generates TypeScript types and Zod schemas for ArcGIS FeatureServer layers using layer metadata and sample query results, outputting importable modules for the ArcGIS adapter.
+# Details:
+Goal and scope
+- Build a CLI scaffold that, given an ArcGIS FeatureServer layer, fetches layer metadata and a small sample of features, then generates a TS module exporting a Zod schema and inferred TS types. Focus on a workable pipeline, clear interfaces, and documented limitations over completeness.
+
+Inputs (CLI flags)
+- Required: --layerUrl <https://host/arcgis/rest/services/.../FeatureServer/<layerId>> OR (--serviceUrl <.../FeatureServer> --layerId <n>), --outDir <path>
+- Optional: --limit <n> (default 200), --token <string>, --includeGeometry (default false), --outFileName <name> (default <service>_<layerId>.ts), --schemaName <PascalCase> (override inferred), --coerceDates <epoch|iso|date> (default epoch: keep as number), --coerceNumbers (coerce numeric-looking strings to number), --emitJSDoc (include field aliases/descriptions), --pretty (format output), --timeoutMs <n>
+
+ArcGIS endpoints and fetch flow
+1) Fetch layer metadata
+   - GET {layerUrl}?f=json (or {serviceUrl}/{layerId}?f=json)
+   - Important fields: name, fields[], fields[].{name,type,alias,nullable,domain,length}, geometryType, capabilities, timeInfo, displayField, typeIdField, types (subtypes), objectIdField.
+2) Fetch sample features
+   - GET {layerUrl}/query?f=json&where=1=1&outFields=*&returnGeometry={true|false}&resultOffset=0&resultRecordCount=<limit>&outSR=4326 (optional)&spatialRel=esriSpatialRelIntersects
+   - If includeGeometry=false, set returnGeometry=false. If true, include returnGeometry=true and map geometry according to geometryType.
+3) Optionally page until collected <limit> features if server caps resultRecordCount.
+
+Type mapping (initial table; implement as mapArcGisTypeToZod)
+- esriFieldTypeString → z.string() [optionally add .max(length) only if non-zero length and behind a flag]
+- esriFieldTypeSmallInteger | esriFieldTypeInteger | esriFieldTypeOID → z.number().int()
+- esriFieldTypeSingle | esriFieldTypeDouble → z.number()
+- esriFieldTypeDate (epoch ms) →
+  - epoch: z.number().int()
+  - iso: z.union([z.number().int(), z.string().datetime()]) if coerceDates=iso
+  - date: z.number().int().transform(ms => new Date(ms)) with ZodEffects (document effectful parse) if coerceDates=date
+- esriFieldTypeGUID | esriFieldTypeGlobalID → z.string().uuid().catchall? (fallback to z.string() if values not UUID)
+- esriFieldTypeXML | esriFieldTypeBlob | esriFieldTypeRaster → z.any()
+- Domains: codedValue domain → z.union([z.literal(code)...]) using domain.codedValues[].code (respect underlying type); add .nullable() if field.nullable.
+- Ranges: honor numeric range with .min/.max only if behind a flag; otherwise ignore in spike.
+- Nullability and optionality
+  - If field.nullable === true → schema.nullable(). If sample rows omit the field → .optional(). If both → z.nullable(type).optional().
+- Geometry
+  - Default exclude geometry from schema. If includeGeometry=true: emit a minimal geometry schema per geometryType:
+    - esriGeometryPoint: { x: number, y: number, z?: number, m?: number }
+    - esriGeometryPolyline: { paths: number[][][]; spatialReference?: { wkid?: number; latestWkid?: number } }
+    - esriGeometryPolygon: { rings: number[][][]; spatialReference?: { wkid?: number; latestWkid?: number } }
+  - Wrap output as Feature-like object: { attributes: <RowSchema>; geometry?: <GeometrySchema> }
+
+Generation outputs
+- Write to src/adapters/arcgis/types/<fileName>.ts (default <serviceName>_<layerId>.ts)
+- Exports:
+  - export const <SchemaName>RowSchema = z.object({ ... })
+  - export type <SchemaName>Row = z.infer<typeof <SchemaName]RowSchema>
+  - If includeGeometry: export const <SchemaName>FeatureSchema and type <SchemaName>Feature
+- Include a header comment with provenance (layerUrl, timestamp, limit, flags).
+- Preserve field order from metadata; use valid TS identifiers (camelCase) while retaining original names via JSDoc @originalName.
+
+Implementation notes
+- Use fetch with timeout and simple retry for transient 5xx/429 (basic backoff; no hard dependency on global I/O policy).
+- Support token auth by appending &token=... to requests when provided.
+- Infer SchemaName from layer metadata.name, pascalized; fallback: Layer<layerId>.
+- Determine optionality by scanning sample features: if a field is absent in any feature attributes, mark optional.
+- Determine nullable by field.nullable OR if any sample has null value.
+- For codedValue domains, if values mix string/number in samples, widen union accordingly.
+- For GUID/GlobalID, if samples contain non-UUID strings, fallback schema to z.string() and emit a TODO in comment.
+- Provide a small internal module for codegen helpers (emitZodObject, printUnion, sanitizeIdentifier, formatWithPrettier if --pretty).
+- Document limitations: not handling relationships, attachments, subtypes/types beyond coded values, editor tracking/system fields nuances, ANZLIC date units, advanced geometry validation.
+
+Developer ergonomics
+- Provide an npm script: npx arcgis-typegen --layerUrl ... --outDir src/adapters/arcgis/types
+- Scaffold is designed to be extended later into a shared generator framework with CKAN/Socrata spikes.
+
+
+# Test Strategy:
+Unit tests
+- mapArcGisTypeToZod: for each field type (String, SmallInteger, Integer, OID, Single, Double, Date, GUID, GlobalID, Blob/XML) assert the produced Zod snippets match the mapping table under different flags (coerceDates=epoch|iso|date).
+- Nullability/optionality inference: given synthetic metadata and sample features with missing fields and nulls, assert schema uses .optional() and/or .nullable() correctly.
+- Domains: with a codedValue domain (numeric and string cases), assert the union of literals is generated correctly and respects nullability.
+- Geometry: when includeGeometry=false, schema excludes geometry; when true, schema includes minimal geometry per geometryType. Validate that the schema parses representative geometry payloads.
+- GUID fallback: when samples contain non-UUID strings in GUID fields, verify fallback to z.string() and insertion of a TODO comment.
+
+Integration / snapshot tests
+- Use msw (or nock) to mock ArcGIS endpoints: return deterministic metadata and query responses for a fixture layer. Run the CLI and snapshot the generated TS file content.
+- Compile check: run tsc on the generated file to ensure it type-checks. Optionally import the generated module in a test file and assert types exist.
+- Runtime validation: import the generated schema and parse the mocked sample features; expect success for valid fixtures and informative errors for intentionally malformed rows (e.g., wrong enum code, wrong type, missing required field).
+
+Manual verification
+- Run the CLI against a public ArcGIS sample service (e.g., sampleserver6.arcgisonline.com) and confirm that the file is generated at the expected path, with reasonable field mappings, and that parsing succeeds for fetched samples.

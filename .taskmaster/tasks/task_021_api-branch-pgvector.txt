@@ -1,0 +1,43 @@
+# Task ID: 21
+# Title: Rate-limit smoke tests (Socrata)
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Create a smoke test to verify the Socrata adapter's rate-limiting and backoff behavior.
+# Details:
+Write a test that intentionally makes a burst of requests to a mock Socrata endpoint. The mock will respond with 429 errors. The test should verify that the adapter retries requests and successfully completes after the mock stops returning errors.
+
+# Test Strategy:
+Automated test run in CI. The test asserts that the retry and backoff logic functions as designed under simulated rate-limiting conditions.
+
+# Subtasks:
+## 1. Set up MSW mock server to simulate Socrata rate limiting [pending]
+### Dependencies: None
+### Description: Create a deterministic mock Socrata endpoint that returns 429 for the first N requests and then returns 200, exposing request attempt timestamps for later assertions.
+### Details:
+Install msw as a dev dependency. In test/mocks/socrataRateLimit.ts, export: (1) server = setupServer(...handlers); (2) a handler for GET /resource/:dataset.json (or the adapter's expected path) that tracks a module-level attemptCount and attemptsLog array of timestamps via Date.now(); (3) a resetCounters() function to reset attemptCount and attemptsLog. The handler should: for attemptCount <= 3, return 429 with headers Retry-After: 0.02 and Content-Type: application/json plus a small JSON body; once attemptCount > 3, return 200 with a fixed JSON payload (e.g., [{ "id": 1, "name": "ok" }]). In test/setup/jest.setup.ts, start and stop the server: beforeAll server.listen({ onUnhandledRequest: "error" }), afterEach server.resetHandlers(); resetCounters(), afterAll server.close(). Export attemptsLog from the mock module for later timing assertions.
+
+## 2. Configure test harness and adapter under test to use mock and short backoff [pending]
+### Dependencies: 21.1
+### Description: Wire the SocrataAdapter to the MSW node server in tests and override backoff/retry settings to keep smoke tests fast and deterministic.
+### Details:
+Ensure Jest loads test/setup/jest.setup.ts via setupFilesAfterEnv. Add a test utility createAdapterForTest in test/utils/adapter.ts that returns a SocrataAdapter instance configured to target the mocked base URL (e.g., https://data.mock.socrata.local) and accepts overrideable I/O policy (maxRetries=4, baseBackoffMs=10, jitter=0, respectRetryAfter=true, timeoutMs=2000). If the adapter pulls config from env vars, set them in the test (e.g., process.env.SOCRATA_BASE_URL, SOC_MAX_RETRIES=4, SOC_BACKOFF_BASE_MS=10). Confirm real timers are used (do not enable fake timers) to allow msw and backoff delays to work. Export these helpers for use by smoke tests.
+
+## 3. Implement smoke test to trigger retries and eventual success [pending]
+### Dependencies: 21.2
+### Description: Write a smoke test that fires a request through the SocrataAdapter to the mocked endpoint which returns 429 for the first N attempts and then 200, validating final success.
+### Details:
+Create tests/smoke/socrata.rate-limit.smoke.test.ts. Import { server, attemptsLog, resetCounters } and createAdapterForTest. In beforeEach, call resetCounters(). In the test, instantiate the adapter with short backoff (baseBackoffMs=10, maxRetries=4). Trigger one adapter call to fetch a small payload; for example: adapter.fetchRows({ datasetId: "test", soql: { $limit: 1 } }). The MSW handler should return 429 on the first 3 attempts and 200 on the 4th. Await the adapter call and assert that the resolved data equals the success payload defined in the mock (e.g., [{ id: 1, name: "ok" }]). Also assert attemptsLog.length === 4 to confirm retries occurred. Set jest test timeout to something reasonable (e.g., 5000 ms).
+
+## 4. Assert backoff spacing and Retry-After adherence [pending]
+### Dependencies: 21.3
+### Description: Enhance the smoke test with timing assertions to verify exponential (or monotonic) backoff and honoring Retry-After headers.
+### Details:
+In the same smoke test file, after awaiting success, compute intervals between attempts using attemptsLog (diffs of consecutive timestamps). With baseBackoffMs=10 and jitter=0, assert: (1) intervals are non-decreasing; (2) the first retry delay is at least 20 ms if the mock sets Retry-After: 0.02 seconds (or at least the configured baseBackoffMs if no header is present); (3) the number of attempts equals 4 (3 errors + 1 success). If the adapter uses Retry-After over base backoff, adapt the expectation accordingly. Optionally spy on adapter logger (if available) to ensure a warning was logged for 429 and that the retry count is reported.
+
+## 5. Integrate smoke test into CI and document [pending]
+### Dependencies: 21.4
+### Description: Add npm scripts and CI workflow steps to run the Socrata rate-limit smoke test reliably. Document how the mock and configuration work and how to troubleshoot failures.
+### Details:
+Add a script in package.json: "test:smoke:socrata": "jest --runInBand tests/smoke/socrata.rate-limit.smoke.test.ts". Update CI workflow to execute this script after build and unit tests. Ensure the CI job sets NODE_ENV=test and uses real timers. Set JEST_JUNIT_OUTPUT or similar if reporting is required. Pin the smoke test timeout to <= 10s. In TESTS.md, add a section explaining: (1) the MSW 429-then-200 handler; (2) how to adjust backoff via env for faster tests; (3) expected number of attempts and timing; (4) common failure modes (e.g., adapter not honoring Retry-After, using fake timers). Ensure artifacts/logs (e.g., adapter logs on failure) are saved in CI for diagnosis.
+

@@ -1,0 +1,91 @@
+# Task ID: 56
+# Title: Lint: implement custom rules (no process.env outside env.ts, no edits under src/generated/**)
+# Status: done
+# Dependencies: 54, 3.1, 55
+# Priority: high
+# Description: Create a local ESLint plugin (eslint-plugin-civicue) that exposes custom rules to enforce environment variable access patterns and protect generated files. Rules: no-process-env-outside-env, no-generated-edits.
+
+Exit criteria: Both custom rules are enabled as errors in the repo ESLint config, and representative failing examples for each rule cause ESLint to report errors in CI (i.e., CI would fail on violations).
+# Details:
+Implement custom ESLint rules and ship them as a local plugin package.
+
+Rules to implement:
+1) no-process-env-outside-env
+- Disallow any direct access to process.env (e.g., process.env.FOO, process['env'].BAR, destructuring from process.env) in any file except src/lib/env.ts.
+- Allowed: within exactly src/lib/env.ts (path check via context.getFilename()).
+- Report on the MemberExpression (or the Identifier inside) with a clear message and no fixer.
+
+2) no-generated-edits
+- Disallow any edits to files under src/generated/** by making ESLint error on any file whose filename matches that glob.
+- Implement by reporting a single error at Program for matching files.
+- No fixer. The rule should be effectively always failing in those files to prevent manual edits.
+
+Plugin packaging and exports:
+- Create a local plugin package that registers both rules and exposes them via the standard ESLint plugin interface.
+- In src/index.ts, export rules: { 'no-process-env-outside-env': ruleImpl, 'no-generated-edits': ruleImpl } and optionally a recommended config preset that enables both rules as "error".
+- Implementation should consider all common AST patterns for process.env access: MemberExpression, computed properties (process["env"].FOO), and destructuring (const { FOO } = process.env).
+- The rule should not block usage of safe wrappers or functions (e.g., getEnv()) unless they directly access process.env outside env.ts.
+
+Outputs:
+- packages/eslint-plugin-civicue/src/index.ts
+- packages/eslint-plugin-civicue/src/rules/*.ts
+- packages/eslint-plugin-civicue/package.json
+
+Notes:
+- Default paths are hard-coded per requirements (src/lib/env.ts, src/generated/**). If you add options for configurability, ensure defaults enforce the above and tests cover defaults.
+- Use @typescript-eslint/parser in tests so TypeScript syntax is supported.
+
+Exit criteria:
+- Both rules are active (enabled as "error") in the repo ESLint config (directly or via the plugin's recommended config).
+- In CI, running ESLint against representative failing examples for each rule results in reported errors (non-zero errorCount), ensuring violations would fail CI.
+
+# Test Strategy:
+Unit tests using ESLint RuleTester:
+- Parser: @typescript-eslint/parser.
+
+no-process-env-outside-env tests:
+- Valid: process.env access inside src/lib/env.ts (filename passed to RuleTester), code that references variables from env.ts without using process.env, code not using process.env at all.
+- Invalid: process.env.FOO in any other file; process["env"].BAR; const { BAZ } = process.env; (ensure each pattern is reported). Verify messageId and that no fixer is provided.
+- Edge: ensure rule does not report in src/lib/env.ts even with multiple process.env accesses.
+
+no-generated-edits tests:
+- Invalid: any non-empty file under src/generated/** (filename provided via RuleTester) should report one error at Program.
+- Valid: same code outside src/generated/** should pass.
+
+Integration/config tests:
+- Ensure plugin index exports both rules and an optional recommended config. Load a temporary ESLint instance with the plugin, enable both rules as error, and verify violations are reported as expected across virtual files with appropriate filenames.
+
+CI exit verification:
+- Add a test that programmatically runs ESLint (ESLint class) against representative failing code samples for each rule with appropriate filenames and asserts results.errorCount > 0. This test runs in CI and proves that failing examples trigger errors (non-zero) in CI.
+
+# Subtasks:
+## 1. Scaffold eslint-plugin-civicue package and exports [done]
+### Dependencies: None
+### Description: Create packages/eslint-plugin-civicue with package.json and src/index.ts exporting the rules map and optional recommended config. Ensure TS build or direct TS execution is supported in tests.
+### Details:
+
+
+## 2. Implement rule: no-process-env-outside-env [done]
+### Dependencies: None
+### Description: Detect all forms of process.env access (member, computed, destructuring) and report outside src/lib/env.ts. Include clear messageIds and docs meta; no fixer.
+### Details:
+
+
+## 3. Implement rule: no-generated-edits [done]
+### Dependencies: None
+### Description: Report a single error at Program for any file whose path matches src/generated/**. No fixer. Include docs meta.
+### Details:
+
+
+## 4. Add RuleTester unit tests for both rules [done]
+### Dependencies: None
+### Description: Write tests covering valid/invalid cases with filenames to simulate src/lib/env.ts and src/generated/**. Use @typescript-eslint/parser.
+### Details:
+
+
+## 5. Enable rules in repo ESLint config and run in CI [done]
+### Dependencies: None
+### Description: Wire plugin into the top-level ESLint config, enabling both rules as errors. Verify CI runs lint and fails on violations.
+### Details:
+Enable both rules as "error" in the repo ESLint config (or extend the plugin's recommended config). Add a CI check that runs a small test harness which invokes ESLint against representative failing samples (without committing violating code to src/) to demonstrate that violations result in errors.
+

@@ -1,0 +1,78 @@
+# Task ID: 57
+# Title: Docs: __docs__/linting.md (rules, commands, CI)
+# Status: done
+# Dependencies: 56, 3.1, 55
+# Priority: medium
+# Description: Document ESLint configuration, custom rules, and integration with development workflow (rules, commands, CI). Explicitly exclude pre-commit hook setup from this page. Exit: __docs__/linting.md matches actual config (rules list + commands).
+# Details:
+Create comprehensive linting documentation in __docs__/linting.md covering:
+- Overview and goals of linting in the repo.
+- Configured ESLint rules and their rationale: summarize extends, parser, plugins, environments, and key custom rules; link to .eslintrc.* and any rule directories.
+- Commands (npm scripts): how to run lint and lint:fix locally; include command examples and expected outputs/exit codes.
+- Editor integration: brief notes on recommended ESLint extension/settings for VS Code or common IDEs.
+- CI integration: how linting runs in CI, including the command invoked, where it fits in the pipeline, and a minimal example (e.g., GitHub Actions or other CI) showing caching and failure behavior.
+- Troubleshooting: common issues (e.g., parser errors, TypeScript project references, plugin missing, conflicting Prettier/ESLint rules, performance tips) with fixes.
+
+Scope clarification
+- This page no longer documents pre-commit hook setup for linting. If needed, reference the dedicated pre-commit documentation (separate page/tasks) and keep this page focused on rules, commands, and CI behavior.
+
+Deliverables
+- Updated __docs__/linting.md with the above sections.
+- Ensure examples and commands match the actual package.json and CI configuration used in the repository.
+
+Exit criteria
+- The documented ESLint rules summary (extends, parser, plugins, envs, and key custom rules) and the commands (e.g., npm run lint, npm run lint:fix) exactly match the current repository configuration.
+
+# Test Strategy:
+Documentation acceptance checks
+- The __docs__/linting.md file includes: Overview, ESLint config and key rules, Commands (lint/lint:fix), Editor integration, CI integration with an example, and Troubleshooting.
+- All command snippets (e.g., npm run lint, npm run lint:fix) match the project’s package.json and work locally.
+- CI section accurately reflects the current pipeline: correct job/step name, uses the same command the pipeline runs, and notes failure conditions (non-zero exit on lint errors). Example configuration is valid YAML/command syntax for the chosen CI.
+- Page contains no setup instructions for pre-commit linting; if any previously existed, they are removed or replaced with a brief note pointing to separate pre-commit docs.
+- Links to configuration files (e.g., .eslintrc.*, eslint config directories) are correct.
+- Troubleshooting items reproduce and resolve at least two common developer issues.
+- Exit criteria: __docs__/linting.md matches the actual ESLint configuration (extends, parser, plugins, environments, and key custom rules) and the available npm scripts/commands in package.json (rules list + commands).
+
+# Subtasks:
+## 1. Audit and remove pre-commit linting content from __docs__/linting.md [done]
+### Dependencies: None
+### Description: Identify and delete or rewrite any sections that describe pre-commit hook setup for linting. Add a brief note that pre-commit integration is documented elsewhere.
+### Details:
+
+
+## 2. Document ESLint configuration and key custom rules with rationale [done]
+### Dependencies: None
+### Description: Summarize extends, parser, plugins, envs, and highlight important custom rules. Link to .eslintrc.* and any rule files.
+### Details:
+Ensure the summarized rules and settings reflect the current .eslintrc.* content (extends, parserOptions, plugins, env, and notable rule overrides).
+
+## 3. List and explain available commands (npm scripts) for linting [done]
+### Dependencies: None
+### Description: Include examples for running lint and fix modes, expected exit codes, and typical output.
+### Details:
+Document the exact npm/yarn/pnpm scripts as defined in package.json (e.g., lint, lint:fix), including any arguments used by CI.
+
+## 4. Add CI integration section with example configuration [done]
+### Dependencies: None
+### Description: Describe how CI runs lint, where it fits in the pipeline, and provide a minimal example (e.g., GitHub Actions) including caching and failure behavior.
+### Details:
+Show the command invoked in CI and provide a minimal, valid example workflow that mirrors the repository's configuration, including caching where applicable.
+
+## 5. Add troubleshooting section for common lint issues [done]
+### Dependencies: None
+### Description: Cover parser/config errors, missing plugins, TS project references, Prettier conflicts, and performance tips.
+### Details:
+Include actionable fixes and references to upstream docs for each issue type.
+
+## 6. Validate doc against package.json and CI config [done]
+### Dependencies: None
+### Description: Ensure commands, paths, and CI steps in the doc match the repository configuration; update if mismatches are found. Also confirm the ESLint rules summary reflects the actual .eslintrc.* (extends, parser, plugins, envs, key custom rules).
+### Details:
+Perform a final cross-check:
+- Compare documented rules and settings against .eslintrc.* (or eslint.config.*) and any rule directories.
+- Verify documented npm scripts (lint, lint:fix) match package.json exactly.
+- Verify CI command and step/job names match the current pipeline configuration.
+<info added on 2025-09-07T06:06:21.721Z>
+Cross-check complete. The documentation at `__docs__/linting.md` is confirmed to be accurate. It correctly reflects the ESLint flat config (`eslint.config.mjs`), including all plugins, custom rules (`no-process-env-outside-env`, `no-generated-edits`), and the `--max-warnings=0` setting. The documented npm scripts (`lint`, `lint:fix`) match `package.json` exactly, and the CI integration details align with the current GitHub Actions workflow. Commands were verified locally. A comprehensive troubleshooting section has also been added.
+</info added on 2025-09-07T06:06:21.721Z>
+

@@ -1,0 +1,74 @@
+# Task ID: 35
+# Title: Implement CorrelationId in logs
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Add a unique correlation ID to trace a single request across different services (API and adapters).
+# Details:
+Generate a unique ID at the API entry point for each request. Pass this ID through to the SocrataAdapter and any other services. Include the correlation ID in all log messages related to that request.
+
+# Test Strategy:
+Make an API call that triggers the adapter, then inspect the logs. Verify that all log lines for that request, from both the API and adapter layers, share the same correlation ID.
+
+# Subtasks:
+## 1. Add request context and CorrelationId generation at API entry point [pending]
+### Dependencies: None
+### Description: Introduce a request-scoped context and generate or accept a CorrelationId for every incoming request. Ensure the CorrelationId is accessible throughout the request lifecycle.
+### Details:
+Implementation approach (Node/TypeScript example, adapt as needed):
+- Create a RequestContext module using AsyncLocalStorage to hold { correlationId, startTime, route }.
+- Add an Express (or framework-equivalent) middleware early in the chain that:
+  - Reads X-Correlation-Id (fall back to X-Request-Id) from the request headers; if missing or invalid, generates a UUIDv4.
+  - Validates the incoming value: allow only visible ASCII up to a reasonable length (e.g., 128 chars); if invalid, ignore and generate a new UUID.
+  - Calls asyncLocalStorage.run(context, next) so all downstream async work shares the context.
+  - Sets the correlationId on the response header X-Correlation-Id so clients can see it.
+  - Optionally store on req.locals/res.locals for frameworks that need it.
+- Expose RequestContext.get() and RequestContext.require() helpers to retrieve the current correlationId anywhere in code.
+- Ensure the error handler middleware runs inside the same context so errors also include the CorrelationId.
+
+## 2. Make logger context-aware and automatically include CorrelationId [pending]
+### Dependencies: 35.1
+### Description: Refactor the logging utility so every log entry includes the CorrelationId without callers needing to pass it explicitly.
+### Details:
+Implementation approach:
+- Centralize logging in a single logger module (e.g., pino or winston). Export functions info(), warn(), error(), debug() that internally:
+  - Read the current correlationId via RequestContext.get().
+  - Inject a correlationId field into the log payload automatically.
+- Provide a logger.child({ module: '...' }) helper that still injects correlationId from context on each call.
+- Replace all console.log or direct logger usages in the codebase with the centralized logger API to ensure consistent inclusion of correlationId.
+- Ensure logger is structured (JSON) and does not duplicate the correlationId if already present in the message context.
+- Keep performance overhead low: avoid expensive context retrieval in tight loops; but for most logs, a single RequestContext.get() per call is acceptable.
+
+## 3. Propagate CorrelationId to SocrataAdapter and all outbound HTTP calls [pending]
+### Dependencies: 35.2
+### Description: Ensure the CorrelationId flows into adapters/services and is sent as an HTTP header on downstream requests. All adapter logs must also include the CorrelationId.
+### Details:
+Implementation approach:
+- Update SocrataAdapter (and any other adapters) method signatures to accept an optional context/options object with correlationId. Default to RequestContext.get() inside the adapter if not explicitly provided.
+- For HTTP clients (fetch/axios/got), set the X-Correlation-Id header on every outbound request using the current correlationId. Implement this via a request interceptor or a small wrapper around the HTTP client to avoid copy/paste.
+- Ensure all logs within the adapter use the centralized context-aware logger so correlationId is automatically present.
+- If adapters call internal services, forward X-Correlation-Id similarly. For message queues or async jobs started within a request, propagate the correlationId in message metadata.
+- Update adapter unit interfaces/types and fix all call sites to pass context where appropriate.
+
+## 4. Refactor API routes and branch engines to use context-aware logging and pass CorrelationId [pending]
+### Dependencies: 35.3
+### Description: Update controllers, services, and branch engine flows to run within the request context, use the centralized logger, and pass correlationId to adapters and internal services.
+### Details:
+Implementation approach:
+- Wrap all route handlers so they execute under the AsyncLocalStorage context created by the middleware (verify no early returns bypass it).
+- Replace direct logger usages in routes/controllers/branch engines with the context-aware logger (or child loggers with module names).
+- Explicitly pass correlationId (or context) to adapter calls where signatures support it; otherwise rely on adapter defaulting to RequestContext.get().
+- Ensure error paths (including centralized error handler) log with the correlationId and return the X-Correlation-Id header to clients for troubleshooting.
+- Review long-running or async operations launched from requests; either await them within the context or capture and propagate correlationId explicitly in their invocation payloads.
+
+## 5. End-to-end validation, log tooling, and documentation [pending]
+### Dependencies: 35.4
+### Description: Validate correlation across the full stack, add operational docs, and provide example log queries for troubleshooting.
+### Details:
+Implementation approach:
+- E2E test: Spin up the API with a test log transport (or capture stdout). Issue a request that triggers the SocrataAdapter, then assert that all captured log entries for that request share the same correlationId. Also assert outbound mock server received X-Correlation-Id.
+- Concurrency test: Fire N parallel requests and assert that each request’s logs stay isolated to its own correlationId.
+- Negative tests: Supply an invalid X-Correlation-Id header and verify a new valid ID is generated and used consistently.
+- Documentation: Update README/runbook to explain correlation behavior, accepted header names, response header, example cURL usage, and how to query logs in your aggregator (e.g., correlationId:"<value>").
+- Operational guardrail: Add a lightweight log check in CI or a runtime metric that samples logs and reports the percentage containing correlationId, alerting if it drops below a threshold.
+

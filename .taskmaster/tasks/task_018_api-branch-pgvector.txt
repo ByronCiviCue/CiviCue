@@ -1,0 +1,84 @@
+# Task ID: 18
+# Title: Golden tests for fuse() (dedupe/scoring)
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create golden file tests to lock in the behavior of the data fusion and scoring logic.
+# Details:
+Create a set of input data files and a corresponding 'golden' output file that represents the correct result of the `fuse()` function. The test will run `fuse()` on the input and fail if the output differs from the golden file.
+
+# Test Strategy:
+The golden test itself is the strategy. It will run in CI to prevent unintended regressions in the complex fusion logic.
+
+# Subtasks:
+## 1. Set up golden test harness for fuse() [pending]
+### Dependencies: None
+### Description: Create the test infrastructure and utilities to run fuse() against file-based fixtures and compare results to golden files with an opt-in update mode.
+### Details:
+1) Choose the test runner (Jest or Vitest). Assume Jest. Ensure it runs with TypeScript via ts-jest or swc.
+2) Create directories: tests/golden/fuse/ (for test files), tests/fixtures/fuse/ (for input fixtures), tests/golden-out/fuse/ (for golden output).
+3) Implement tests/utils/golden.ts with:
+   - loadJsonFiles(dir): reads all *.json files in a directory and returns an array of parsed objects in a deterministic order (e.g., by filename asc).
+   - normalizeForGolden(result): deep-normalizes to remove nondeterministic fields (timestamps, IDs generated at runtime), and sorts arrays/keys deterministically (e.g., sort items by stable key such as canonicalId or computed hash; sort object keys when serializing).
+   - readGolden(filePath): reads and parses golden JSON.
+   - writeGolden(filePath, data): writes pretty-printed JSON with stable ordering (2-space indent, trailing newline).
+   - shouldUpdateGolden(): returns true if process.env.UPDATE_GOLDEN === '1' or a CLI flag is present.
+4) Add NPM scripts:
+   - "test:golden": "jest --runInBand -t @golden"
+   - "golden:update": "cross-env UPDATE_GOLDEN=1 jest --runInBand -t @golden"
+5) Document expected fuse() signature (e.g., src/fuse.ts exporting fuse(records: SourceRecord[], options?: FuseOptions): FusedItem[]) and where to import it from. If different, adapt the import path in tests.
+
+## 2. Create representative input fixtures for dedupe and scoring [pending]
+### Dependencies: 18.1
+### Description: Author small, focused JSON fixtures that exercise deduplication and scoring edge cases for fuse().
+### Details:
+1) Define a minimal SourceRecord schema that matches fuse() expectations (e.g., {source: 'branchA', id: 'A1', title: 'x', attrs: {...}, scoreSignals: {...}, dedupeKey: '...'}). Match actual project types.
+2) Create fixtures under tests/fixtures/fuse/ using clear prefixes to indicate scenarios (files are read in deterministic order by the harness):
+   - 01-basic-merge.json: two records from different sources that should merge trivially.
+   - 02-dedupe-same-key.json: 3 records with identical dedupeKey, slightly different attributes; verify that dedupe collapses them.
+   - 03-scoring-tie-break.json: records with equal primary score where tie-breakers (e.g., source priority, recency) determine the winner.
+   - 04-conflict-resolution.json: conflicting fields across duplicates (title, description); ensure field-level selection follows scoring/precedence rules.
+   - 05-partial-and-missing.json: missing/undefined signals/fields to ensure robust handling.
+3) Keep each file small (3–10 records). Ensure records include all fields fuse() reads for dedupe and scoring. Use deterministic timestamps (e.g., 2024-01-01T00:00:00Z) and IDs.
+4) If fuse() expects a single array, make each file itself an array of records and concatenate in the harness; otherwise, adapt loadJsonFiles to produce the shape fuse() expects.
+
+## 3. Generate canonical golden output for current fuse() behavior [pending]
+### Dependencies: 18.1, 18.2
+### Description: Run fuse() on the fixtures and persist a normalized golden output JSON representing the current, correct behavior.
+### Details:
+1) Create scripts/update-fuse-golden.ts that:
+   - Imports fuse() from src/fuse.
+   - Uses loadJsonFiles('tests/fixtures/fuse') to build the input set.
+   - Invokes fuse(input) with any required options.
+   - Applies normalizeForGolden(result) to remove nondeterminism and to sort deterministically (e.g., by canonicalId, then title).
+   - Writes to tests/golden-out/fuse/fuse.golden.json via writeGolden().
+2) Add NPM script: "golden:build": "ts-node scripts/update-fuse-golden.ts" (or node -r ts-node/register depending on setup).
+3) Run the script once to create tests/golden-out/fuse/fuse.golden.json and commit it.
+4) Ensure the golden file excludes volatile fields (generated IDs, lastUpdated, internal debug traces). If needed, extend normalizeForGolden to prune known volatile paths.
+
+## 4. Implement golden test that compares fuse() output to golden file [pending]
+### Dependencies: 18.3
+### Description: Add a Jest test that executes fuse() on fixtures, normalizes the result, and asserts deep equality with the golden JSON, with optional update mode.
+### Details:
+1) Create tests/golden/fuse/fuse.golden.test.ts containing:
+   - A test named "fuse() golden @golden".
+   - Load input via loadJsonFiles('tests/fixtures/fuse').
+   - Compute actual = normalizeForGolden(fuse(input)).
+   - If shouldUpdateGolden() is true, writeGolden('tests/golden-out/fuse/fuse.golden.json', actual) and assert true.
+   - Else, expected = readGolden('tests/golden-out/fuse/fuse.golden.json') and expect(actual).toEqual(expected).
+   - On mismatch, print a concise diff (e.g., use jest-diff) with a hint to run `npm run golden:update` if the change is intentional.
+2) Tag only this test with @golden so the scripts can target it.
+3) If fuse() supports configuration toggles that affect dedupe/scoring, add sub-tests per toggle, each with its own golden file (e.g., fuse.golden.strict.json) to lock in multiple modes.
+
+## 5. Integrate golden tests into CI and developer workflow [pending]
+### Dependencies: 18.4
+### Description: Ensure golden tests run in CI deterministically, provide update guidance, and prevent accidental drift.
+### Details:
+1) CI: Add a step to run npm ci && npm run test:golden. Pin Node version and set TZ=UTC to avoid time-based diffs. Cache dependencies only.
+2) Protect against nondeterminism: Verify normalizeForGolden covers all volatile fields. If needed, set consistent locale and env (e.g., LANG=C, LC_ALL=C).
+3) Developer workflow: Document in CONTRIBUTING.md how to run and update golden tests:
+   - Run: npm run test:golden
+   - Update (intentional behavior change): npm run golden:update, review diff, commit golden changes alongside code changes with a clear message explaining why behavior changed.
+4) Optional pre-commit hook: Add a lint-staged task that refuses commits with un-updated golden diffs (optional, ensure it doesn't block legitimate updates).
+5) Branch/PR checks: Ensure CI status surfaces golden test failures clearly and links to the diff output.
+

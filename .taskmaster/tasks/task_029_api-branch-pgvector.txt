@@ -1,0 +1,107 @@
+# Task ID: 29
+# Title: Implement embedding computation and upsert
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create the logic to compute and store vector embeddings for items.
+# Details:
+Implement the service that takes items, calls an embedding model API (e.g., OpenAI), and upserts the resulting vectors into the `core.item_embeddings` table. Use batching to process items efficiently.
+
+# Test Strategy:
+Unit test with a mock embedding API. Verify that the service correctly batches items, calls the API, and constructs the correct upsert queries for the database.
+
+# Subtasks:
+## 1. Define configs, item DTOs, and embedding contracts [pending]
+### Dependencies: None
+### Description: Establish configuration, data contracts, and helpers required by the embedding pipeline, including input item shape, text extraction, hashing, and batching parameters.
+### Details:
+Implement the following:
+- Config keys (with sane defaults and env overrides):
+  - EMBEDDING_MODEL (e.g., "text-embedding-3-small")
+  - EMBEDDING_API_BASE (default "https://api.openai.com/v1")
+  - EMBEDDING_API_KEY (from env; do not log; validate on startup)
+  - EMBEDDING_BATCH_SIZE (default 128; clamp to [1, 2048])
+  - EMBEDDING_MAX_CONCURRENCY (default 4)
+  - EMBEDDING_TIMEOUT_MS (default 30000)
+  - EMBEDDING_MAX_RETRIES (default 5) and backoff parameters
+- Define DTOs/interfaces:
+  - ItemForEmbedding { itemId: string; payload: unknown; }  // raw item
+  - EmbeddingInput { itemId: string; text: string; model: string; contentHash: string; }
+  - EmbeddingVector { itemId: string; model: string; vector: number[]; dim: number; contentHash: string; }
+- Provide a pluggable text extractor to convert an item to the text to embed:
+  - getEmbeddingText(item: ItemForEmbedding) => string
+- Implement computeContentHash(text: string, model: string) => string using SHA-256 (hex) for idempotency and change detection.
+- Implement batchChunk<T>(items: T[], size: number): T[][] that preserves order.
+- Create an EmbeddingProvider interface: embedBatch(texts: string[], model: string): { vectors: number[][]; dim: number; modelUsed: string; }.
+- Document the expected DB table columns used in upsert: core.item_embeddings(item_id, model, vector, vector_dim, content_hash, updated_at).
+
+## 2. Implement EmbeddingProvider client with batching, retry, and rate-limit handling [pending]
+### Dependencies: 29.1
+### Description: Create a concrete provider (e.g., OpenAIEmbeddingProvider) that implements the EmbeddingProvider interface, performing batched embedding requests with robust error handling.
+### Details:
+Implement OpenAIEmbeddingProvider:
+- Constructor accepts: apiKey, apiBase, timeoutMs, maxRetries, logger.
+- Method embedBatch(texts, model):
+  - Validate inputs: non-empty array, no empty strings; trim texts.
+  - Build request: POST { url: `${apiBase}/embeddings`, body: { model, input: texts } }.
+  - Use exponential backoff with jitter on retryable errors (HTTP 429, 5xx, network timeouts). Honor Retry-After when present.
+  - Timeout requests per EMBEDDING_TIMEOUT_MS. Abort/cleanup on timeout.
+  - On success, map response.data[].embedding to number[][], capture dimension from first vector, and return { vectors, dim, modelUsed: response.model || model }.
+  - Validate shape: vectors.length === texts.length; all vectors have same dim; numbers are finite.
+- Implement basic rate limiting/concurrency outside of HTTP client (but actual concurrency is managed by the service; provider is single-call safe).
+- Redact apiKey from all logs.
+- Instrument basic metrics hooks: { requests, retries, errors } via logger or optional callbacks.
+
+## 3. Implement ItemEmbeddingsRepository with batch upsert [pending]
+### Dependencies: 29.1
+### Description: Create a repository that performs efficient, idempotent upserts of embeddings into core.item_embeddings using parameterized, batched SQL.
+### Details:
+Implement ItemEmbeddingsRepository with methods:
+- upsertBatch(rows: EmbeddingVector[]): Promise<{ inserted: number; updated: number; }>
+  - Input row fields: itemId, model, vector (number[]), dim (number), contentHash (string).
+  - Use a single INSERT ... ON CONFLICT(item_id, model) DO UPDATE ... statement for the batch:
+    - Columns: item_id, model, vector, vector_dim, content_hash, updated_at (NOW()).
+    - Update only when content_hash differs to avoid unnecessary writes, e.g., DO UPDATE SET ... WHERE core.item_embeddings.content_hash IS DISTINCT FROM EXCLUDED.content_hash.
+  - Use parameterized queries; avoid building large SQL strings unsafely. For Postgres+pgvector, pass vector as float[] cast to vector type.
+  - Wrap per-batch in a transaction. Return counts based on affected rows (use CTE or database-specific RETURNING to detect inserted vs updated).
+- Optional helper: filterUnchanged(items) that queries existing (item_id, model, content_hash) and skips identical rows to reduce DB load for very large batches (feature-flagged to keep simple path available).
+- Ensure the repository is resilient to dimension changes: if dim mismatches known model dim, still upsert but log a warning; DB should not reject if vector type stores dimension agnostic; if it does, validate beforehand.
+
+## 4. Implement EmbeddingService orchestration with batching and concurrency [pending]
+### Dependencies: 29.2, 29.3
+### Description: Build the service that accepts items, produces texts, calls the provider in batches, and upserts results via the repository. Include concurrency control, deduplication, and robust error handling.
+### Details:
+Implement EmbeddingService with method computeAndUpsertForItems(options):
+- Signature: computeAndUpsertForItems(items: ItemForEmbedding[], opts?: { model?: string; batchSize?: number; maxConcurrency?: number; getText?: (item) => string; }): Promise<{ processed: number; upserted: number; skipped: number; failed: number; batches: number; }>.
+- Steps:
+  1) Normalize and extract:
+     - For each item, derive text via opts.getText || default getEmbeddingText.
+     - Drop empty/whitespace-only texts (count as skipped).
+     - Compute contentHash(text, model).
+  2) Deduplicate by (itemId, model, contentHash) to avoid recomputing identical work; keep first occurrence to preserve order.
+  3) Batch: chunk remaining inputs by batchSize (config default). Prepare arrays of texts per batch while retaining itemId/contentHash ordering.
+  4) Concurrency: process batches with a pool (size = maxConcurrency). For each batch:
+     - Call provider.embedBatch(texts, model) and validate alignment.
+     - Map returned vectors to EmbeddingVector rows: { itemId, model, vector, dim, contentHash }.
+     - Call repository.upsertBatch(rows) inside try/catch.
+     - Collect metrics and per-batch results.
+  5) Error handling:
+     - If a batch fails after provider retries, log and continue to next batch; increment failed by batch size.
+     - For partial failures within a batch (e.g., DB error), treat entire batch as failed for simplicity; optionally implement retry-once for DB transient errors.
+  6) Return a summary with counts and total batches.
+- Logging: batch indices, sizes, durations, provider attempts; redact any sensitive data.
+- Telemetry hooks for monitoring throughput and error rates.
+
+## 5. Add comprehensive tests and fixtures for embedding computation and upsert [pending]
+### Dependencies: 29.4
+### Description: Create test fixtures, end-to-end service tests with mocks, and edge-case coverage to validate batching, provider interaction, and DB upserts.
+### Details:
+Implement the following tests:
+- Fixtures: sample items with varying text lengths, empty text, duplicates, and multilingual content. Deterministic mock vectors (e.g., map char codes to floats) to enable stable assertions.
+- End-to-end service test (provider + repo mocked): verify summary counts (processed, upserted, skipped, failed), correct number of provider calls, and that repository receives expected rows with aligned vectors, dims, and content hashes.
+- Retry behavior: provider mock fails with 429/500 for first K attempts then succeeds; assert backoff-retry and eventual success; ensure total elapsed calls match EMBEDDING_MAX_RETRIES.
+- Idempotency: run service twice with unchanged inputs; second run should perform zero updates (assert repo called with either zero rows after prefilter or ON CONFLICT WHERE condition prevents updates, depending on implementation path).
+- Large batch boundary: exact multiples and remainder batches; ensure last batch is sized correctly.
+- Error propagation: when a batch fails completely, the service continues with subsequent batches and reports correct failed count.
+- Logging redaction: snapshot logs to ensure API keys or secrets never appear.
+

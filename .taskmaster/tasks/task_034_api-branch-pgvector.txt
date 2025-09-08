@@ -1,0 +1,123 @@
+# Task ID: 34
+# Title: Collect and expose key metrics
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Expose key operational metrics from the ingest process and API for monitoring.
+# Details:
+Ensure that metrics collected from the branch engine (`rows_fetched`, `dedupe_rate`) and API (error rates, latency) are exposed in a format consumable by a monitoring system (e.g., Prometheus, Datadog).
+
+# Test Strategy:
+After running the ingest job or making API calls, query the monitoring system to verify that the corresponding metrics have been received and are correct.
+
+# Subtasks:
+## 1. Define metrics catalog and shared observability module [pending]
+### Dependencies: None
+### Description: Create a centralized metrics module exposing a unified API for recording and exporting metrics to Prometheus and Datadog. Define the metrics catalog, standard labels, configuration, and initialization logic.
+### Details:
+Implementation steps:
+- Dependencies: add prom-client (Prometheus), hot-shots (Datadog DogStatsD), and optional @types for TypeScript.
+- Create src/observability/metrics.ts with:
+  - Config: METRICS_BACKEND (prometheus|datadog), METRICS_SERVICE_NAME, METRICS_ENV, METRICS_VERSION, PROM_PUSHGATEWAY_URL (optional), DATADOG_AGENT_HOST, DATADOG_AGENT_PORT.
+  - Standard labels: {service, env, version}. Request/job-specific labels to support: {route, method, status_code, branch, source, job_id}.
+  - Registry init:
+    - Prometheus: prom-client.Registry and prom-client.collectDefaultMetrics({ register }).
+    - Datadog: const statsd = new StatsD({ host, port, globalTags }).
+  - Metric definitions (names, types):
+    - API: app_api_requests_total (Counter), app_api_request_duration_seconds (Histogram), app_api_errors_total (Counter).
+    - Ingest: app_ingest_rows_fetched_total (Counter), app_ingest_dedupe_rate (Gauge or Histogram), app_ingest_run_duration_seconds (Histogram), app_ingest_errors_total (Counter).
+  - Helper functions:
+    - timeApiRequest(route, method): returns a stop() to observe duration and increment counters with status_code.
+    - recordApiError(route, method, status_code).
+    - recordRowsFetched(source, branch, job_id, count).
+    - recordDedupeRate(source, branch, job_id, rate).
+    - timeIngestRun(source, branch, job_id): returns stop(success: boolean).
+    - flush/push helpers: pushToPushgateway(job_id) when PROM_PUSHGATEWAY_URL is set; no-op otherwise. For Datadog, helpers map to statsd.histogram/timing/increment/gauge with tags.
+  - Export a singleton Metrics with these helpers and an optional getPrometheusRegister() for the /metrics endpoint.
+- Naming rules: snake_case, unit suffixes for histograms (_seconds), and consistent tag keys.
+- Document the catalog and label usage in docs/metrics.md.
+
+## 2. Instrument API for latency and error rate metrics [pending]
+### Dependencies: 34.1
+### Description: Add Express middleware to measure request latency and error rates, normalize routes, and record metrics via the shared module. Exclude the metrics endpoint itself from instrumentation.
+### Details:
+Implementation steps:
+- Create src/observability/apiMetricsMiddleware.ts exporting an Express middleware that:
+  - Derives a normalized route template (use req.route?.path or a path-to-regexp matcher; fallback: req.path with placeholders for IDs).
+  - On request start, call metrics.timeApiRequest(route, method) to get stop().
+  - On response finish/close, call stop() with status_code; if status_code >= 500 also call metrics.recordApiError(route, method, status_code).
+  - Skip if route === '/metrics'.
+- In API server bootstrap (e.g., src/server.ts):
+  - Import Metrics from src/observability/metrics.
+  - Initialize Metrics on startup (ensures default metrics are collected).
+  - app.use(apiMetricsMiddleware) before route handlers.
+  - Do not add /metrics endpoint here yet (wired in subtask 4).
+- Metrics specifics:
+  - app_api_request_duration_seconds: Histogram with buckets [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5]. Labels: {service, env, version, route, method, status_code}.
+  - app_api_requests_total: Counter with same labels excluding status_code (or include if using per-status breakdown).
+  - app_api_errors_total: Counter for 5xx errors, labels {route, method, status_code} plus standard labels.
+- Ensure error-handling middleware preserves status codes so metrics reflect correct outcomes.
+
+## 3. Instrument ingest job for rows_fetched and dedupe_rate [pending]
+### Dependencies: 34.1
+### Description: Record branch engine metrics within jobs/ingest-branch.ts (or underlying engine): rows fetched, deduplication rate, job duration, and errors. Include labels for source/branch/job_id.
+### Details:
+Implementation steps:
+- In jobs/ingest-branch.ts:
+  - Generate a job_id (e.g., uuid) for each run; determine source (e.g., 'branch_engine') and branch identifier.
+  - Start timer: const stopRun = metrics.timeIngestRun(source, branch, job_id).
+  - As rows are read: metrics.recordRowsFetched(source, branch, job_id, batchCount) using a counter (accumulate total).
+  - Track deduped_count and total_rows; after dedupe step, compute rate = deduped_count / total_rows (handle divide-by-zero) and call metrics.recordDedupeRate(source, branch, job_id, rate).
+  - On success, call stopRun(true); on failure (catch), increment app_ingest_errors_total and call stopRun(false) before rethrowing/handling.
+- Metric definitions:
+  - app_ingest_rows_fetched_total (Counter) labels: {source, branch, job_id} + standard labels.
+  - app_ingest_dedupe_rate (Gauge or Histogram) labels: {source, branch, job_id}. If Histogram, bucket [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1].
+  - app_ingest_run_duration_seconds (Histogram) labels: {source, branch, job_id}.
+  - app_ingest_errors_total (Counter) labels: {source, branch, job_id, error_type}.
+- Ensure metrics updates are cheap and placed after key steps (fetch, dedupe, upsert) without blocking the ingest pipeline.
+
+## 4. Expose metrics to Prometheus (/metrics, Pushgateway) and Datadog (DogStatsD) [pending]
+### Dependencies: 34.1, 34.2, 34.3
+### Description: Wire up the actual export surfaces: add /metrics endpoint to the API server for Prometheus scraping, integrate Prometheus Pushgateway for the ingest job, and enable DogStatsD emission for Datadog when configured.
+### Details:
+Implementation steps:
+- Prometheus pull for API:
+  - In src/server.ts, add: app.get('/metrics', async (_, res) => { res.set('Content-Type', Metrics.getPrometheusRegister().contentType); res.end(await Metrics.getPrometheusRegister().metrics()); }). Only register this when METRICS_BACKEND includes 'prometheus'.
+  - Ensure default Node process metrics are collected via prom-client.collectDefaultMetrics.
+- Prometheus Pushgateway for ingest job:
+  - In src/observability/metrics.ts, implement pushToPushgateway(job_id): use prom-client.Pushgateway(PROM_PUSHGATEWAY_URL).pushAdd({ jobName: `${service}_${job_id}`, groupings: { branch, source } }, callback).
+  - In jobs/ingest-branch.ts, after stopRun(...), if PROM_PUSHGATEWAY_URL is set and backend is prometheus, await Metrics.pushToPushgateway(job_id). Handle errors with retries/backoff (e.g., 3 attempts, 500ms backoff).
+- Datadog DogStatsD:
+  - In metrics init, when METRICS_BACKEND='datadog', create new StatsD({ host: DATADOG_AGENT_HOST, port: DATADOG_AGENT_PORT, globalTags: [`service:${service}`, `env:${env}`, `version:${version}`] }).
+  - Map histogram/timing to statsd.histogram/timing; map counters to statsd.increment; gauges to statsd.gauge. Add tags equivalent to labels (e.g., route:/items, method:GET, status_code:200, branch:xyz, source:branch_engine, job_id:uuid).
+  - No /metrics route is needed for Datadog; ensure middleware and ingest instrumentation send to statsd on events.
+- Config and ops:
+  - Allow METRICS_BACKEND to be 'prometheus', 'datadog', or 'both'. If 'both', enable /metrics and DogStatsD simultaneously, and push ingest metrics to Pushgateway when URL is provided.
+  - Document environment variables and a quick-start in docs/metrics.md.
+- Security: protect /metrics via network policy or basic auth if required (optional).
+
+## 5. End-to-end verification, alerts, and documentation [pending]
+### Dependencies: 34.4
+### Description: Create verification scripts, baseline dashboards/queries, optional alerts, and finalize documentation so metrics are observable in Prometheus/Datadog. Ensure CI smoke checks for metric exposure.
+### Details:
+Implementation steps:
+- Verification scripts:
+  - scripts/hit-api.sh: performs varied API calls to generate 2xx/4xx/5xx and latency.
+  - scripts/run-ingest-sample.sh: runs ingest job against a small branch fixture.
+- Prometheus queries (save in docs/metrics.md):
+  - Rate of errors: rate(app_api_errors_total[5m]) by (route, method).
+  - p95 latency: histogram_quantile(0.95, sum(rate(app_api_request_duration_seconds_bucket[5m])) by (le, route)).
+  - Ingest rows: increase(app_ingest_rows_fetched_total[1h]) by (branch).
+  - Dedupe rate last run: max(app_ingest_dedupe_rate) by (branch).
+- Datadog monitors (document equivalents):
+  - app.api.errors rate over 5m by route/method; p95 latency on app.api.request_duration.
+  - app.ingest.rows_fetched increase and app.ingest.dedupe_rate gauges.
+- Optional alerts:
+  - High API error rate (>2% for 5m).
+  - API p95 latency above SLO.
+  - Ingest dedupe_rate < expected threshold or zero rows fetched in last N hours.
+- CI smoke checks:
+  - Start API in test mode with METRICS_BACKEND=prometheus; curl /metrics and assert presence of metric names.
+  - Run a lightweight ingest dry-run and verify Pushgateway received metrics when configured (mock pushgateway or intercept push calls).
+- Documentation: finalize docs/metrics.md including setup, env vars, metric catalog, and troubleshooting.
+

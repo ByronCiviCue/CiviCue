@@ -1,0 +1,71 @@
+# Task ID: 55
+# Title: Lint: install eslint@9 + plugins (ts, n, promise, import, sonarjs, security, regexp)
+# Status: done
+# Dependencies: 54, 3.1
+# Priority: high
+# Description: Install ESLint 9 (with @eslint/js) and the full plugin/resolver suite for TypeScript, Node.js, and code quality
+# Details:
+Install the ESLint toolchain as devDependencies to support Node.js, TypeScript, and comprehensive linting:
+- eslint@^9
+- @eslint/js
+- typescript-eslint (parser+plugin): @typescript-eslint/parser and @typescript-eslint/eslint-plugin
+- eslint-plugin-import
+- eslint-import-resolver-typescript
+- eslint-plugin-n
+- eslint-plugin-promise
+- eslint-plugin-sonarjs
+- eslint-plugin-security
+- eslint-plugin-regexp
+- @types/eslint
+
+Notes:
+- This task is install-only; configuration will be handled in Task 54 (flat config). Ensure these packages are available for that configuration.
+- Use semver-compatible ranges (eslint@^9) and latest stable versions for the listed plugins/resolver/types.
+- Exit criteria: The TypeScript resolver must be available so that, once Task 54 config is in place, import/no-unresolved passes for TS ESM modules (i.e., resolver is correctly configured and functioning for ESM TypeScript).
+
+# Test Strategy:
+- Verify installation: run `npx eslint --version` and confirm it returns a 9.x version.
+- Resolve checks: run `node -e "require.resolve('@eslint/js')"` and the same for each installed plugin/resolver: `@typescript-eslint/parser`, `@typescript-eslint/eslint-plugin`, `eslint-plugin-import`, `eslint-import-resolver-typescript`, `eslint-plugin-n`, `eslint-plugin-promise`, `eslint-plugin-sonarjs`, `eslint-plugin-security`, `eslint-plugin-regexp`, and `@types/eslint`.
+- Package.json validation: confirm all listed packages are present under devDependencies with the expected version ranges.
+- Exit: Resolver configured; import/no-unresolved passes for TS ESM. After Task 54 is applied (flat config), run ESLint on a small TS ESM sample or existing TS ESM files and confirm there are no `import/no-unresolved` errors. Example approach:
+  1) If needed, create temporary files:
+     - src/tmp/a.ts: `export const x = 1;`
+     - src/tmp/b.ts (ESM import): `import { x } from './a.js'; console.log(x);`
+  2) Run: `npx eslint src/tmp --rule 'import/no-unresolved:error'`.
+  3) Expect: no `import/no-unresolved` errors (resolver-typescript resolves `.ts` via ESM semantics). Remove tmp files afterward.
+- (Optional) `npx eslint --print-config src/tmp/b.ts` and confirm settings include import/resolver with `typescript` to validate resolver presence.
+
+# Subtasks:
+## 1. Add ESLint toolchain devDependencies to package.json [done]
+### Dependencies: None
+### Description: Add: eslint@^9, @eslint/js, @typescript-eslint/parser, @typescript-eslint/eslint-plugin, eslint-plugin-import, eslint-import-resolver-typescript, eslint-plugin-n, eslint-plugin-promise, eslint-plugin-sonarjs, eslint-plugin-security, eslint-plugin-regexp, @types/eslint.
+### Details:
+
+
+## 2. Install dependencies [done]
+### Dependencies: None
+### Description: Run the project's package manager install (e.g., npm/pnpm/yarn) to fetch all listed devDependencies and lock them.
+### Details:
+
+
+## 3. Add lint scripts to package.json [done]
+### Dependencies: None
+### Description: Add scripts: "lint": "eslint .", and "lint:fix": "eslint . --fix".
+### Details:
+
+
+## 4. Smoke test: verify modules resolve [done]
+### Dependencies: None
+### Description: Run require.resolve for each installed plugin/resolver/types to ensure they are installed and discoverable by Node.
+### Details:
+
+
+## 5. Exit check: resolver configured; import/no-unresolved passes for TS ESM [done]
+### Dependencies: None
+### Description: After Task 54 applies the flat config, run ESLint against a TS ESM sample (or existing TS ESM files) to ensure `eslint-plugin-import` with `eslint-import-resolver-typescript` resolves imports and no `import/no-unresolved` errors are reported.
+### Details:
+If the repo lacks TS ESM files, create a temporary pair under src/tmp: a.ts exporting a value and b.ts importing it using an ESM path (e.g., './a.js'). Lint the folder and ensure no unresolved import errors. Delete the tmp files afterward.
+<info added on 2025-09-07T05:48:18.477Z>
+Verification complete. The `import/no-unresolved` rule passes for TypeScript ESM files, confirming that `eslint-import-resolver-typescript` is configured and working correctly.
+</info added on 2025-09-07T05:48:18.477Z>
+

@@ -1,0 +1,81 @@
+# Task ID: 5
+# Title: Pre-commit hooks for code quality
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Implement pre-commit hooks to enforce code quality standards before code is committed.
+# Details:
+Using a tool like Husky, configure pre-commit hooks to: 1. Require the existence of `__review__/CONFESSION.md` and `DEFENSE.md` files. 2. Block commits if `TODO` or `FIXME` markers are present in staged code.
+
+# Test Strategy:
+Manual verification: Attempt to commit code with a 'TODO' comment and confirm the commit is blocked. Attempt to commit without the required review files and confirm it's blocked.
+
+# Subtasks:
+## 1. Bootstrap Husky and project scaffolding for pre-commit hooks [done]
+### Dependencies: None
+### Description: Set up Husky in the repository and ensure a consistent structure for hook scripts.
+### Details:
+1) Install Husky and enable the prepare script:
+- npm: npm install -D husky && npm pkg set scripts.prepare="husky" && npx husky init
+- yarn: yarn add -D husky && npm pkg set scripts.prepare="husky" && npx husky init
+- pnpm: pnpm add -D husky && npm pkg set scripts.prepare="husky" && pnpm dlx husky-init
+This will create the .husky directory and a default .husky/pre-commit file.
+2) Clean up the default hook content if it runs "npm test"; we will replace it later.
+3) Create a scripts directory at the repo root for our Node-based checks: mkdir -p scripts
+4) Ensure the repository has a __review__ directory (if not, you can create it, but the hook will enforce the specific files exist).
+
+## 2. Implement check to require __review__/CONFESSION.md and DEFENSE.md [done]
+### Dependencies: 5.1
+### Description: Create a Node script that fails the commit if the required review files are missing.
+### Details:
+Create scripts/check-review-files.js:
+- Determine repo root robustly: run `git rev-parse --show-toplevel` via child_process to get the absolute path.
+- Construct absolute paths to repoRoot/__review__/CONFESSION.md and repoRoot/__review__/DEFENSE.md.
+- Use fs.existsSync for both files.
+- If either is missing, print a clear error to stderr, including which file(s) are missing and instructions to add them, then process.exit(1).
+- If both exist, process.exit(0).
+Notes:
+- Do not auto-create these files; the policy is to require their presence.
+- Keep the script fast and with zero external dependencies.
+
+## 3. Implement staged-changes scan for TODO and FIXME [done]
+### Dependencies: 5.1
+### Description: Create a Node script that scans only files included in the current commit (staged) and blocks if TODO/FIXME markers are present.
+### Details:
+Create scripts/scan-staged-for-todos.js with the following behavior:
+- Use child_process.execFileSync to get the list of staged files: `git diff --cached --name-only --diff-filter=ACMR` (Add/Copy/Modify/Rename). If no files, exit(0).
+- For cross-platform reliability and to read staged contents, invoke git grep against the index: `git grep --cached -nI -E "(TODO|FIXME)" -- <file...>` where <file...> is the list from the previous step. Notes:
+  - `--cached` makes git grep read staged blobs from the index, not the working tree.
+  - `-I` ignores binary files; `-n` prints line numbers; `-E` enables extended regex.
+- Interpret exit codes from git grep:
+  - 0 => matches found: print a header explaining the policy, echo each offending line, then exit(1).
+  - 1 => no matches found: exit(0).
+  - >1 => git error: print stderr and exit(2).
+- If the staged file list is long, chunk arguments to avoid OS arg limits (optional; usually unnecessary).
+
+## 4. Wire Husky pre-commit hook to run the checks [done]
+### Dependencies: 5.2, 5.3
+### Description: Configure the .husky/pre-commit hook to run both review file check and TODO/FIXME scan, failing on violations.
+### Details:
+Edit .husky/pre-commit to contain:
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+node scripts/check-review-files.js || exit 1
+node scripts/scan-staged-for-todos.js || exit 1
+Ensure the hook file is executable: chmod +x .husky/pre-commit.
+Optional: add an npm script to run both checks without Husky (useful in CI or manual runs):
+- In package.json: "scripts": { "verify:precommit": "node scripts/check-review-files.js && node scripts/scan-staged-for-todos.js" }
+
+## 5. Documentation and team onboarding for pre-commit policy [done]
+### Dependencies: 5.4
+### Description: Document the policy, how the hooks work, and how to troubleshoot, ensuring consistent adoption across environments.
+### Details:
+Update README.md (or CONTRIBUTING.md) with:
+- Policy summary: Commits are blocked if __review__/CONFESSION.md and __review__/DEFENSE.md are missing or if staged changes contain TODO/FIXME.
+- Setup: Requires Node and Git; Husky installs via the prepare script on npm/yarn/pnpm install.
+- Commands: How to run checks manually (npm run verify:precommit) and how to bypass in emergencies (git commit --no-verify), noting that bypass should be used sparingly and may be disallowed by CI/review.
+- Troubleshooting: Ensure hooks are installed (.husky present), verify executable bit, confirm git is available on PATH, Windows-specific note to run Git Bash or WSL.
+- Examples: Show failing and passing commit scenarios.
+Optionally add a PR checklist item reminding contributors that these checks must pass.
+

@@ -1,0 +1,11 @@
+# Task ID: 1
+# Title: Configure Task Master models (.taskmaster/config.json)
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Configure the AI models (GPT-5, Claude, Gemini) for the Task Master tool by creating and populating the `.taskmaster/config.json` file.
+# Details:
+Create a `.taskmaster/config.json` file. Define model identifiers for `main`, `research`, and `fallback` keys as specified: `main=GPT-5`, `research=claude-code/sonnet`, `fallback=gemini-2.5-pro`.
+
+# Test Strategy:
+Manual verification: Run a command that utilizes the Task Master tool and check logs or output to confirm the correct models are being invoked.

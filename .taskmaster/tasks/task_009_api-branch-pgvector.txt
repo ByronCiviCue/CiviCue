@@ -1,0 +1,67 @@
+# Task ID: 9
+# Title: Build Detroit Socrata index (optional)
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Create a script to crawl the Detroit Socrata portal and build a local index of its datasets.
+# Details:
+This task is similar to the SF index builder but targeted at the Detroit Socrata portal. The output should be a structured file representing the Detroit registry.
+
+# Test Strategy:
+Run the script and verify that the output index file is created and contains dataset entries from the Detroit portal.
+
+# Subtasks:
+## 1. Scaffold Detroit indexer script and configuration [pending]
+### Dependencies: None
+### Description: Create the Detroit Socrata indexer module, configuration, and types mirroring the SF index builder structure.
+### Details:
+- Create scripts/catalogs/build-detroit-index.ts (or equivalent path consistent with the SF index builder).
+- Define constants: DETROIT_DOMAIN='data.detroitmi.gov', CATALOG_URL='https://api.us.socrata.com/api/catalog/v1', PAGE_SIZE=100 (configurable via CLI/env), OUTPUT_PATH='__data__/catalogs/detroit-socrata-index.json'.
+- Read optional env vars: SOCRATA_APP_TOKEN (fallback DETROIT_SOCRATA_APP_TOKEN), DETROIT_CATALOG_PAGE_SIZE, DETROIT_OUTPUT_PATH.
+- Define minimal TypeScript types: SocrataCatalogItem (subset of catalog/v1), DetroitRegistryEntry (normalized fields: id, name, description, type, domain, permalink, link, categories, tags, createdAt, updatedAt, owner, license, provenance), DetroitRegistryFile (portal, domain, generatedAt, count, datasets[]).
+- Implement small utilities: ensureDirExists(path), writeJsonAtomic(path, data), toIso(ts) (handles seconds vs ms), getAppToken().
+- Prepare a logger utility (info/warn/error) mirroring the SF builder conventions so output is consistent.
+
+## 2. Implement paginated fetcher for Detroit Socrata catalog [pending]
+### Dependencies: 9.1
+### Description: Fetch all public datasets from the Socrata catalog API filtered to the Detroit domain with robust pagination and basic retry/backoff.
+### Details:
+- Implement async function fetchCatalogAll({ domain=DETROIT_DOMAIN, pageSize=PAGE_SIZE }): SocrataCatalogItem[].
+- Request URL: `${CATALOG_URL}?domains=${encodeURIComponent(domain)}&only=datasets&limit=${pageSize}&offset=${offset}`.
+- Headers: 'Accept: application/json'; include 'X-App-Token' if present. Respect 'Retry-After' header on 429.
+- Pagination loop: start offset=0; accumulate results; break when returned count < pageSize; add a small delay (100–250ms) between pages to reduce 429s.
+- Retry/backoff: for 429/5xx, attempt up to 5 retries with exponential backoff (e.g., 500ms, 1s, 2s, 4s, 8s) or 'Retry-After' if provided.
+- Parse JSON safely and throw descriptive errors on unexpected shapes, including status and body excerpts for debugging.
+- Return the concatenated array of Socrata catalog results.
+
+## 3. Normalize catalog results into Detroit registry entries [pending]
+### Dependencies: 9.1, 9.2
+### Description: Transform raw catalog results into a consistent registry schema aligned with the SF index builder output format.
+### Details:
+- Implement normalizeItem(item: SocrataCatalogItem): DetroitRegistryEntry.
+  - Map fields: id=item.resource.id; name=item.resource.name; description=item.resource.description || ''; type=item.resource.type; domain=item.metadata?.domain || DETROIT_DOMAIN; permalink=item.permalink; link=item.link; categories=item.classification?.categories || []; tags=item.classification?.tags || [];
+  - Dates: createdAt=item.resource.createdAt; updatedAt=item.resource.updatedAt; convert epoch seconds (<= 10^12) to ISO strings; pass through ISO if already a string.
+  - Optional: owner=item.owner?.displayName || item.owner?.id || null; license=item.metadata?.license || null; provenance=item.metadata?.provenance || null.
+- Deduplicate by id using a Map.
+- Sort entries by name (case-insensitive) for deterministic output; tiebreaker by id.
+- Validate each normalized entry with a lightweight runtime check (or Zod if available in the project) to ensure required fields exist and are strings/arrays.
+
+## 4. Assemble and write the Detroit registry file [pending]
+### Dependencies: 9.3
+### Description: Build the final registry object and write it atomically to disk at the configured output path.
+### Details:
+- Implement buildDetroitRegistry(): fetch via fetchCatalogAll(), normalize, and construct the file payload: { portal: 'detroit-socrata', domain: DETROIT_DOMAIN, generatedAt: new Date().toISOString(), count: datasets.length, datasets }.
+- Ensure target directory exists (ensureDirExists).
+- Write JSON with pretty-print (2 spaces) using writeJsonAtomic to avoid partial writes.
+- Log summary: total datasets, output path, duration.
+- Optional CLI flags: --out <path>, --page-size <n>, --domain <host> (default data.detroitmi.gov) for flexibility and parity with the SF builder.
+
+## 5. Wire CLI command, docs, and smoke test [pending]
+### Dependencies: 9.4
+### Description: Expose an npm script to generate the Detroit index, document usage, and add a smoke test that verifies the index file is produced and non-empty.
+### Details:
+- Add npm script: "index:detroit": "ts-node scripts/catalogs/build-detroit-index.ts --out __data__/catalogs/detroit-socrata-index.json" (adjust to project tooling; use node dist/... if compiled).
+- Document in README or __docs__/catalogs/ a short section: prerequisites (optional SOCRATA_APP_TOKEN), how to run, output path, and sample JSON snippet.
+- Add a smoke test (Jest): executes the script in a temp directory (with small page size if configurable), asserts the output exists, parses JSON, count > 0, and contains at least one dataset from the Detroit portal.
+- Optionally add CI job or make it manual-only to avoid external dependency flakiness.
+

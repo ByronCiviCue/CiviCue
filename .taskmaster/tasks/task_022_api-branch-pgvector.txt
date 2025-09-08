@@ -1,0 +1,107 @@
+# Task ID: 22
+# Title: Implement /v1/health route
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create a public health check endpoint for the API.
+# Details:
+Implement a GET `/v1/health` endpoint that returns a 200 OK status and a simple JSON body (e.g., `{"status": "ok"}`) to indicate that the service is running.
+
+# Test Strategy:
+Unit test for the route handler. An API contract test will also validate its conformance to the OpenAPI spec.
+
+# Subtasks:
+## 1. Add /v1/health to OpenAPI spec [pending]
+### Dependencies: None
+### Description: Define the GET /v1/health endpoint in the OpenAPI specification as a public endpoint that returns a 200 OK with a simple JSON body indicating service liveness.
+### Details:
+Update openapi.yaml (or openapi.json):
+- paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns 200 if the service is running.
+      operationId: getHealth
+      security: []  # explicitly public
+      responses:
+        '200':
+          description: Service is healthy
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Disable caching for health responses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                default:
+                  value: { "status": "ok" }
+- components.schemas.HealthResponse:
+  type: object
+  required: [status]
+  properties:
+    status:
+      type: string
+      enum: [ok]
+
+Ensure the spec is included in the build artifact and accessible to contract tests (e.g., export path as process.env.OPENAPI_SPEC_PATH).
+
+## 2. Implement health route handler [pending]
+### Dependencies: None
+### Description: Create a lightweight handler that returns a 200 response with JSON {"status":"ok"} and appropriate headers. No external dependencies or auth.
+### Details:
+Implementation (TypeScript + Express example):
+- Create src/handlers/health.ts
+  export const healthHandler: RequestHandler = (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.status(200).json({ status: 'ok' });
+  };
+
+- Ensure the handler does not access environment secrets or databases. It should be synchronous and always available.
+- If using a shared response utility, use it but keep the payload shape exactly { status: 'ok' }.
+
+## 3. Register /v1/health route in the router [pending]
+### Dependencies: 22.2
+### Description: Wire the handler into the v1 router with no authentication or rate limiting. Ensure the route is reachable at GET /v1/health.
+### Details:
+Steps (Express example):
+- In src/routes/v1/index.ts (or similar), import { healthHandler } from '../../handlers/health';
+- Register before any auth middleware applied to the router:
+  router.get('/health', healthHandler);
+- If global auth middleware is used at app level, explicitly bypass for this path (e.g., conditionally skip in middleware or mount the health route before auth):
+  app.get('/v1/health', healthHandler);
+- Ensure CORS settings permit GET requests to this path (if CORS middleware is global, no action needed).
+- If a rate limiter is applied globally, add a rule to exclude /v1/health or set a generous limit.
+
+## 4. Add unit tests for the route [pending]
+### Dependencies: 22.2, 22.3
+### Description: Create unit tests to validate the route returns 200 and the exact JSON payload and headers.
+### Details:
+Using Jest + Supertest (TypeScript example):
+- tests/routes/health.test.ts:
+  - Spin up an in-memory Express app that mounts only the /v1/health route.
+  - GET /v1/health and assert:
+    - status === 200
+    - content-type includes application/json
+    - body deep-equals { status: 'ok' }
+    - Cache-Control header is 'no-store'
+  - Verify no authentication is required (omit auth headers and ensure success).
+- Add npm script: "test:unit" to run unit tests.
+
+## 5. Add API contract test for /v1/health [pending]
+### Dependencies: 22.1, 22.3
+### Description: Implement a contract test that validates the live route response conforms to the OpenAPI spec.
+### Details:
+Using jest-openapi + Supertest (or similar):
+- tests/contract/health.contract.test.ts:
+  - Load the OpenAPI spec from process.env.OPENAPI_SPEC_PATH (e.g., openapi.yaml).
+  - Initialize jest-openapi with the loaded spec.
+  - Start the app (test server) and GET /v1/health.
+  - Assert the response satisfies the spec: expect(response).toSatisfyApiSpec().
+  - Optionally assert headers (Cache-Control) as defined in the spec.
+- Add npm script: "test:contract".
+- Ensure CI runs contract tests after building the app and generating/locating the OpenAPI file.
+

@@ -1,293 +1,77 @@
 {
 	"meta": {
-		"generatedAt": "2025-09-07T01:31:43.090Z",
-		"tasksAnalyzed": 35,
-		"totalTasks": 36,
-		"analysisCount": 35,
+		"generatedAt": "2025-09-08T03:27:43.243Z",
+		"tasksAnalyzed": 1,
+		"totalTasks": 62,
+		"analysisCount": 8,
 		"thresholdScore": 5,
 		"projectName": "Taskmaster",
 		"usedResearch": true
 	},
 	"complexityAnalysis": [
 		{
+			"taskId": 1,
+			"taskTitle": "v2 dataset row client",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand this task into subtasks for: 1. Creating a basic HTTP client wrapper for Socrata v2 endpoints using an existing fetch implementation. 2. Implementing the offset/limit pagination loop to fetch all rows for a given query. 3. Integrating the `X-App-Token` header using the existing environment configuration resolver. 4. Adding retry logic with exponential backoff for 429 and 5xx errors, respecting `Retry-After` headers. 5. Implementing a configurable request throttler to manage rate limits.",
+			"reasoning": "This is a foundational task requiring greenfield development of a resilient network client. Codebase analysis shows basic env var handling exists but no advanced HTTP client with pagination, retries, or throttling. These are distinct, complex features that should be built and tested sequentially, making the overall complexity high."
+		},
+		{
 			"taskId": 2,
-			"taskTitle": "Env setup: .env with SOCRATA_APP_ID and provider keys",
-			"complexityScore": 3,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Add `dotenv` as a dependency and create a configuration module (`src/config.ts`) that loads and validates required environment variables. 2. Create a `.env.example` file in the root directory, documenting all required variables like `SOCRATA_APP_ID`. 3. Ensure the main application entry point loads the configuration and fails fast with a clear error if required variables are missing.",
-			"reasoning": "This is a foundational setup task for a greenfield project. While the logic is simple, it involves adding the first dependency (`dotenv`), creating the first configuration management module, and establishing the pattern for environment-specific settings. The complexity is slightly elevated because it sets a project-wide precedent."
+			"taskTitle": "Column metadata & type map",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand this task into subtasks for: 1. Building a function to fetch raw metadata from the `/api/views/<id>.json` endpoint using the client from subtask 62.1. 2. Creating a parser that processes the raw JSON response and extracts the `columns` array. 3. Implementing the normalization logic to map Socrata `dataTypeName` values to a standardized internal `TypeMap` interface, including all geospatial types. 4. Adding a simple in-memory cache (e.g., a `Map`) to store and retrieve metadata by dataset ID to avoid redundant API calls.",
+			"reasoning": "While fetching is straightforward using the client from 62.1, the core complexity is in data modeling and transformation. Creating a robust, normalized mapping for all Socrata types, including complex ones, is a detailed and non-trivial task. Caching adds a state management component. This is mostly greenfield work as no such type mapping exists."
 		},
 		{
 			"taskId": 3,
-			"taskTitle": "Cohesive ESM migration",
-			"complexityScore": 2,
-			"recommendedSubtasks": 2,
-			"expansionPrompt": "Break this task into two configuration steps: 1. Update `package.json` to include the top-level `\"type\": \"module\"` property. 2. Update `tsconfig.json` to set `\"module\": \"NodeNext\"` and `\"moduleResolution\": \"NodeNext\"` to ensure the TypeScript compiler and Node.js runtime are aligned for native ESM.",
-			"reasoning": "The codebase is greenfield, so there is no existing CommonJS code to migrate. This task is simplified from a large-scale refactoring to a straightforward initial project configuration. The complexity is low as it only involves editing two configuration files to establish the correct module system from the start."
+			"taskTitle": "SoQL builder (typed DSL)",
+			"complexityScore": 8,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand this task into subtasks for: 1. Scaffolding the main SoQL builder class with a fluent API and basic methods like `limit()` and `offset()`. 2. Implementing the `select()` method to handle column selection and aliasing. 3. Building the `where()` method with support for common operators and type-aware, injection-safe parameterization. 4. Adding `orderBy()` and `groupBy()` methods. 5. Implementing support for advanced SoQL functions, starting with one geospatial function (e.g., `within_circle`) and one date function (e.g., `date_trunc_ymd`).",
+			"reasoning": "Building a fluent, type-safe DSL is a significant software design challenge. Codebase analysis and task context (Task 11) indicate this is a new, more robust implementation. The complexity is high due to the need for a well-designed API, prevention of SoQL injection, and support for numerous clauses and functions, especially type-aware ones."
 		},
 		{
 			"taskId": 4,
-			"taskTitle": "OpenAPI lint and TS type generation",
-			"complexityScore": 5,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Install `openapi-typescript` and `@stoplight/spectral-cli` as dev dependencies. 2. Add two new scripts to `package.json`: `lint:openapi` to run Spectral against `openapi.yaml`, and `gen:types` to run `openapi-typescript`. 3. Integrate the `lint:openapi` script into the CI pipeline to fail builds on an invalid spec.",
-			"reasoning": "This task involves setting up new tooling and CI integration from scratch. The `openapi.yaml` file exists, which is a good starting point. Complexity comes from installing and configuring the linter (Spectral) and the type generator, adding the corresponding scripts to `package.json`, and creating the initial CI workflow step."
+			"taskTitle": "Type codecs (incl. geo)",
+			"complexityScore": 8,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand this task into subtasks for: 1. Defining the core `Codec` interface and a registry to hold codec implementations. 2. Implementing codecs for primitive types like text, number, and boolean. 3. Implementing codecs for temporal types (e.g., `fixed_timestamp`), ensuring correct parsing of ISO 8601 strings and timezone handling. 4. Implementing codecs for geospatial types, focusing on `point` and `polygon` with WKT/GeoJSON output. 5. Creating a dispatcher function that takes a `TypeMap` and a raw data row and returns a fully parsed, typed object.",
+			"reasoning": "This task involves low-level, detail-oriented work that is prone to edge cases. Codebase analysis shows no existing data-type parsers. The complexity is high due to the sheer number of Socrata types and the inherent difficulty of correctly handling temporal and geospatial data formats (WKT/GeoJSON), which requires significant testing and validation."
 		},
 		{
 			"taskId": 5,
-			"title": "Pre-commit hooks for code quality",
-			"complexityScore": 4,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Install and initialize `husky` to manage git hooks. 2. Create a `pre-commit` hook script that checks for the existence of `__review__/CONFESSION.md` and `DEFENSE.md`. 3. Add logic to the `pre-commit` script to scan staged files for `TODO` or `FIXME` markers and block the commit if any are found.",
-			"reasoning": "This is a greenfield tooling setup. It requires installing and configuring `husky` and writing custom shell script logic for the hook. The scripting logic itself is simple (file existence checks and `grep`), but the setup of the hook infrastructure from scratch gives it a moderate complexity."
+			"taskTitle": "v3 POST query support + Basic auth",
+			"complexityScore": 7,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand this task into subtasks for: 1. Implementing a secure Basic Authentication header generator that reads `key_id` and `secret` from environment variables. 2. Creating a new HTTP client function for the v3 POST query endpoint, constructing the required JSON body. 3. Implementing the v3-style pagination loop using `pageNumber` and `pageSize`. 4. Adding configuration-based logic to select between the v2 and v3 clients for a given request, including a graceful fallback mechanism.",
+			"reasoning": "This task is complex as it introduces a new API version, a different authentication method, and a new pagination model. Codebase analysis confirms this is entirely new functionality. Securely handling credentials, which must never be logged, and implementing the fallback logic between v2 and v3 adds significant risk and complexity."
 		},
 		{
 			"taskId": 6,
-			"title": "Implement Secrets Policy",
+			"taskTitle": "Test rig (record/replay)",
 			"complexityScore": 6,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Set up a structured logger (e.g., Pino) with configuration for log redaction to automatically censor keys matching patterns like `*token*` or `*key*`. 2. Implement a CI job using a secret scanning tool (e.g., Gitleaks or TruffleHog) to fail the build if hardcoded secrets are detected. 3. Establish and document the architectural rule that `process.env` can only be accessed within a dedicated `src/config.ts` module.",
-			"reasoning": "This task has three distinct parts for a greenfield project: setting up a logging library with redaction from scratch, adding a new security-focused tool to the CI pipeline, and establishing an architectural pattern. The combination of application code (logger), CI configuration, and architectural enforcement makes it moderately complex."
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand this task into subtasks for: 1. Evaluating and choosing an HTTP mocking/recording library (e.g., `nock`, `polly.js`) and integrating it into the project's test setup. 2. Configuring the library to save and load fixtures ('cassettes') from a dedicated directory with a consistent naming scheme. 3. Creating helper functions or test setup hooks to easily enable record/replay mode for integration tests. 4. Converting one new integration test (e.g., for the v2 client) to use the record/replay system, ensuring it passes in CI without live network calls.",
+			"reasoning": "This is a foundational task for improving test reliability and speed. While libraries exist, the complexity lies in the greenfield setup: integrating the tool with the existing test runner and HTTP client, establishing fixture management patterns, and ensuring it's easy for developers to use. This is moderately complex infrastructure work."
 		},
 		{
 			"taskId": 7,
-			"taskTitle": "Build SF Socrata index (registry:socrata:sf)",
-			"complexityScore": 6,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Create a new script file in the `scripts/` directory and configure `package.json` to run it with `ts-node`. 2. Implement the core logic to make paginated HTTP requests to the SF Socrata Discovery API until all dataset metadata is fetched. 3. Transform the collected raw data into the required structured JSON format. 4. Implement the file I/O logic to write the final index to a version-controlled file like `registry/socrata/sf.json`.",
-			"reasoning": "As the first data processing script in the project, this task must establish the patterns for script execution, HTTP requests, and file output. The complexity lies not just in the Socrata-specific API logic (like handling pagination) but also in setting up the entire scaffolding for runnable scripts in a TypeScript/ESM project."
-		},
-		{
-			"taskId": 8,
-			"taskTitle": "Profile SF datasets",
+			"taskTitle": "Regional endpoint routing",
 			"complexityScore": 4,
 			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Create a new script that reads and parses the `registry:socrata:sf` JSON file. 2. Implement the data analysis logic to calculate summary statistics (e.g., total datasets, update frequency distribution, top 10 tags). 3. Implement the output logic to format these statistics into a human-readable markdown string and write it to `__docs__/catalogs/sf-socrata-profile.md`.",
-			"reasoning": "This task is a straightforward data analysis script that depends on the output of Task 7. The logic involves reading a local file, iterating over the data to compute statistics, and formatting a text file. The complexity is low-to-medium as it's a self-contained data transformation task with no external dependencies or complex algorithms."
+			"expansionPrompt": "Expand this task into subtasks for: 1. Creating a configuration map and a resolver function that returns the correct Socrata API base URL (e.g., `api.us.socrata.com`) based on a given dataset domain and environment variables. 2. Integrating this resolver function into the core HTTP client to prefix all API calls with the correct regional endpoint. 3. Writing unit tests to confirm the routing logic works for default cases, domain-specific rules, and environment variable overrides.",
+			"reasoning": "This is a low-to-medium complexity task. The implementation itself is likely a small amount of code (e.g., a lookup map). However, it modifies a critical part of the networking layer, requiring careful integration and thorough testing. Codebase analysis shows no existing regional logic, so it's a new feature, but it's self-contained."
 		},
 		{
-			"taskId": 9,
-			"taskTitle": "Build Detroit Socrata index (optional)",
-			"complexityScore": 3,
-			"recommendedSubtasks": 2,
-			"expansionPrompt": "Break this task into: 1. Refactor the script from Task 7 into a generic function that accepts parameters for the Socrata domain and output file path. 2. Create a new script or extend the existing one with command-line arguments to invoke the generic function for both San Francisco and Detroit.",
-			"reasoning": "The complexity of this task is low because it should primarily be a refactoring of the work done in Task 7. Instead of being greenfield, it modifies an existing script to make it reusable. The main effort is in abstracting the city-specific details into parameters."
-		},
-		{
-			"taskId": 10,
-			"taskTitle": "Profile Detroit datasets and compare with SF",
-			"complexityScore": 5,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Refactor the SF profiling script (Task 8) into a reusable function. 2. Generate the Detroit profile by calling the refactored function. 3. Implement a new comparison function that takes two index objects (SF and Detroit) as input. 4. The comparison function should calculate and format the delta analysis (e.g., unique vs. overlapping tags, dataset count differences) and append it to the Detroit profile markdown file.",
-			"reasoning": "This task builds on Task 8 by adding a comparative analysis component. It involves refactoring the existing profiler, generating a new profile, and then implementing the new delta-analysis logic. The complexity is medium because it requires holding two large datasets in memory and designing the logic for a meaningful comparison."
-		},
-		{
-			"taskId": 11,
-			"taskTitle": "SocrataAdapter: SoQL translation",
-			"complexityScore": 5,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Create the initial `SocrataAdapter.ts` file and class structure. 2. Implement a method to translate the `$select`, `$order`, `$limit`, and `$offset` properties of a query object into their SoQL string equivalents. 3. Implement a more complex method to translate a structured `$where` object into a valid SoQL `$where` clause. 4. Combine these pieces into a main method that assembles the full, URL-encoded SoQL query string.",
-			"reasoning": "This is a greenfield implementation of a core, self-contained piece of logic. The task is to transform a JavaScript object into a formatted, URL-encoded string. The complexity is medium, as it requires careful handling of SoQL syntax, edge cases (like empty clauses), and proper string escaping."
-		},
-		{
-			"taskId": 12,
-			"taskTitle": "SocrataAdapter: Zod schemas and runtime validation",
+			"taskId": 62,
+			"taskTitle": "Socrata Dataset Core (reusable across cities)",
 			"complexityScore": 5,
 			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Add `zod` as a dependency. 2. Define Zod schemas for the primary Socrata API responses (e.g., dataset metadata, query results) in a new file, `src/adapters/socrata.schemas.ts`. 3. In the SocrataAdapter's data-fetching methods, use the schemas to parse the raw API responses, ensuring that malformed data throws a validation error immediately.",
-			"reasoning": "This task involves defining detailed type schemas and integrating them into the adapter. The complexity is medium because it requires a thorough understanding of the Socrata API's data structures and the careful construction of corresponding Zod schemas. It is tedious but crucial for creating a robust adapter."
-		},
-		{
-			"taskId": 13,
-			"taskTitle": "SocrataAdapter: I/O policy (timeouts, retries, backoff)",
-			"complexityScore": 6,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Choose and install a library for handling retries (e.g., `axios-retry` if using Axios, or a standalone library like `p-retry`). 2. Configure the HTTP client within the SocrataAdapter to use this library, specifically targeting transient errors like 429 and 5xx status codes. 3. Implement an exponential backoff strategy and configure appropriate request timeouts to make the adapter resilient.",
-			"reasoning": "Implementing a robust I/O policy from scratch is a moderately complex task. It requires careful configuration of retry conditions, backoff timing, and timeouts. While libraries can simplify this, getting the configuration right to handle rate limits and transient network failures effectively is non-trivial."
-		},
-		{
-			"taskId": 14,
-			"taskTitle": "Seed registry DB (registry.sources, registry.assets)",
-			"complexityScore": 6,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Set up a database client/ORM (e.g., Prisma, Drizzle). 2. Write the database schema for the `registry.sources` and `registry.assets` tables. 3. Create a new seed script that reads the `registry:socrata:sf` index file. 4. Implement the logic in the script to iterate through the index data and insert the appropriate records into the database tables.",
-			"reasoning": "This is a foundational data task for a greenfield project. Complexity is medium-to-high because it requires setting up the entire database connection and schema management tooling (ORM) from scratch, writing the schema, and then implementing the ETL-style logic to populate it from a file."
-		},
-		{
-			"taskId": 15,
-			"taskTitle": "Fill normalization-map.md",
-			"complexityScore": 2,
-			"recommendedSubtasks": 1,
-			"expansionPrompt": "Expand this task by creating a structured markdown table in `__docs__/catalogs/normalization-map.md`. The table should have columns for 'Canonical Field', 'Source Dataset', 'Source Field', and 'Transformation Notes'. Populate this table for at least 10 key fields relevant to housing permits.",
-			"reasoning": "This is a documentation and data modeling task, not a coding task. It requires analysis and decision-making about the data, but the implementation is just writing markdown. The complexity from a development perspective is very low."
-		},
-		{
-			"taskId": 16,
-			"taskTitle": "Design sf.housing.permits branch",
-			"complexityScore": 3,
-			"recommendedSubtasks": 1,
-			"expansionPrompt": "Expand this task by creating the `__docs__/catalogs/branch-sf-housing-permits.md` file with three main sections: 1. **Source Datasets**: List the Socrata asset IDs that will be used. 2. **Fusion Logic**: Detail the rules for merging and deduplicating records. 3. **Final Schema**: Define the fields of the unified output data, referencing the `normalization-map.md`.",
-			"reasoning": "This is a technical design and documentation task. It requires significant thought about the data logic but does not involve writing any production code. The complexity is in the analysis required, but the implementation effort is low, consisting only of writing a markdown document."
-		},
-		{
-			"taskId": 17,
-			"taskTitle": "Implement plan/fetch/fuse for sf.housing.permits",
-			"complexityScore": 8,
-			"recommendedSubtasks": 5,
-			"expansionPrompt": "Break this task into: 1. Create the file structure and class for the `sf.housing.permits` branch engine. 2. Implement the `plan` stage to identify source data URLs based on the design doc. 3. Implement the `fetch` stage to retrieve all data using the SocrataAdapter. 4. Implement the `fuse` stage for data normalization according to the `normalization-map.md`. 5. Implement the most complex part of the `fuse` stage: the deduplication/scoring logic to merge records into a single, clean collection.",
-			"reasoning": "This is one of the most algorithmically complex tasks. It involves implementing the core business logic of the application from scratch. The `fuse` stage, which includes data normalization, entity resolution (deduplication), and merging, is a significant engineering challenge requiring careful design and implementation."
-		},
-		{
-			"taskId": 18,
-			"taskTitle": "Golden tests for fuse() (dedupe/scoring)",
-			"complexityScore": 6,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Create a `__tests__/golden` directory to store test assets. 2. Create a set of input JSON files with mock source data that covers key deduplication and merging edge cases. 3. Write a test that runs the `fuse()` function on the input files and uses the test runner's snapshot feature (e.g., Jest's `toMatchSnapshot()`) to compare the output against a stored 'golden' result.",
-			"reasoning": "This task involves setting up a specific and powerful testing pattern. The complexity is medium because it requires creating representative test data and configuring the test runner to handle snapshot testing for large file outputs. It's a foundational piece of the testing strategy for the most complex part of the codebase."
-		},
-		{
-			"taskId": 19,
-			"taskTitle": "Generator script: pnpm gen:branch",
-			"complexityScore": 5,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Choose and install a scaffolding tool (e.g., `plop.js`) or create a custom Node.js script in the `scripts/` directory. 2. Create the boilerplate templates for the new branch files (e.g., `design.md.hbs`, `index.ts.hbs`, `index.test.ts.hbs`). 3. Implement the generator logic that prompts the user for a branch name and uses it to create and populate the new files from the templates.",
-			"reasoning": "This is a greenfield developer-experience task. The complexity is medium as it involves writing a self-contained command-line tool, including creating templates and implementing the file generation logic. It's a meta-programming task that improves developer workflow."
-		},
-		{
-			"taskId": 20,
-			"taskTitle": "Branch engine observability hooks",
-			"complexityScore": 5,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Choose and set up a lightweight metrics library (e.g., `prom-client` for Prometheus). 2. Instrument the `fetch` stage in the branch engine to emit metrics like `rows_fetched` and `source_errors`. 3. Instrument the `fuse` stage to emit metrics like `dedupe_rate` and processing duration.",
-			"reasoning": "This task involves instrumenting a complex part of the application (the branch engine) for the first time. The complexity is medium because it requires selecting and integrating a metrics library and then strategically adding hooks into the `plan/fetch/fuse` lifecycle without disrupting the core logic."
-		},
-		{
-			"taskId": 21,
-			"taskTitle": "Rate-limit smoke tests (Socrata)",
-			"complexityScore": 7,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Set up a mock server library (e.g., MSW) within the test framework. 2. Create a test-specific mock for the Socrata API that can be programmed to return 429 'Too Many Requests' errors. 3. Write a test that makes a burst of requests to the SocrataAdapter. 4. Assert that the adapter's retry logic (from Task 13) is triggered and that the requests eventually succeed after the mock server stops sending 429s.",
-			"reasoning": "This is a complex integration test that needs to be built from scratch. The complexity is high because it requires setting up a mock server, programming stateful behavior into it (i.e., fail N times, then succeed), and writing an asynchronous test to verify the resilience policy of the SocrataAdapter."
-		},
-		{
-			"taskId": 22,
-			"taskTitle": "Implement /v1/health route",
-			"complexityScore": 5,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Choose, install, and configure a web framework (e.g., Fastify). 2. Create the main server entry point (`src/server.ts`) that initializes the framework and listens for requests. 3. Implement a basic routing structure and create the handler for the `GET /v1/health` endpoint. 4. The handler should return a `200 OK` with a `{\"status\": \"ok\"}` JSON body.",
-			"reasoning": "Although the endpoint logic is trivial, this task's complexity is rated medium because it's in a greenfield project. It carries the responsibility of setting up the entire web server, including choosing a framework, structuring the application, and establishing the pattern for all future API routes."
-		},
-		{
-			"taskId": 23,
-			"taskTitle": "Implement /v1/search/hybrid",
-			"complexityScore": 6,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Create the route handler for `POST /v1/search/hybrid` within the existing API server structure. 2. Implement input validation for the search payload using Zod, based on the OpenAPI spec. 3. Implement the core logic to instantiate and invoke the appropriate branch engine (e.g., `sf.housing.permits`) and return its fused results as the API response.",
-			"reasoning": "This task implements a core feature endpoint. The complexity is medium-to-high as it involves wiring the API layer to the complex backend branch engine (Task 17). It requires careful input validation and orchestration between the web server and the core data processing logic."
-		},
-		{
-			"taskId": 24,
-			"taskTitle": "Implement /v1/reports/permits",
-			"complexityScore": 6,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Create the route handler for `GET /v1/reports/permits`. 2. Add server-side validation to enforce a maximum page size, rejecting requests that exceed it with a 400 error. 3. Implement logic to fetch data from the `sf.housing.permits` branch. 4. Implement the aggregation logic to transform the raw branch data into a summarized report before sending the response.",
-			"reasoning": "This task is more complex than a simple data-passthrough endpoint. The complexity is medium-to-high because it requires implementing data aggregation and summarization logic within the API handler, in addition to standard route setup and validation. The server-side page size enforcement is a critical security/performance feature."
-		},
-		{
-			"taskId": 25,
-			"taskTitle": "Contract tests vs openapi.yaml",
-			"complexityScore": 7,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Install and configure a contract testing library (e.g., `jest-openapi`) into the project's test suite. 2. Create a test helper that can programmatically start and stop the API server for testing purposes. 3. Write the first contract test for the `/v1/health` endpoint to validate its response against `openapi.yaml`. 4. Add contract tests for the more complex `/v1/search/hybrid` and `/v1/reports/permits` endpoints.",
-			"reasoning": "This task establishes a critical part of the testing strategy from scratch. The complexity is high because it involves setting up a new testing methodology, including library configuration, creating a test harness for the API server, and writing the initial set of tests that validate the API implementation against its formal specification."
-		},
-		{
-			"taskId": 26,
-			"taskTitle": "Vector strategy decision document",
-			"complexityScore": 2,
-			"recommendedSubtasks": 1,
-			"expansionPrompt": "Create the `__docs__/architecture/vector-strategy.md` document. It should contain sections for: 1. **Decision**: State whether to use a single or multi-tenant vector space. 2. **Rationale**: Justify the decision based on factors like data isolation, query complexity, and operational overhead. 3. **Chosen Model**: Specify the embedding model to be used (e.g., `text-embedding-3-small`) and its dimensions.",
-			"reasoning": "This is a pure architecture and documentation task. It requires critical thinking and decision-making but involves no code implementation. From a development standpoint, the complexity is very low."
-		},
-		{
-			"taskId": 27,
-			"taskTitle": "Create core.items and core.item_embeddings DB schema",
-			"complexityScore": 6,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Configure the project's ORM or migration tool to connect to a PostgreSQL database with the `pgvector` extension enabled. 2. Write a migration script to create the `core.items` table with appropriate columns for fused data. 3. In the same migration, create the `core.item_embeddings` table, ensuring it has a foreign key to `core.items` and a `vector` column of a specific dimension.",
-			"reasoning": "This task involves creating the foundational DB schema for the project's core data. The complexity is medium because it requires setting up the DB migration tooling, writing the schema, and correctly defining the specialized `vector` data type, which depends on a database extension."
-		},
-		{
-			"taskId": 28,
-			"taskTitle": "Implement ingest job (jobs/ingest-branch.ts)",
-			"complexityScore": 7,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Create a new job script at `jobs/ingest-branch.ts`. 2. Implement logic to read the fused data output from a specified branch (e.g., `sf.housing.permits`). 3. Connect to the database and implement an `upsert` operation to insert/update records in the `core.items` table. 4. Implement logic to identify which items are new or updated and trigger a subsequent embedding job for them.",
-			"reasoning": "This is a critical ETL job that moves data into the core database. The complexity is high because it involves file I/O, database connection, performing efficient `upsert` logic (which can be complex), and orchestrating the next step in the data pipeline (embedding)."
-		},
-		{
-			"taskId": 29,
-			"taskTitle": "Implement embedding computation and upsert",
-			"complexityScore": 8,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Create a service to communicate with the chosen embedding model's API (e.g., OpenAI), handling authentication securely. 2. Implement logic to batch items before sending them to the API to improve efficiency and reduce cost. 3. Process the API response to retrieve the vector embeddings. 4. Implement a database `upsert` operation to store the new embeddings in the `core.item_embeddings` table, linking them to the correct items.",
-			"reasoning": "This task is highly complex due to its external dependencies and performance requirements. It involves secure API key management, integration with a third-party AI service, implementing an efficient batching strategy, and performing high-volume database writes. This is a core part of the AI functionality."
-		},
-		{
-			"taskId": 30,
-			"taskTitle": "Enforce embedding model and dimension guard",
-			"complexityScore": 4,
-			"recommendedSubtasks": 2,
-			"expansionPrompt": "Break this task into: 1. Add a `CHECK` constraint to the `core.item_embeddings` table migration to enforce the vector dimension (e.g., `CHECK (vector_dimensions(embedding) = 1536)`). 2. In the embedding computation service (Task 29), add a runtime assertion to verify that the model identifier being used matches the one specified in the vector strategy document.",
-			"reasoning": "This is a low-to-medium complexity task focused on adding correctness and safety guards. The database constraint is a simple addition to a migration file, and the runtime assert is a simple check. However, they are critical for preventing data corruption and ensuring system consistency."
-		},
-		{
-			"taskId": 31,
-			"taskTitle": "Nightly registry rebuild job",
-			"complexityScore": 8,
-			"recommendedSubtasks": 4,
-			"expansionPrompt": "Break this task into: 1. Create a new GitHub Actions workflow file with a `schedule: cron` trigger for nightly execution. 2. The job should checkout the code, run the registry build script, and check for changes using `git status`. 3. If changes exist, use the GitHub CLI or an action to commit the changes to a new branch and create a pull request. 4. As a final step, run the profile comparison script and post the output as a comment on the newly created PR.",
-			"reasoning": "This is a complex CI/CD and automation task. It goes beyond simple testing and involves Git manipulation, creating pull requests, and interacting with the GitHub API, all from within a CI runner. The logic for creating a PR with a diff comment is non-trivial and makes this a high-complexity task."
-		},
-		{
-			"taskId": 32,
-			"taskTitle": "Hourly branch ingest schedule",
-			"complexityScore": 3,
-			"recommendedSubtasks": 2,
-			"expansionPrompt": "Break this task into: 1. Package the `jobs/ingest-branch.ts` script so it can be executed by a scheduler. 2. Configure the deployment platform's scheduler (e.g., Heroku Scheduler, GitHub Actions cron, or a systemd timer) to run the ingest job on an hourly basis.",
-			"reasoning": "This is primarily a deployment and configuration task, not a coding task. The complexity is low as it involves using the features of the hosting platform or a standard OS utility like cron. The core logic is already built in Task 28."
-		},
-		{
-			"taskId": 33,
-			"taskTitle": "CI tests: typecheck, lint, unit, golden, contract",
-			"complexityScore": 6,
-			"recommendedSubtasks": 5,
-			"expansionPrompt": "Break this task into creating a single, comprehensive CI workflow in GitHub Actions that: 1. Runs `tsc --noEmit` for type checking. 2. Runs `eslint` for linting. 3. Runs the unit test suite. 4. Runs the golden file tests. 5. Runs the API contract tests. Ensure the workflow is triggered on every push and pull request, and that a failure in any step fails the entire job.",
-			"reasoning": "This task involves creating the main CI pipeline from scratch. The complexity is medium because it requires orchestrating multiple different quality checks into a single, reliable workflow. Getting the caching, dependencies, and execution order right in the YAML configuration is a detailed process."
-		},
-		{
-			"taskId": 34,
-			"taskTitle": "Collect and expose key metrics",
-			"complexityScore": 5,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Add a library like `prom-client` to the API server. 2. Create a new `/metrics` endpoint on the API server that exposes the collected metrics in Prometheus format. 3. Ensure that metrics from the observability hooks (Task 20) are properly registered and exposed via this endpoint.",
-			"reasoning": "This task builds on the observability hooks from Task 20 by making the metrics externally available. The complexity is medium as it requires integrating a new library to create a Prometheus-compatible scrape endpoint and ensuring all custom application metrics are correctly plumbed through to it."
-		},
-		{
-			"taskId": 35,
-			"taskTitle": "Implement CorrelationId in logs",
-			"complexityScore": 7,
-			"recommendedSubtasks": 3,
-			"expansionPrompt": "Break this task into: 1. Implement a middleware for the API server using Node.js `AsyncLocalStorage` to store a unique request ID. 2. Configure the logger (from Task 6) to automatically include the ID from `AsyncLocalStorage` in every log message. 3. Ensure the ID is passed through to the SocrataAdapter and other services so that a single request can be traced across all logs.",
-			"reasoning": "Implementing a reliable, cross-cutting correlation ID in asynchronous Node.js is complex. It requires using modern primitives like `AsyncLocalStorage` correctly. The complexity is high because it touches the core of the server, middleware, and logging configuration, and can be difficult to debug if not implemented properly."
-		},
-		{
-			"taskId": 36,
-			"taskTitle": "Create monitoring dashboards",
-			"complexityScore": 3,
-			"recommendedSubtasks": 1,
-			"expansionPrompt": "Using your monitoring tool (e.g., Grafana), create a new dashboard for the service. Add widgets to visualize key metrics exposed in Task 34, such as: API p95 latency, ingest job success rate, data deduplication percentage, and source error rates.",
-			"reasoning": "This is an operations task that occurs outside the application codebase. It involves using the UI of a monitoring tool to configure graphs and alerts. While it requires an understanding of the metrics, it does not involve writing application code, so its development complexity is low."
+			"expansionPrompt": "Break down this task with a focus on socrata dataset core (reusable across cities).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
 		}
 	]
 }

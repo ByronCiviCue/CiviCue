@@ -1,0 +1,112 @@
+# Task ID: 47
+# Title: Typegen: Fetch provider schemas into tmp/schema/<provider>/*.json
+# Status: pending
+# Dependencies: 2
+# Priority: medium
+# Description: Implement a Node ESM CLI that reads the typegen config and fetches provider metadata/schemas (and small sample payloads) for Socrata, CKAN, and ArcGIS, writing normalized JSON files under tmp/schema/<provider>/*.json with a manifest.
+# Details:
+Goal
+- Provide a fetch-only stage for the typegen pipeline that retrieves provider-side schemas/metadata (and optional small sample records) and persists them as canonical JSON snapshots under tmp/schema/{socrata,ckan,arcgis}. This stage is idempotent, cache-aware, and safe to run repeatedly.
+
+CLI/entrypoint
+- Create scripts/typegen-fetch.mjs (Node ESM).
+- Usage:
+  - node scripts/typegen-fetch.mjs [--provider socrata|ckan|arcgis|all] [--config path] [--outDir tmp/schema] [--limit 200] [--concurrency 5] [--force] [--no-samples]
+  - Env overrides: TYPEGEN_CONFIG, TYPEGEN_OUTDIR, TYPEGEN_LIMIT, TYPEGEN_CONCURRENCY, TYPEGEN_FORCE, TYPEGEN_NO_SAMPLES.
+- Package.json scripts (non-conflicting with upcoming pipeline):
+  - "typegen:fetch": "node scripts/typegen-fetch.mjs --provider all"
+
+Configuration
+- Default config path: scripts/typegen.config.json (if not present, exit with guidance unless explicit targets are passed via future flags; for now, require the config).
+- Expected JSON shape:
+  {
+    "socrata": [{ "domain": "data.sfgov.org", "datasetId": "abcd-1234" }],
+    "ckan": [{ "baseUrl": "https://demo.ckan.org", "resourceId": "<uuid>" }],
+    "arcgis": [
+      { "layerUrl": "https://host/arcgis/rest/services/.../FeatureServer/0" }
+      // or { "serviceUrl": ".../FeatureServer", "layerId": 0 }
+    ]
+  }
+
+Output layout
+- Base: tmp/schema/<provider>/
+- File naming (normalized to avoid illegal chars and ensure stable names):
+  - Socrata: <domain>__<datasetId>__v1.json (metadata only) and <domain>__<datasetId>__sample.json (if samples enabled).
+  - CKAN: <host>__<resourceId>__v1.json and <host>__<resourceId>__sample.json.
+  - ArcGIS: <host>__<servicePath>__layer-<id>__v1.json and ...__sample.json (servicePath normalized by replacing slashes with underscores; strip query).
+- Emit a provider manifest at tmp/schema/<provider>/index.json listing entries with keys, source URLs, timestamps, and hashes, plus a top-level tmp/schema/manifest.json with aggregate stats.
+
+Provider fetchers
+- Common behavior:
+  - Respect --concurrency using p-limit.
+  - Respect --limit for sample record count.
+  - Retries with exponential backoff on 429/5xx (max 5 attempts), provider-specific polite delays to avoid rate limits.
+  - Support If-None-Match/If-Modified-Since when providers expose ETag/Last-Modified; otherwise compute a content hash (sha256) and skip writes if unchanged unless --force.
+  - Normalize and canonicalize JSON before writing: sort object keys recursively; pretty-print with 2-space indentation and trailing newline.
+  - Write a .meta.json alongside each file capturing fetch URL, method, status, headers (subset), startedAt, completedAt, durationMs, and contentHash.
+  - Log concise progress: [provider] key → fetched/skipped/error.
+
+- Socrata
+  - Metadata URL: https://<domain>/api/views/<datasetId>.json (include X-App-Token = process.env.SOCRATA_APP_ID if available).
+  - Sample rows (unless --no-samples): https://<domain>/resource/<datasetId>.json?$limit=<limit>.
+  - Key format in manifest: socrata::<domain>::<datasetId>.
+
+- CKAN
+  - Metadata: POST/GET <baseUrl>/api/3/action/datastore_search?resource_id=<uuid>&limit=0 (fields only) or datastore_info if available; include fallback to GET when POST blocked.
+  - Sample rows: <baseUrl>/api/3/action/datastore_search?resource_id=<uuid>&limit=<limit>.
+  - Also attempt <baseUrl>/api/3/action/resource_show?id=<uuid> to capture resource-level metadata; embed under resource property in the v1.json.
+  - Key format: ckan::<host>::<resourceId>.
+
+- ArcGIS (FeatureServer)
+  - Normalize layer target from either layerUrl or (serviceUrl + layerId).
+  - Metadata: <layerUrl>?f=json.
+  - Sample features: <layerUrl>/query?where=1%3D1&outFields=*&returnGeometry=false&f=json&resultRecordCount=<limit> (fall back to resultOffset/page if needed).
+  - Key format: arcgis::<host>::<servicePath>::<layerId>.
+
+Implementation notes
+- Use undici or node-fetch for HTTP; implement a small helper to handle JSON parsing with 2xx/304/4xx branches.
+- Add small utility for canonical JSON stringify with stable key order.
+- Build a tiny hashing utility (crypto.createHash('sha256')).
+- For idempotency: before writing, compare new hash to existing .meta.json hash; if equal, skip write unless --force.
+- For errors per target, record an error entry in manifest (message, code, attemptCount) and continue with others; exit non-zero if any target failed unless TYPEGEN_CONTINUE_ON_ERROR=true.
+- Ensure the script returns non-zero exit code on fatal configuration or network errors when no targets succeeded.
+- Do not commit tmp/schema/** (ensure .gitignore contains tmp/); this is a working directory for fetch snapshots.
+
+Interoperability with future tasks
+- Expose a small JS API (exported functions in scripts/typegen-fetch.mjs) so scripts/typegen.mjs (Task 45) can import and orchestrate this fetch stage.
+- Keep output filenames stable to be consumable by later type-extraction/codegen steps.
+
+Deliverables
+- scripts/typegen-fetch.mjs with provider fetchers and common helpers.
+- tmp/schema/.gitkeep and an updated .gitignore to exclude tmp/ from version control.
+- package.json script: "typegen:fetch".
+- Minimal README snippet in docs/typegen.md describing the fetch stage and config schema.
+
+
+# Test Strategy:
+Prereqs
+- Ensure .env contains SOCRATA_APP_ID (Task 2). Create scripts/typegen.config.json with at least: 2 Socrata datasets, 2 CKAN resources, 2 ArcGIS layers that are publicly accessible.
+
+Happy path
+1) Run: pnpm typegen:fetch
+   - Expect directories: tmp/schema/{socrata,ckan,arcgis}/ to be created with files for each configured target.
+   - Verify each target has: *__v1.json (metadata), optional *__sample.json (unless --no-samples), and *.meta.json.
+   - Check tmp/schema/<provider>/index.json and tmp/schema/manifest.json exist and list all entries with non-empty contentHash values.
+2) Idempotency: Re-run the command without changes.
+   - Expect logs indicating “skipped (unchanged)” for all targets, and no file mtime changes.
+3) Force refresh: pnpm typegen:fetch --force
+   - Expect all files to be re-fetched and meta timestamps updated.
+
+Provider specifics
+4) Socrata headers: Inspect *.meta.json and confirm X-Rate-Limit-* headers captured when present; confirm X-App-Token was sent (spot-check via server echo or absence of 429).
+5) CKAN fields-only: Confirm CKAN *__v1.json includes fields[] and resource metadata under resource.
+6) ArcGIS query: Confirm ArcGIS sample payload has features[] with attributes only (returnGeometry=false).
+
+Failure modes
+7) Missing env var: Temporarily unset SOCRATA_APP_ID; run again. Socrata fetches should still succeed for public datasets but log a warning about missing app token.
+8) Network failure simulation: Temporarily disconnect or edit a baseUrl to an invalid host; expect retries and eventual structured error entries in the manifest, and non-zero exit code.
+
+Quality checks
+9) Canonical JSON: Write a small script to load a v1.json, JSON.stringify it again, and compare sha256 hashes to ensure deterministic output.
+10) Concurrency cap: Configure 20+ targets and run with --concurrency 2; verify no more than 2 concurrent HTTP requests via simple logging timestamps.
+

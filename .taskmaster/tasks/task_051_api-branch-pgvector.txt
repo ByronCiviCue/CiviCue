@@ -1,0 +1,162 @@
+# Task ID: 51
+# Title: CI: Add typegen check job with breaking-change override
+# Status: pending
+# Dependencies: 50
+# Priority: medium
+# Description: Create a CI workflow that runs the typegen pipeline (fetch → fingerprint → generate → compat) and fails on any drift; allow passing only when TYPEGEN_ALLOW_BREAKING=1 is set and the drift is breaking.
+# Details:
+Goal
+- Add a dedicated CI job that exercises the full typegen pipeline in read-only/check mode and fails on any schema/type drift. If drift is classified as breaking, allow the job to pass only when TYPEGEN_ALLOW_BREAKING=1 is set. Always fail for non-breaking drift to force adoption commits.
+
+Deliverables
+1) GitHub Actions workflow: .github/workflows/typegen-check.yml
+2) Gate script: scripts/ci-typegen-check.mjs to parse the compat report and enforce exit policy
+3) NPM scripts to simplify local and CI execution
+
+Semantics
+- Drift: any change detected by typegen-compat (Task 50) between src/generated/<provider>/current and src/generated/<provider>/next.
+- Breaking drift: compat report contains any breaking changes.
+- Exit conditions:
+  - No drift: exit 0
+  - Non-breaking drift: exit 1 (require follow-up PR to adopt next → current)
+  - Breaking drift: exit 1 unless process.env.TYPEGEN_ALLOW_BREAKING === "1"; when set, exit 0 (CI allows PR to merge with known breaking drift under explicit override)
+
+Implementation
+A) Package.json scripts
+- Add:
+  - "typegen:ci:fetch": "node scripts/typegen-fetch.mjs --provider all"
+  - "typegen:ci:fingerprint:check": "node scripts/typegen-fingerprint.mjs --provider all --mode check --prune"
+  - "typegen:ci:generate": "node scripts/typegen-generate.mjs --provider all"
+  - "typegen:ci:compat:check": "node scripts/typegen-compat.mjs --provider all --mode check --report json --out tmp/typegen-compat.json"
+  - "typegen:ci:check": "pnpm typegen:ci:fetch && pnpm typegen:ci:fingerprint:check && pnpm typegen:ci:generate && pnpm typegen:ci:compat:check && node scripts/ci-typegen-check.mjs tmp/typegen-compat.json"
+
+B) Gate script: scripts/ci-typegen-check.mjs (Node ESM)
+- Reads a JSON report emitted by scripts/typegen-compat.mjs. Example implementation:
+"""
+#!/usr/bin/env node
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+const [, , reportPathArg] = process.argv;
+const reportPath = reportPathArg || 'tmp/typegen-compat.json';
+const allowBreaking = process.env.TYPEGEN_ALLOW_BREAKING === '1';
+
+const readJson = async (p) => JSON.parse(await fs.readFile(p, 'utf8'));
+
+try {
+  const report = await readJson(path.resolve(reportPath));
+  // Expected report shape (from Task 50):
+  // { summary: { drift: boolean, breaking: boolean, counts: { breaking: number, nonBreaking: number } }, details: {...} }
+  const drift = !!report?.summary?.drift;
+  const breaking = !!report?.summary?.breaking;
+
+  if (!drift) {
+    console.log('typegen: no drift detected');
+    process.exit(0);
+  }
+
+  if (breaking) {
+    if (allowBreaking) {
+      console.warn('typegen: BREAKING drift detected but allowed via TYPEGEN_ALLOW_BREAKING=1');
+      process.exit(0);
+    } else {
+      console.error('typegen: BREAKING drift detected. Set TYPEGEN_ALLOW_BREAKING=1 to override in exceptional cases.');
+      process.exit(1);
+    }
+  } else {
+    console.error('typegen: NON-BREAKING drift detected. Run pnpm typegen:compat:adopt (see Task 50) and commit the changes.');
+    process.exit(1);
+  }
+} catch (err) {
+  console.error('typegen: failed to read/parse compat report', err);
+  process.exit(2);
+}
+"""
+
+C) GitHub Actions workflow: .github/workflows/typegen-check.yml
+- Minimal example that runs on PRs and on main. Assumes Node 18 and pnpm; injects required provider secrets (e.g., SOCRATA_APP_ID) via repo/environment secrets.
+"""
+name: typegen-check
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # Optional override to allow breaking drift (defaults to not allowed)
+      TYPEGEN_ALLOW_BREAKING: ${{ secrets.TYPEGEN_ALLOW_BREAKING }}
+      # Provider creds (Task 2):
+      SOCRATA_APP_ID: ${{ secrets.SOCRATA_APP_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Run typegen check pipeline
+        run: pnpm typegen:ci:check
+
+      - name: Upload compat report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typegen-compat-report
+          path: tmp/typegen-compat.json
+"""
+
+D) Optional: Job summary for quick visibility
+- Append a short summary from the report to GHA job summary (GITHUB_STEP_SUMMARY). This can be done inside ci-typegen-check.mjs when drift is detected to print a compact table of counts and providers.
+
+E) Notes/considerations
+- The job intentionally does not run the adoption step; developers should run the adopt mode locally and commit the resulting current baseline changes in a follow-up PR.
+- Ensure scripts/typegen-compat.mjs emits a machine-readable JSON report file (Task 50). The --out flag is used here; support it if not already present.
+- Keep network calls in fetch stage bounded via config limits from Task 47; respect provider rate limits and leverage caching where available.
+- For first-time adoption (no current baseline), compat should signal init-required; treat as drift and fail until an adoption PR is merged.
+
+
+# Test Strategy:
+Prereqs
+- Complete Task 50 so scripts/typegen-compat.mjs exists and can emit a JSON report. Ensure Tasks 47–49 are functional via their CLIs.
+- Configure repository secrets: SOCRATA_APP_ID (Task 2), and optionally TYPEGEN_ALLOW_BREAKING.
+
+Local verification
+1) No drift path
+- Ensure src/generated/** current matches next (or next absent). Run: pnpm typegen:ci:check
+- Expected: exit 0, log "no drift detected"; tmp/typegen-compat.json exists with summary.drift=false.
+
+2) Non-breaking drift path
+- Make a allowed (non-breaking) change to a provider schema snapshot (or use test fixtures to simulate). Run: pnpm typegen:ci:check
+- Expected: generator writes new next, compat report shows drift breaking=false, gate script exits 1 with guidance to adopt; CI would fail.
+
+3) Breaking drift path without override
+- Introduce a breaking change in an input snapshot (e.g., remove a required field). Run: pnpm typegen:ci:check
+- Expected: compat report shows breaking=true, gate script exits 1 and explains how to override.
+
+4) Breaking drift path with override
+- Same as (3), but run: TYPEGEN_ALLOW_BREAKING=1 pnpm typegen:ci:check
+- Expected: gate script exits 0 with warning that breaking drift is allowed.
+
+5) Report upload
+- Run the GHA workflow on a PR with drift. Confirm typegen-compat-report artifact is present and the JSON matches local output.
+
+6) Failure codes
+- Corrupt or missing report: simulate by deleting tmp/typegen-compat.json and running the gate script. Expected: exit 2 and clear error message.
+

@@ -1,0 +1,89 @@
+# Task ID: 14
+# Title: Seed registry DB (registry.sources, registry.assets)
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create a script to populate the main database with data from the generated Socrata index file.
+# Details:
+The script will read the `registry:socrata:sf` index file and insert records into the `registry.sources` and `registry.assets` tables in the database.
+
+# Test Strategy:
+Run the seed script and query the database to verify that the tables are populated correctly and the record counts match the source index file.
+
+# Subtasks:
+## 1. Parse and normalize the Socrata index file [pending]
+### Dependencies: None
+### Description: Implement a parser that reads the registry:socrata:sf index file and produces normalized SourceInput and AssetInput records ready for database upsert. Support large files and both JSON and NDJSON variants.
+### Details:
+Implementation steps:
+- Accept an input path via CLI flag --index <path> or env INDEX_PATH; default to ./data/registry/socrata/sf.index.json. The index is produced by the registry build process.
+- Implement a file reader that supports:
+  1) A single JSON object containing arrays (e.g., { sources: [...], assets: [...] }), OR
+  2) NDJSON lines where each line is a JSON object with a type field (e.g., { type: 'source'| 'asset', ... }).
+- Define normalized types:
+  - SourceInput: { provider: 'socrata', source_key: string (domain or portal identifier), name?: string, url?: string, raw: object }
+  - AssetInput: { asset_key: string (Socrata 4x4 id), source_key: string (same as SourceInput.source_key), name?: string, description?: string, url?: string, updated_at?: string, raw: object }
+- Determine mapping from raw index:
+  - For sources: source_key = domain (e.g., 'data.sfgov.org'); name = portal display name if present; url = https://<domain>.
+  - For assets: asset_key = dataset id (4x4); source_key = dataset domain; name, description, url from the index; updated_at from updatedAt/modified fields; keep the full original object as raw.
+- Validate minimally (e.g., asset_key and source_key required). Use a schema validator (e.g., zod) to collect errors and skip invalid records with warnings.
+- Stream parsing for scalability: for JSON arrays use a streaming parser (e.g., stream-json) to avoid loading the entire file; for NDJSON, process line by line. Accumulate a deduplicated map for sources (keyed by source_key) and an array/stream for assets.
+- Output of this module: { sources: Map<source_key, SourceInput>, assets: AsyncIterable<AssetInput>|AssetInput[] } to be consumed by the seeding steps. Log counts discovered.
+
+## 2. Implement database connection and reusable upsert helpers [pending]
+### Dependencies: 14.1
+### Description: Set up the database client and write reusable upsert functions for registry.sources and registry.assets that are idempotent and efficient.
+### Details:
+Implementation steps:
+- Use DATABASE_URL from env. Implement a pooled DB client (e.g., node-postgres pg Pool) with sane defaults. Add graceful shutdown.
+- Inspect registry.sources and registry.assets schemas to identify unique keys and JSONB columns. If available, plan to use:
+  - registry.sources: natural unique key (provider, source_key). If source_key column doesn't exist but domain does, adapt accordingly.
+  - registry.assets: natural unique key asset_key (Socrata 4x4). If table uses composite keys, adapt to (provider, asset_key) or (source_id, asset_key).
+- Create parameterized SQL for idempotent upserts with ON CONFLICT. Example patterns:
+  - Sources: INSERT INTO registry.sources (provider, source_key, name, url, raw) VALUES ($1,$2,$3,$4,$5::jsonb)
+    ON CONFLICT (provider, source_key) DO UPDATE SET name = EXCLUDED.name, url = EXCLUDED.url, raw = EXCLUDED.raw, updated_at = now() RETURNING id, provider, source_key;
+  - Assets: INSERT INTO registry.assets (asset_key, source_id, name, description, url, updated_at, raw) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)
+    ON CONFLICT (asset_key) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, url = EXCLUDED.url, updated_at = GREATEST(registry.assets.updated_at, EXCLUDED.updated_at), raw = EXCLUDED.raw RETURNING id, asset_key, source_id;
+- If the actual schema differs (e.g., no raw column, different names), adapt the column lists while preserving the same upsert semantics. Keep unmapped fields in raw JSONB when available.
+- Implement helper functions:
+  - upsertSources(batch: SourceInput[]): Promise<Map<source_key, source_id>> — runs in a transaction, returns a map source_key -> DB id.
+  - upsertAssets(batch: AssetInput[], sourceIdByKey: Map<string,string>): Promise<number> — resolves source_id via map, skips assets with missing source_id (log warning), returns number upserted.
+- Add batching support: configurable batch size (default 500) and prepared statements. Optionally support limited concurrency per batch with Promise.allSettled.
+
+## 3. Seed registry.sources from normalized input [pending]
+### Dependencies: 14.2
+### Description: Orchestrate insertion of unique sources into registry.sources and return a stable mapping of source_key to source_id for linking assets.
+### Details:
+Implementation steps:
+- From subtask 14.1 output, take the deduplicated sources Map and convert it to an array. Log the total source count.
+- Process in batches (e.g., 500): call upsertSources for each batch in a single transaction for consistency. Capture returned rows to build a Map<string, string> sourceIdByKey.
+- Ensure idempotency: upsertSources should not create duplicates on repeated runs. Log inserted vs updated counts per batch.
+- Persist a local cache file optional (e.g., .cache/sources-socrata-sf.json) mapping source_key -> source_id to speed subsequent runs (validate cache entries by re-checking a sample of rows to avoid drift).
+- Emit metrics/logs: number of sources processed, inserted, updated, skipped, duration.
+
+## 4. Seed registry.assets linked to sources [pending]
+### Dependencies: 14.3
+### Description: Insert or update asset records in registry.assets, ensuring each asset references the correct source_id and maintaining idempotency and referential integrity.
+### Details:
+Implementation steps:
+- Iterate over assets from 14.1 (stream if large). Resolve source_id via sourceIdByKey map produced in 14.3. If a source_key is missing, log and skip the asset.
+- Prepare AssetInput normalization: ensure updated_at is ISO string or null; ensure url points to the dataset on the Socrata portal; keep the full original object in raw when supported by schema.
+- Batch upserts (default 500). For each batch, open a transaction, call upsertAssets with the resolved source_id. Commit per batch. Consider limited concurrency if DB allows.
+- Enforce idempotency by using ON CONFLICT on the natural key (asset_key or provider+asset_key as per schema). Update mutable fields and keep the greatest updated_at when appropriate.
+- After completion, log summary: total assets processed, inserted, updated, skipped, missing-source count, elapsed time.
+
+## 5. CLI wrapper, configuration, dry-run, and verification checks [pending]
+### Dependencies: 14.4
+### Description: Provide a command-line script to run the full seeding flow with configuration options, dry-run mode, and post-run verification queries.
+### Details:
+Implementation steps:
+- Create a script (e.g., scripts/seed-registry-socrata.ts) exposing a CLI with options: --index <path>, --batch-size <n>, --concurrency <n>, --dry-run, --verbose. Read DATABASE_URL from env.
+- Wire together subtasks: parse (14.1) -> sources (14.3) -> assets (14.4). In dry-run mode, perform parsing and compute counts without executing DB writes; print a plan summary.
+- Add structured logging (JSON logs) for progress, batch timings, errors, and final summary. Exit with non-zero on fatal errors.
+- Implement verification checks post-run:
+  - Count comparison: SELECT COUNT(*) FROM registry.sources and registry.assets vs parsed counts.
+  - Referential integrity: SELECT COUNT(*) of assets with missing source_id should be zero.
+  - Optional sample diff: randomly sample a few assets and print key fields for spot-checking.
+- Provide documentation in the repo README for how to run the script locally and in CI, including required permissions and expected runtime.
+- Ensure idempotency by recommending running the script twice in CI to confirm no changes on second run.
+

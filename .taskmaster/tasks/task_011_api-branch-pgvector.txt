@@ -1,0 +1,98 @@
+# Task ID: 11
+# Title: SocrataAdapter: SoQL translation
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement the core query translation logic in the SocrataAdapter to convert a generic query object into a Socrata Query Language (SoQL) string. [Updated: 9/6/2025] [Updated: 9/6/2025]
+# Details:
+The adapter method should accept a structured query object and correctly map its properties (`$select`, `$where`, `$order`, `$limit`, `$offset`) to the corresponding SoQL clauses. Ensure proper URL encoding of parameters.
+<info added on 2025-09-07T04:10:35.093Z>
+Note: Do NOT handwrite TS/Zod types. Use src/generated/socrata/* from type-extraction.
+</info added on 2025-09-07T04:10:35.093Z>
+<info added on 2025-09-07T04:26:23.318Z>
+Note: Adapters MUST import from src/generated/socrata/current; do not handwrite types.
+</info added on 2025-09-07T04:26:23.318Z>
+
+# Test Strategy:
+Unit tests with various query object combinations to assert the generated SoQL string is correct. Include edge cases like empty clauses or special characters.
+
+# Subtasks:
+## 1. Define query types and adapter method contract [pending]
+### Dependencies: None
+### Description: Establish TypeScript types for the structured query object and define the SocrataAdapter translation method signature and behaviors.
+### Details:
+Implementation guidance:
+- Create types in adapters/socrata/types.ts:
+  - export type SoqlOrderItem = string | { field: string; dir?: 'asc' | 'desc' };
+  - export interface SocrataQuery { $select?: string | string[]; $where?: string; $order?: string | string[] | SoqlOrderItem | SoqlOrderItem[]; $limit?: number; $offset?: number; }
+- Define the adapter method signature in adapters/socrata/SocrataAdapter.ts:
+  - buildSoql(query: SocrataQuery): string
+- Behavioral rules:
+  - Omit any clause that is undefined or normalizes to empty.
+  - $select: accepts string or string[]; array items are trimmed and joined by comma.
+  - $where: opaque SoQL expression string; treat as-is after trim.
+  - $order: accepts string, string[], or objects with {field, dir}; normalize to a comma-separated list; direction normalized to ASC/DESC when provided.
+  - $limit: must be a finite positive integer (> 0); $offset: finite non-negative integer (>= 0). Invalid values throw a TypeError.
+  - Return value is a URL-encoded query string (without leading '?'), with keys encoded as needed (e.g., $ may be percent-encoded).
+- Add JSDoc for each field and edge-case behavior.
+
+## 2. Implement clause serialization utilities [pending]
+### Dependencies: 11.1
+### Description: Create pure functions to serialize each clause ($select, $where, $order, $limit, $offset) from the structured query to raw SoQL clause strings.
+### Details:
+Implementation guidance:
+- New file adapters/socrata/soqlSerializers.ts exporting:
+  - serializeSelect(input: string | string[] | undefined): string | undefined
+    - If array: map(v => v.trim()), filter(Boolean), join(','). If result empty, return undefined. If string: trim; if empty, undefined.
+  - serializeWhere(input: string | undefined): string | undefined
+    - If string: trim; if empty, undefined; otherwise pass through (opaque expression).
+  - serializeOrder(input: string | string[] | SoqlOrderItem | SoqlOrderItem[] | undefined): string | undefined
+    - Normalize to array. For string items: trim and keep. For object items: build `${field} ${dir?.toUpperCase()}` if dir provided (ASC/DESC); if not provided, use just field. Filter empty and join(','). If final empty, undefined.
+  - serializeLimit(input: number | undefined): string | undefined
+    - If undefined: undefined. Else ensure Number.isFinite and integer > 0, else throw TypeError. Return String(value).
+  - serializeOffset(input: number | undefined): string | undefined
+    - If undefined: undefined. Else ensure Number.isFinite and integer >= 0, else throw TypeError. Return String(value).
+- Keep these functions side-effect free and with no URL encoding. They only return raw SoQL clause strings or undefined.
+
+## 3. Assemble and URL-encode SoQL query string [pending]
+### Dependencies: 11.2
+### Description: Compose serialized clauses into a deterministic, URL-encoded query string using URLSearchParams with a fixed parameter order.
+### Details:
+Implementation guidance:
+- New function in adapters/socrata/soqlBuilder.ts: buildSoqlQueryString(q: SocrataQuery): string
+  - Call serializers to get raw strings for each clause.
+  - Build in canonical order: $select, $where, $order, $limit, $offset.
+  - Use const params = new URLSearchParams(); For each defined clause, params.append('$select', val) etc.
+  - Return params.toString(). This ensures proper percent-encoding of values and keys. (Note: '$' in keys may be encoded as %24; this is acceptable. Only if product requirements demand literal '$', post-process by replacing '%24' with '$' at positions of keys, but prefer leaving encoded.)
+  - Skip any undefined/empty clauses so they do not appear.
+  - Ensure deterministic output by always appending in the same order.
+- Export this function for adapter integration.
+
+## 4. Integrate builder into SocrataAdapter [pending]
+### Dependencies: 11.3
+### Description: Wire the SoQL builder into the SocrataAdapter and expose the translation method used by higher-level code.
+### Details:
+Implementation guidance:
+- In adapters/socrata/SocrataAdapter.ts:
+  - Import buildSoqlQueryString and the SocrataQuery type.
+  - Implement method buildSoql(query: SocrataQuery): string { return buildSoqlQueryString(query); }
+  - Where the adapter constructs request URLs (e.g., fetchDataset(datasetId, query)), append '?' + buildSoql(query) when query is provided.
+  - Add minimal logging (debug) for the produced query string when in development mode.
+  - Ensure no cross-task coupling with I/O policy (Task 13) or response validation (Task 12); this change only concerns query translation.
+
+## 5. Comprehensive unit tests and edge cases [pending]
+### Dependencies: 11.4
+### Description: Add test cases covering common paths and edge cases to ensure correctness and robustness of SoQL translation.
+### Details:
+Implementation guidance:
+- Create tests in adapters/socrata/__tests__/soql.spec.ts:
+  - Empty query: {} -> '' (empty string).
+  - Select array: { $select: ['id','name'] } -> encoded form of $select=id,name.
+  - Where with special chars: { $where: "name like 'A&B% C'" } -> ensure value decodes back exactly; chars like &, %, space are properly encoded.
+  - Order variations: strings, arrays, and object forms mixed; ensure normalization and joining; case normalization on dir.
+  - Limit/offset: valid numbers produce strings; invalid (limit 0, negative, non-integer, NaN) throw TypeError; offset negative throws.
+  - Deterministic key order: $select before $where before $order before $limit before $offset.
+  - Skipping empties: trim-induced empties are omitted (e.g., ['id','  ']).
+  - Large values: ensure no truncation and correct encoding for long where clauses.
+- Use URLSearchParams(result) in assertions to read back parameters reliably, rather than string equality where encoding differences could be ambiguous.
+

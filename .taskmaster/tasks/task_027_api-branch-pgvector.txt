@@ -1,0 +1,118 @@
+# Task ID: 27
+# Title: Create core.items and core.item_embeddings DB schema
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Define and create the database tables for storing unified items and their vector embeddings.
+# Details:
+Write a database migration to create the `core.items` table (for fused data from branches) and the `core.item_embeddings` table. The embeddings table should use a vector-supporting data type from a DB extension like `pgvector`.
+
+# Test Strategy:
+The migration script should be testable. After running the migration, verify the schema of the created tables using a database inspection tool or query.
+
+# Subtasks:
+## 1. Finalize schema design and decisions [pending]
+### Dependencies: None
+### Description: Define table structures, constraints, and indexing strategy for core.items and core.item_embeddings, including embedding dimension and distance metric.
+### Details:
+Decisions and spec:
+- Schema: use PostgreSQL schema "core" for namespacing.
+- Extensions: pgvector (extension name: vector) for embeddings; pgcrypto for gen_random_uuid().
+- Embedding config: dimension=1536, distance=cosine (vector_cosine_ops). Assumption: a single embedding model/dimension used initially. If future models require different dimensions, plan separate tables per dimension or a migration to add new tables.
+- Table core.items (unified/fused items from branches):
+  - id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+  - source_branch TEXT NOT NULL (identifier of the branch the record came from)
+  - source_item_id TEXT NOT NULL (stable ID from the branch)
+  - canonical_key TEXT NULL (optional cross-branch key)
+  - content JSONB NOT NULL (fused item payload)
+  - content_hash BYTEA NOT NULL (hash of content for change detection)
+  - created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  - updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  - Constraints/Indexes: UNIQUE (source_branch, source_item_id); BTREE index on canonical_key; GIN index on content jsonb; trigger to maintain updated_at on row change.
+- Table core.item_embeddings:
+  - id BIGSERIAL PRIMARY KEY
+  - item_id UUID NOT NULL REFERENCES core.items(id) ON DELETE CASCADE
+  - model TEXT NOT NULL (embedding model name)
+  - embedding VECTOR(1536) NOT NULL
+  - embedding_version INT NOT NULL DEFAULT 1 (for re-embeddings/versioning)
+  - created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  - Constraints/Indexes: UNIQUE (item_id, model, embedding_version); IVFFLAT index on embedding USING vector_cosine_ops WITH (lists=100) for ANN search.
+- Migration approach: one migration file implementing both tables (up/down). Name suggestion: 027_core_items_and_embeddings.sql (or equivalent for your migration tool).
+
+## 2. Create schema and required extensions [pending]
+### Dependencies: 27.1
+### Description: Add migration steps to create the core schema, enable pgvector and pgcrypto extensions, and prepare utility functions.
+### Details:
+In the migration UP section:
+- CREATE SCHEMA IF NOT EXISTS core;
+- CREATE EXTENSION IF NOT EXISTS vector; (pgvector)
+- CREATE EXTENSION IF NOT EXISTS pgcrypto; (for gen_random_uuid())
+- Create a reusable updated_at trigger function:
+  - CREATE FUNCTION core.set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
+Notes:
+- Ensure the migration runs inside a transaction (unless your tooling requires non-transactional for index concurrently; we are not using concurrently here).
+- Parameterize the search_path or schema qualifiers to avoid ambiguity.
+
+## 3. Implement core.items table, constraints, indexes, and triggers [pending]
+### Dependencies: 27.2
+### Description: Create the core.items table with appropriate columns, indexes, and the updated_at trigger.
+### Details:
+In the migration UP section, execute:
+- CREATE TABLE core.items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_branch TEXT NOT NULL,
+  source_item_id TEXT NOT NULL,
+  canonical_key TEXT NULL,
+  content JSONB NOT NULL,
+  content_hash BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (source_branch, source_item_id)
+);
+- Indexes:
+  - CREATE INDEX items_canonical_key_idx ON core.items (canonical_key);
+  - CREATE INDEX items_content_gin_idx ON core.items USING GIN (content);
+- Trigger:
+  - CREATE TRIGGER items_set_updated_at BEFORE UPDATE ON core.items FOR EACH ROW EXECUTE FUNCTION core.set_updated_at();
+Implementation notes:
+- Compute content_hash in application code during upsert or add a future trigger if desired. Keep it NOT NULL to enforce presence.
+- Consider BTREE index on (source_branch, source_item_id) is covered by UNIQUE, so no extra index needed.
+
+## 4. Implement core.item_embeddings table with pgvector and ANN index [pending]
+### Dependencies: 27.2, 27.3
+### Description: Create the core.item_embeddings table, foreign key to items, uniqueness, and an IVFFLAT index using cosine distance.
+### Details:
+In the migration UP section, execute:
+- CREATE TABLE core.item_embeddings (
+  id BIGSERIAL PRIMARY KEY,
+  item_id UUID NOT NULL REFERENCES core.items(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  embedding VECTOR(1536) NOT NULL,
+  embedding_version INT NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (item_id, model, embedding_version)
+);
+- Create ANN index (requires pgvector):
+  - CREATE INDEX item_embeddings_embedding_ivfflat_idx ON core.item_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+Notes:
+- IVFFLAT performs best after ANALYZE and with sufficient rows; adjust lists per data size. For small datasets, a plain BTREE index is not applicable; sequential scan may be fine until volume grows.
+- If later supporting multiple dimensions, create additional tables like core.item_embeddings_768, each with its own vector(dim) and index.
+
+## 5. Add down migration and run end-to-end verification [pending]
+### Dependencies: 27.4
+### Description: Implement rollback steps and validate the schema by running smoke tests end-to-end.
+### Details:
+In the migration DOWN section (reverse order):
+- DROP INDEX IF EXISTS core.item_embeddings_embedding_ivfflat_idx;
+- DROP TABLE IF EXISTS core.item_embeddings;
+- DROP TRIGGER IF EXISTS items_set_updated_at ON core.items;
+- DROP TABLE IF EXISTS core.items;
+- DROP FUNCTION IF EXISTS core.set_updated_at();
+- Optionally DROP SCHEMA core; only if empty and safe in your environment.
+- Optionally DROP EXTENSION vector and pgcrypto if policy allows (they may be shared; usually leave installed).
+Verification steps:
+- Run UP migration on a fresh dev DB; perform the insert/update/select checks described in prior subtasks.
+- Run DOWN migration; verify tables, indexes, and function are removed.
+- Re-run UP to ensure idempotency and no leftover artifacts.
+- Document the embedding dimension and model choice in a README next to the migration.
+

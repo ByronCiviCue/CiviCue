@@ -1,0 +1,53 @@
+# Task ID: 32
+# Title: Hourly branch ingest schedule
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Schedule the branch ingest job to run hourly.
+# Details:
+Configure a scheduler (e.g., Heroku Scheduler, cron) to execute the `jobs/ingest-branch.ts` job every hour on a worker dyno or equivalent compute instance.
+
+# Test Strategy:
+Manual verification by checking the scheduler's dashboard and application logs to confirm the job is triggered hourly and completes successfully.
+
+# Subtasks:
+## 1. Expose a production-safe command to run jobs/ingest-branch.ts [pending]
+### Dependencies: None
+### Description: Create a reliable CLI entry point to execute the ingest job non-interactively on a worker instance.
+### Details:
+1) Ensure jobs/ingest-branch.ts has an executable main(): export async function main(){...}; if (require.main === module){ main().then(()=>process.exit(0)).catch(err=>{console.error(err); process.exit(1);}); }
+2) Ensure the job reads branch selection from env/args if applicable (e.g., BRANCH_SLUG or defaults to all activated branches) and logs a clear start/end banner with a correlation id.
+3) Compile in CI/CD: add or confirm build step to produce dist/jobs/ingest-branch.js. In package.json add: scripts.job:ingest-branch: "node dist/jobs/ingest-branch.js". Optionally add scripts.job:ingest-branch:dev: "ts-node jobs/ingest-branch.ts" for local testing.
+4) Verify the command returns exit code 0 on success and non-zero on failure; avoid long console output unless verbose flag is set.
+
+## 2. Add single-instance guard and max runtime to prevent overlapping runs [pending]
+### Dependencies: 32.1
+### Description: Wrap the job with a distributed lock and an overall timeout so hourly schedules do not overlap or run indefinitely.
+### Details:
+1) Implement a withAdvisoryLock helper using the primary DB (e.g., Postgres pg_advisory_lock) with a stable key like hash('ingest_branch_hourly'). Acquire lock before main work; if lock not acquired immediately, log and exit 0 (no-op).
+2) Add a max runtime timer (e.g., 55 minutes) that cancels/aborts work and exits non-zero if exceeded. Ensure resources are cleaned up in finally.
+3) Log lock acquisition/release and timeout events with the same correlation id.
+
+## 3. Select scheduler platform and prepare required artifacts [pending]
+### Dependencies: 32.2
+### Description: Decide between Heroku Scheduler or system cron for the deployment environment and add any repo/infrastructure artifacts needed.
+### Details:
+1) Document the choice in ops/scheduling.md (platform, command to run, ownership, and runbook links).
+2) If Heroku: add/confirm Procfile entry worker: node dist/jobs/ingest-branch.js so a worker dyno can execute the job command. Ensure PNPM is not required at runtime for the scheduled command.
+3) If non-Heroku (VM/bare metal): create scripts/ingest-branch.sh that sources environment, cd's to repo root, and runs node dist/jobs/ingest-branch.js with stdout/stderr to a rotating log file.
+
+## 4. Configure hourly schedule on the chosen platform [pending]
+### Dependencies: 32.3
+### Description: Create the actual schedule that invokes the ingest job every hour on the worker compute.
+### Details:
+Heroku Scheduler path: 1) Ensure a worker dyno is available (heroku ps:scale worker=1). 2) Add Heroku Scheduler addon (heroku addons:create scheduler:standard). 3) In the Scheduler dashboard, create a job: Frequency: Every hour, Command: node dist/jobs/ingest-branch.js, Dyno: worker. 4) Confirm timezone and next run time.
+Cron path: 1) Install a crontab entry for the deploy user: 0 * * * * /usr/bin/env bash -lc 'cd /path/to/app && node dist/jobs/ingest-branch.js >> logs/ingest-branch.log 2>&1'. 2) Ensure environment variables are available to cron via /etc/environment or a sourced file in the command. 3) Set up logrotate for logs/ingest-branch.log.
+
+## 5. Verify scheduling, logging, and add lightweight monitoring [pending]
+### Dependencies: 32.4
+### Description: Confirm the job triggers on schedule, completes successfully, and emits sufficient logs for troubleshooting; add simple alerting.
+### Details:
+1) Manually trigger a run (Heroku: heroku run node dist/jobs/ingest-branch.js; Cron: run the same command) and confirm success in application logs with start/end markers and duration.
+2) Wait for the next scheduled hour and verify an automatic run occurs; capture timestamps of two consecutive runs to confirm hourly cadence and no overlap (thanks to the lock).
+3) Add a basic heartbeat/marker: on success, log metric ingest_branch.run_success=1 with duration; on failure, log ingest_branch.run_failure=1. If a log-based alerting system is available, create an alert on failures within a rolling window.
+

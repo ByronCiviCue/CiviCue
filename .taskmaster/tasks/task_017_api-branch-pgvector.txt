@@ -1,0 +1,79 @@
+# Task ID: 17
+# Title: Implement plan/fetch/fuse for sf.housing.permits
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement the core logic for the `sf.housing.permits` branch engine.
+# Details:
+Based on the design doc, implement the three stages: `plan` (determine which data to fetch), `fetch` (retrieve data from sources using the SocrataAdapter), and `fuse` (normalize, deduplicate, and merge the data into a single collection).
+
+# Test Strategy:
+Unit tests for each stage. The `fuse` stage in particular should be tested for its deduplication and normalization logic against mock datasets.
+
+# Subtasks:
+## 1. Scaffold sf.housing.permits engine and define data contracts [pending]
+### Dependencies: None
+### Description: Create the module structure, configuration, and type contracts that the plan, fetch, and fuse stages will use for the sf.housing.permits branch engine.
+### Details:
+Implementation steps:
+- Create module directories: src/branches/sf/housing/permits/{config,types,engine,stages}.
+- Define TypeScript types/interfaces in types.ts: PermitCanonical (canonical fused record), SourceRecord (raw record per dataset with metadata), PlanInput (time window, cursor, backfill flags), PlanSlice (datasetId, soql query pieces, paging info), Plan (array of PlanSlice + cursor seed), FetchResult (map of datasetId -> SourceRecord[] + fetch diagnostics), FuseOutput (entities: PermitCanonical[], cursor, diagnostics), and error types.
+- Add configuration file config/datasets.ts containing dataset configs driven by the design doc: for each Socrata dataset, include datasetId, domain, primaryIdField, updatedAtField, dateField(s), default filters (housing-related permits), field mapping (sourceField -> canonicalField), selectFields list, and precedence weight (for fuse conflict resolution). Ensure these values are environment/config driven and not hardcoded.
+- Add constants for paging and rate limits: MAX_PAGE_SIZE (e.g., 5000), MAX_CONCURRENCY (e.g., 4), RETRY_POLICY (exponential backoff for 429/5xx), and DATE_SLICE_TARGET (approx records per slice).
+- Define helper utilities in stages/_shared.ts: soqlSelect(fields), soqlWhere(clauses), soqlOrder(field, direction), buildTimeWindowWhere(updatedAtField, start, end), partitionWindowsByCount (signature placeholders, actual logic in plan stage), coerceTypes(map), normalizeAddress(text), computeStableId(inputs).
+- Ensure SocrataAdapter is injectable (constructor arg or DI token) and interface exposed locally (query(datasetId, options): Promise<SourceRecord[]>).
+
+## 2. Implement plan stage (time windowing, query building, pagination) [pending]
+### Dependencies: 17.1
+### Description: Implement a deterministic planner that decides what to fetch from each configured dataset given a cursor/backfill request and builds SoQL query slices.
+### Details:
+Implementation steps:
+- Add stages/plan.ts exporting function plan(input: PlanInput, cfg: DatasetsConfig): Promise<Plan>.
+- Determine time window: if input.cursor.lastUpdatedAt exists, use (lastUpdatedAt, now]; else if input.backfillStart provided, use (backfillStart, now]; else default lookback window from config (e.g., 30 days).
+- For each dataset config: build a base where clause combining housing-related filters and the updatedAtField > start AND <= end. Prefer updatedAtField; fall back to dateField if missing.
+- Estimate row counts per dataset if Socrata count endpoint is available ($select=count(1)); otherwise estimate by heuristic (historic avg density per day from config). Use this to split the overall time window into smaller slices so that each slice is expected <= DATE_SLICE_TARGET. Implement a binary-split strategy: if estimated count > DATE_SLICE_TARGET, bisect the time window recursively until each slice is under target or minWindow (e.g., 1 day) reached.
+- For each time slice: create PlanSlice with datasetId, domain, selectFields, where (including time window), order by updatedAtField asc, and paging with $limit=MAX_PAGE_SIZE, $offset=0. Mark slices as paged if expected count > MAX_PAGE_SIZE.
+- Include a mechanism to increment offsets across pages during fetch, but store the initial page setup in PlanSlice.
+- Return Plan with slices across datasets, provenance metadata (window boundaries, estimation method), and a seed cursor indicating start boundary used.
+- Edge cases: if no datasets configured, return empty plan; if estimation fails, fall back to single slice per dataset.
+
+## 3. Implement fetch stage using SocrataAdapter with pagination and retries [pending]
+### Dependencies: 17.1, 17.2
+### Description: Execute the plan to retrieve raw records from Socrata datasets, handling pagination, rate limiting, retries, and basic type coercion into SourceRecord.
+### Details:
+Implementation steps:
+- Add stages/fetch.ts exporting function fetch(plan: Plan, adapter: SocrataAdapter, cfg: DatasetsConfig): Promise<FetchResult>.
+- Implement a concurrency limiter (e.g., p-limit with MAX_CONCURRENCY). For each PlanSlice, issue requests with $select, $where, $order, $limit, $offset. Loop pages: after each page, if returned rows == $limit, increment offset and continue; else stop.
+- Implement retry/backoff for transient errors (429/5xx): exponential backoff with jitter, max attempts from RETRY_POLICY; respect Retry-After when present.
+- Coerce raw rows to SourceRecord: attach datasetId, domain, receivedAt, sourcePrimaryId (using config.primaryIdField), updatedAt (from config.updatedAtField), and raw payload. Apply light type coercion (dates to ISO strings, numbers to number) using coerceTypes.
+- Collect diagnostics: request count, bytes (if available via headers), retry counts, pages per slice, and any slice failures. On partial failures after exhausting retries, record error and continue with other slices; mark in diagnostics so fuse can decide to skip incomplete datasets if policy dictates.
+- Return FetchResult: map datasetId -> aggregated SourceRecord[] and overall diagnostics.
+
+## 4. Implement fuse stage (normalize, deduplicate, and merge to canonical collection) [pending]
+### Dependencies: 17.1, 17.3
+### Description: Normalize heterogeneous SourceRecords into a canonical Permit schema, deduplicate across and within datasets, and merge fields using precedence rules to produce a fused collection with provenance.
+### Details:
+Implementation steps:
+- Add stages/fuse.ts exporting function fuse(fetchResult: FetchResult, cfg: DatasetsConfig): Promise<FuseOutput>.
+- Normalization: for each datasetId, map fields based on cfg.fieldMapping to canonical attributes (permit_number, address, latitude/longitude, status, description, applied_date, issued_date, completed_date, valuation, contractor, parcel, updated_at, etc.). Implement standardization helpers: normalizeAddress (expand/standardize street suffixes, trim, uppercase, remove punctuation), normalizeStatus (map source-specific status codes to a canonical enum), parseDate safely to ISO, clamp numeric fields, and round geocoordinates to a configurable precision.
+- Stable identity keys: compute multiple candidate keys per record: K1=permit_number; K2=sourcePrimaryId; K3=hash(address_norm + applied_date + substr(description,0,64)); K4=parcel. Store these with the record for clustering.
+- Dedup clustering: group records by exact K1/K2 matches first; then run a secondary fuzzy pass within address/date buckets using string similarity on description and contractor (token set ratio or Jaro-Winkler; use an existing util if present, else a simple normalized Levenshtein with threshold 0.88). Produce clusters of records believed to represent the same permit.
+- Merge strategy per cluster: choose a winner using precedence order from config (dataset precedence weight, then latest updated_at). For each canonical field, prefer winner's value; if missing, fill from others in order. For arrays or multi-valued fields (e.g., tags), union distinct values. Attach provenance: list of contributing datasetIds, source ids, and field-level sources.
+- Output cursor: choose the max updated_at across all input SourceRecords as next cursor.lastUpdatedAt. Include diagnostics: counts of input records, clusters formed, duplicates removed, and conflicts resolved.
+- Return FuseOutput with entities (PermitCanonical[]), cursor, and diagnostics.
+
+## 5. Orchestrate engine (plan→fetch→fuse), integrate, and add unit tests [pending]
+### Dependencies: 17.1, 17.2, 17.3, 17.4
+### Description: Wire the three stages into the sf.housing.permits engine, expose the engine API, and implement unit tests for each stage and the end-to-end flow using mocks.
+### Details:
+Implementation steps:
+- Create engine/index.ts exporting class SfHousingPermitsEngine with methods: plan(input), fetch(plan), fuse(fetchResult), and run(input) that executes plan→fetch→fuse with logging and timing. Ensure SocrataAdapter is injected via constructor and configs via provider.
+- Add validation on inputs and outputs at stage boundaries (e.g., using a lightweight schema validator) to catch contract violations early. Log stage diagnostics and surface them in the final result.
+- Integrate engine into the branch registry/factory so other components (e.g., /v1/search/hybrid, /v1/reports/permits) can resolve it by key 'sf.housing.permits'. Provide a minimal adapter binding in DI container.
+- Implement safeguards: cap max results per run if configured, and honor cancellation/abort signals passed in PlanInput (e.g., AbortController) during fetch.
+- Add unit tests:
+  - Stage tests: plan, fetch, fuse (using mocks) aligned with the strategies in subtasks 2–4.
+  - End-to-end test: run() with a mocked SocrataAdapter returning deterministic slices and pages; assert the final fused entities, cursor progression, and diagnostics aggregation.
+  - Error flow test: simulate one dataset failing during fetch; assert run() completes with partial data and proper diagnostics without throwing unless configured to failOnPartial.
+- Document public engine interface and expected inputs/outputs in a README within the module.
+

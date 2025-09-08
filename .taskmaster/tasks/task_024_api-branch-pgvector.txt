@@ -1,0 +1,43 @@
+# Task ID: 24
+# Title: Implement /v1/reports/permits
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement a reporting endpoint for aggregated permit data.
+# Details:
+Create the `/v1/reports/permits` endpoint that provides rolled-up data from the `sf.housing.permits` branch. The implementation must enforce a maximum page size on the server side to prevent abuse.
+
+# Test Strategy:
+Integration test to verify the aggregation logic. Unit test to confirm that requests exceeding the max page size are rejected with a 400-level error. A contract test will validate the API schema.
+
+# Subtasks:
+## 1. Define API contract and validation for GET /v1/reports/permits [pending]
+### Dependencies: None
+### Description: Specify the endpoint's request/response schema and implement strict validation for query params, including server-enforced maximum page size.
+### Details:
+1) OpenAPI: Add GET /v1/reports/permits with query parameters: group_by (CSV, enum: status, permit_type, issued_month, neighborhood, zipcode), date_from (RFC3339 date), date_to (RFC3339 date), status (multi), permit_type (multi), neighborhood (multi), zipcode (multi), sort (comma-separated fields; allowed: count, total_estimated_cost, avg_estimated_cost, issued_month; allow leading '-' for desc), page.size (int >=1), page.cursor (string). 2) Response 200: { data: [{ group: {<group_by fields>}, metrics: { count: number, total_estimated_cost: number, avg_estimated_cost: number, first_issued_at?: string, last_issued_at?: string }}], meta: { page: { size: number, nextCursor?: string } }, links?: { next?: string } }. Response 400: { error: { code: string, message: string, details?: any } }. 3) Validation layer: Implement with your framework’s schema validator (e.g., Fastify schemas or Joi/Zod middleware). Enforce: group_by only from allowed set; if omitted, default to ['status','issued_month']; date_from <= date_to; sort fields must be allowed; page.size must be >=1 and <= MAX_PAGE_SIZE. 4) Define a server constant MAX_PAGE_SIZE (e.g., 500) from config/env with a sane upper bound fallback (e.g., 500) to ensure enforcement even if config is missing. 5) Define consistent error codes: INVALID_PARAMETER, PAGE_SIZE_TOO_LARGE, INVALID_CURSOR. 6) Document examples in OpenAPI for common use cases (e.g., monthly counts by permit_type within a date range).
+
+## 2. Implement AggregationService with pluggable permits data source [pending]
+### Dependencies: 24.1
+### Description: Create a service that aggregates normalized permit records into grouped metrics with pagination and cursor support.
+### Details:
+1) Define IPermitsDataSource interface: listPermits(params) -> AsyncIterable<Permit> or Promise<Permit[]> where Permit { id: string, issued_at: string (ISO), status: string, permit_type: string, neighborhood?: string, zipcode?: string, valuation?: number }. Params include: date_from, date_to, status[], permit_type[], neighborhood[], zipcode[]. 2) Implement AggregationService.aggregate(params): input includes group_by[], filters, sort[], page.size, page.cursor. 3) Grouping: build grouping keys based on group_by. For issued_month, bucket issued_at by UTC YYYY-MM. Use Map<string, Accumulator> where Accumulator = { count: number, sumValuation: number, firstIssuedAt?: string, lastIssuedAt?: string }. Update accumulators while streaming permits from data source to minimize memory. 4) Output rows: for each group key, produce { group: { ...resolved group field values... }, metrics: { count, total_estimated_cost: sumValuation, avg_estimated_cost: count>0 ? sumValuation/count : 0, first_issued_at, last_issued_at } }. 5) Sorting: support multi-field sort; calculate a stable composite sort key; default sort by -metrics.count then group key ASC. 6) Pagination: after sorting groups, return at most page.size rows. Encode cursor as base64(JSON.stringify({ lastGroupKey, sortKeySnapshot })) and use it to resume; validate cursor with try/catch and return 400 INVALID_CURSOR when malformed. 7) Expose types for Params and Row to be reused by the route. 8) Leave the data source pluggable (constructor injection).
+
+## 3. Implement /v1/reports/permits route handler with max page size enforcement [pending]
+### Dependencies: 24.1, 24.2
+### Description: Create the HTTP route that validates input, enforces server-side max page size, invokes AggregationService, and returns the response per contract.
+### Details:
+1) Add the GET /v1/reports/permits handler in the web framework (e.g., Fastify/Express). 2) Attach validation middleware/schemas from 24.1. 3) Enforce max page size BEFORE any heavy processing: if requested page.size > MAX_PAGE_SIZE, immediately return 400 with { error: { code: 'PAGE_SIZE_TOO_LARGE', message: `page.size must be <= ${MAX_PAGE_SIZE}` } }. 4) Construct AggregationService with an injected IPermitsDataSource (do not bind a concrete implementation here; resolve via DI/container). 5) Translate query params to AggregationService params: group_by[], filters, date range, sort[], page.size, page.cursor. 6) Call aggregate() and map the result into the API response structure: { data, meta.page.size, meta.page.nextCursor, links.next (if nextCursor present, build absolute URL preserving filters and group_by) }. 7) Ensure consistent error handling: convert known service errors (INVALID_CURSOR, INVALID_PARAMETER) to 400; unexpected errors to 500 with generic message. 8) Add basic request logging (without sensitive data) and duration metrics around the aggregation call.
+
+## 4. Wire AggregationService to sf.housing.permits branch engine [pending]
+### Dependencies: 24.2
+### Description: Implement a concrete data source adapter that reads permits from the sf.housing.permits branch engine (plan/fetch/fuse) and register it for the route.
+### Details:
+1) Implement PermitsBranchAdapter implements IPermitsDataSource. 2) Inside listPermits(params): call the branch engine entrypoint for sf.housing.permits with filters derived from params (date_from/date_to -> plan constraints; status/permit_type/neighborhood/zipcode -> engine filters). 3) Consume the engine's fused, normalized records and map to Permit shape expected by AggregationService (ensure issued_at is ISO string; map valuation/cost to valuation field; normalize enums like status/permit_type). 4) Apply lightweight in-adapter filtering for fields not supported natively by the engine (as a fallback) to ensure correctness. 5) Performance: stream if possible (async iterator) to avoid loading all records into memory. 6) Register the adapter in the DI container with key 'reports.permits.dataSource'. Ensure the route from 24.3 resolves this concrete implementation in production. 7) Add a feature flag/config (REPORTS_PERMITS_DATA_SOURCE=branch|mock) to allow swapping to a mock for tests.
+
+## 5. Testing: unit, integration, and contract for /v1/reports/permits [pending]
+### Dependencies: 24.1, 24.3, 24.4
+### Description: Add comprehensive tests per the task’s strategy: integration tests for aggregation logic, unit test for max page size enforcement (400), and contract tests against the API schema.
+### Details:
+1) Unit tests: (a) Validation and enforcement — requests with page.size > MAX_PAGE_SIZE return 400 with code PAGE_SIZE_TOO_LARGE; page.size=0 returns 400; invalid group_by or sort rejected. (b) AggregationService — verify counts, sums, averages, first/last issued dates, issued_month bucketing, and pagination cursors. 2) Integration tests: start the HTTP server with a mocked IPermitsDataSource (REPORTS_PERMITS_DATA_SOURCE=mock) seeded with fixtures; call GET /v1/reports/permits with various group_by/sort/filter combos; assert response data, ordering, pagination, and links.next. 3) Contract tests: validate that responses conform to OpenAPI for both success and error cases using an OpenAPI validator. 4) Smoke test (optional, gated): with REPORTS_PERMITS_DATA_SOURCE=branch, run a narrow date range query and assert a 200 response and basic shape (skip or mark as flaky if branch engine unavailable in CI). 5) Add test utilities to build query strings and decode/encode cursors consistently.
+

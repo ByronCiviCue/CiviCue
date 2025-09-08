@@ -1,0 +1,129 @@
+# Task ID: 53
+# Title: Docs: Approving Type Drift (compatible vs breaking, env flags, adoption workflow)
+# Status: pending
+# Dependencies: 50, 51, 52
+# Priority: medium
+# Description: Author contributor-facing documentation that explains how to approve and adopt type drift, distinguishing compatible vs breaking changes, and how to use the related environment flags and CI gates.
+# Details:
+Produce a focused guide that documents the end-to-end workflow for handling type drift detected by the typegen pipeline, covering local development, pre-commit behavior, CI behavior, and the approval/adoption process for both compatible and breaking changes.
+
+Deliverables
+- New guide: docs/typegen/approving-type-drift.md
+- Link from README.md (Contributing/Typegen section) and docs/SUMMARY.md or equivalent nav.
+- Example commands and commit message templates.
+
+Audience
+- Contributors who run the typegen pipeline locally and reviewers who need to interpret CI outcomes and approve PRs.
+
+Content outline
+1) Concepts and terminology
+- Drift: difference between src/generated/<provider>/current and src/generated/<provider>/next.
+- Classification: compatible (non-breaking) vs breaking changes as reported by scripts/typegen-compat.mjs.
+- Adoption: promoting next -> current for approved compatible changes (and the special handling for breaking changes).
+
+2) Required tools and scripts
+- Reference the existing CLIs and npm scripts from Tasks 47–50:
+  - pnpm typegen:fetch
+  - pnpm typegen:fingerprint:check | pnpm typegen:fingerprint:write
+  - pnpm typegen:generate
+  - pnpm typegen:compat:check | pnpm typegen:compat:adopt
+- Note: names should match the scripts created in Tasks 47–51; update examples if the repository uses different script names.
+
+3) Environment flags and when to use them
+- TYPEGEN_ALLOW
+  - Scope: pre-commit hook (Task 52).
+  - Purpose: allow committing changes under src/generated/** that are normally blocked.
+  - Usage: set to 1 or true to override. Example (single commit): TYPEGEN_ALLOW=1 git commit -m "typegen: adopt socrata compatible drift"
+  - Caution: for generator-driven changes only; do not use for manual edits.
+- TYPEGEN_ALLOW_BREAKING
+  - Scope: CI gate (Task 51).
+  - Purpose: allow the CI typegen-check job to pass when drift is classified as breaking, enabling merge while planning a follow-up adoption/release.
+  - Usage: configure as a CI environment variable/secret; do not set locally by default. The job must still fail for compatible drift to force adoption.
+
+4) Interpreting the compatibility report
+- How to run: pnpm typegen:compat:check emits a machine-readable JSON report to stdout and/or file (see Task 50), summarizing drift by provider/entity and classifying each change.
+- What to look for: summary classification (compatible/breaking), list of affected entities, and guidance for next steps.
+- Include a short, anonymized example of the report structure so readers know key fields (e.g., provider, entity, changeType, classification, suggestions). Do not invent new schema—reflect the fields exposed by Task 50.
+
+5) Standard workflows
+- No drift
+  - Run: pnpm typegen:fetch && pnpm typegen:fingerprint:check && pnpm typegen:generate && pnpm typegen:compat:check
+  - Outcome: report shows no changes; no commits needed.
+- Compatible drift (non-breaking)
+  - Goal: adopt changes and commit.
+  - Steps:
+    1. Run the pipeline: pnpm typegen:fetch && pnpm typegen:fingerprint:write && pnpm typegen:generate
+    2. Validate: pnpm typegen:compat:check should show compatible drift.
+    3. Adopt: pnpm typegen:compat:adopt (promotes next -> current; see Task 50)
+    4. Commit generator output using the pre-commit override: TYPEGEN_ALLOW=1 git add -A && TYPEGEN_ALLOW=1 git commit -m "typegen: adopt <provider> compatible drift"
+    5. Push and open a PR; CI should pass the typegen-check job because there is no remaining drift.
+- Breaking drift
+  - Goal: either block or explicitly allow merge while planning a follow-up fix/adoption.
+  - Steps:
+    1. Run: pnpm typegen:compat:check and confirm classification is breaking.
+    2. Open a PR with context on the impact, migration plan, and whether you intend to adopt or defer.
+    3. CI behavior (Task 51): typegen-check will fail by default for breaking drift; maintainers may set TYPEGEN_ALLOW_BREAKING=1 in CI for that branch to allow the job to pass.
+    4. Do not adopt breaking changes casually. Coordinate versioning, downstream updates, and release notes. Once ready, run pnpm typegen:compat:adopt with appropriate flags as defined in Task 50 (e.g., --force if required by the CLI) and commit using TYPEGEN_ALLOW=1.
+
+6) Commit message and PR guidelines
+- Use clear, standardized commit messages:
+  - Compatible: "typegen: adopt <provider> compatible drift" with brief notes.
+  - Breaking: "typegen: approve <provider> breaking drift [no-adopt]" or "typegen: adopt <provider> breaking drift" with rationale, impact, and migration plan.
+- PR template checklist items to include:
+  - Attached compatibility report excerpt.
+  - For breaking drift: impact assessment, coordination plan, and who approved the override.
+
+7) Troubleshooting
+- Pre-commit hook blocks generated changes: ensure TYPEGEN_ALLOW=1 for generator-driven commits; verify that only src/generated/** changes from the generator are staged.
+- CI typegen-check fails on compatible drift: adopt locally and push the commit; do not try to bypass CI with TYPEGEN_ALLOW_BREAKING.
+- CI typegen-check fails on breaking drift even with the flag: confirm the env var name and scope, and re-run the job; check that the drift is actually classified as breaking by the report.
+
+8) Maintenance
+- Keep examples synchronized with script names and CLI flags from Tasks 47–51.
+- Update when the report schema or policy changes.
+
+Editorial standards
+- Keep the guide practical and task-oriented with short command snippets.
+- Prefer bullets and numbered steps.
+- Include links to underlying scripts and to the CI workflow file (.github/workflows/typegen-check.yml).
+
+
+# Test Strategy:
+Documentation QA and functional walkthroughs.
+
+A) Structure and links
+- Verify docs/typegen/approving-type-drift.md exists and is linked from README.md and docs/SUMMARY.md (or site nav). Follow links to ensure they resolve to the correct files (scripts, workflow, directories).
+
+B) Accuracy against implementation
+- Cross-check that documented env variables match implementation:
+  - TYPEGEN_ALLOW controls the pre-commit behavior from Task 52.
+  - TYPEGEN_ALLOW_BREAKING controls the CI gate from Task 51.
+- Confirm command names and paths reflect the scripts delivered in Tasks 47–51. Update the guide if repository script names differ.
+
+C) Scenario walkthroughs (using a test branch)
+1) Compatible drift path
+- Create a compatible schema change scenario (e.g., provider adds a new optional field).
+- Run: pnpm typegen:fetch && pnpm typegen:fingerprint:write && pnpm typegen:generate && pnpm typegen:compat:check
+- Expect: report classifies drift as compatible.
+- Run: pnpm typegen:compat:adopt
+- Commit with: TYPEGEN_ALLOW=1 git add -A && TYPEGEN_ALLOW=1 git commit -m "typegen: adopt <provider> compatible drift"
+- Push and open a PR.
+- Expect: pre-commit allows commit with override; CI typegen-check passes with no env overrides.
+
+2) Breaking drift path
+- Create a breaking change scenario (e.g., provider removes a field or tightens a type).
+- Run: pnpm typegen:compat:check
+- Expect: report classifies drift as breaking.
+- Open a PR without adopting changes.
+- Expect: CI typegen-check fails by default.
+- Set TYPEGEN_ALLOW_BREAKING=1 for the branch in CI and re-run the job.
+- Expect: CI typegen-check passes while drift remains, per Task 51 policy.
+- Optionally, adopt later with pnpm typegen:compat:adopt and commit using TYPEGEN_ALLOW=1.
+
+3) Guardrail checks
+- Attempt to manually edit a file under src/generated/<provider>/current and commit without TYPEGEN_ALLOW.
+- Expect: pre-commit hook blocks the commit with a clear message referencing TYPEGEN_ALLOW.
+
+D) Editorial review
+- Request a peer review for clarity and completeness; ensure examples are copy/paste-ready and warnings are explicit about when to use overrides.
+

@@ -1,0 +1,130 @@
+# Task ID: 58
+# Title: Env: standardize local workflow (.env.example, .env.local, .env.ci)
+# Status: done
+# Dependencies: 3, 3.1
+# Priority: high
+# Description: Augment the existing environment variable workflow (.env.example/.env.local/.env.ci) by reusing and updating the files introduced in Task #2—no parallel or duplicate files. Maintain clear separation between example, local, and CI configurations while avoiding duplication of variable definitions. Exit criteria must explicitly cover .env.local generation patterns and a clear policy for when to inject secrets at runtime vs when to generate ephemeral env files.
+# Details:
+Build on the artifacts from Task #2 rather than creating new copies.
+
+Authoritative files and responsibilities
+- .env.example (tracked): Single source of truth for variable names, comments, and safe placeholders (e.g., SOCRATA_APP_ID and AI provider keys). No secrets.
+- .env.local (gitignored): Developer-only overrides and secrets for local development. Never tracked or used in CI.
+- .env.ci (tracked, optional): CI-specific overrides or mappings only; no secrets and no wholesale duplication of variables already in .env.example. Use to map CI secret names to app variable names or to set CI-only toggles.
+
+Deterministic loading order (no .env)
+- Local development: Load .env.example as defaults, then overlay .env.local. Allow .env.local to override defaults. Do not rely on a plain .env file.
+- CI/CD: Prefer injection from the CI secret store via environment variables. If .env.ci is present, load it with override=false so it never overwrites already-injected secrets. Do not require .env.local in CI.
+
+Generation vs injection policy (exit criteria-aligned)
+- Preferred: Do not generate env files in CI/containers; inject via runtime environment variables from secret stores (GitHub Actions secrets, Vault, etc.).
+- Allowed exception: If a tool mandates a dotenv file in CI, generate an ephemeral file (e.g., .env.runtime) at job runtime from injected secrets, use it for the step, and delete it before job completion. Ensure it is gitignored and never uploaded as an artifact.
+- Local developer convenience: Provide a script (pnpm env:local:init) that scaffolds .env.local from .env.example with empty values and comments. Script is idempotent (no overwrite without --force) and never runs in CI.
+
+Guardrails
+- Ensure .env and .env.local are gitignored. Fail CI if any non-example env file is tracked.
+- Validate that all required keys referenced by the code exist in .env.example.
+- Detect duplicate/conflicting definitions across env files and prohibit redundant base key redefinition in .env.ci.
+- Integrate with Task 6 secrets policy: scan for secrets in tracked files, redact sensitive logs, and fail if ephemeral env files (.env.runtime, etc.) persist beyond their step.
+
+Documentation
+- Add a decision tree describing when to inject at runtime vs when to generate files, with explicit local vs CI guidance and examples. Include migration guidance from any existing .env to .env.local.
+
+# Test Strategy:
+Verification must cover developer and CI paths, reuse Task #2 assets, and validate exit criteria for generation vs injection:
+
+File structure and git hygiene
+- Assert .env.local and .env are gitignored; .env.example (tracked) and .env.ci (tracked template/CI file without secrets) are present.
+- CI check fails if any non-example env file (.env, .env.local, .env.runtime, etc.) is tracked or uploaded as an artifact.
+- Integrate secret scanning from Task 6 to fail on secrets-like patterns in tracked files.
+
+Local generation pattern (.env.local)
+- Run pnpm env:local:init with no .env.local present: verify it is created with all keys from .env.example, empty/safe placeholders, and comments preserved. Confirm idempotency (re-run does not overwrite without --force) and that it is gitignored.
+- Verify local start uses .env.example defaults and .env.local overrides; app fails with clear errors when required vars are missing and succeeds when provided in .env.local.
+
+CI runtime injection vs file generation
+- Injection path (default): Run CI job with required secrets injected as environment variables. Confirm app starts without any .env.local and without generating an env file. Ensure .env.ci, if present, loads with override=false and does not override injected values.
+- Ephemeral generation path (exception): In a controlled CI job, generate .env.runtime from injected secrets for a tool that requires dotenv. Confirm it is used by that step, then deleted. Add a post-step that asserts the file no longer exists. Fail the job if it persists.
+
+Parity and duplication checks
+- Script validates all required variables referenced by the code exist in .env.example.
+- Script fails on conflicting duplicates across files (e.g., redundant base key redefinition in .env.ci) except intentional, documented CI-only overrides. In CI mode, ensure dotenv loading does not override already-injected variables.
+
+Documentation accuracy
+- Follow README to migrate from any existing .env to .env.local, run locally, and configure CI. Verify the decision tree for injection vs generation is present and correct, with examples that work as documented.
+
+Security
+- Confirm no secrets exist in tracked files; logs redact sensitive values as per Task 6.
+- CI fails if ephemeral env files are not cleaned up or are uploaded as artifacts.
+
+# Subtasks:
+## 1. Audit and migrate existing env setup from Task #2 (no duplication) [done]
+### Dependencies: None
+### Description: Inventory current env files created in Task #2. Ensure there is a single tracked .env.example; remove any tracked .env. Migrate any developer secrets guidance to .env.local usage. Confirm .env.example contains placeholders (no secrets) for SOCRATA_APP_ID and AI provider keys.
+### Details:
+- Ensure .env and .env.local are listed in .gitignore and not tracked.
+- Remove any parallel/duplicate env example files introduced after Task #2.
+- Align with generation vs injection policy: .env.local is local-only; CI relies on injection or ephemeral generation when strictly necessary.
+
+## 2. Finalize .env.example as the single source of variable names [done]
+### Dependencies: None
+### Description: Update .env.example to list all required variables with comments and safe placeholders. Do not duplicate this content elsewhere. Include notes on expected formats where helpful.
+### Details:
+- Enumerate all required variables referenced by the code.
+- Add comments indicating sensitivity and expected format (e.g., URLs, IDs, tokens).
+- Do not include secrets; use obvious placeholders.
+
+## 3. Introduce and document .env.local (gitignored) for developer secrets [done]
+### Dependencies: None
+### Description: Add .env.local to .gitignore and document how developers should populate it. Ensure local start scripts read .env.local with .env.example as defaults.
+### Details:
+- Add pnpm env:local:init that scaffolds .env.local from .env.example with empty values and comments.
+- Script is idempotent; supports --force to regenerate; never runs in CI (guard with CI env var).
+- Local runtime loads .env.example first, then .env.local (override=true).
+
+## 4. Add .env.ci for CI/CD without duplicating base variables [done]
+### Dependencies: None
+### Description: Create a CI-specific .env.ci that only includes CI overrides or mappings (no secrets committed, no duplication of variables already defined in .env.example). Update CI pipeline to load it.
+### Details:
+- Prefer runtime injection from the CI secret store; treat .env.ci as optional mapping for non-standard names or CI-only toggles.
+- When loading .env.ci in CI, use override=false so injected env vars remain authoritative.
+
+## 5. Implement deterministic env loading in app/scripts [done]
+### Dependencies: None
+### Description: Configure the runtime and scripts to load env files in order: local dev uses .env.local over .env.example; CI uses .env.ci. Consider dotenv-flow or equivalent. Remove any reliance on a plain .env file.
+### Details:
+- Implement loader that:
+  - Local: load .env.example, then .env.local (override=true).
+  - CI: if .env.ci exists, load with override=false so process.env stays authoritative.
+- Never read a plain .env file.
+- Log which files were loaded (without printing values) and warn on missing required vars.
+
+## 6. Add validation and guardrails [done]
+### Dependencies: None
+### Description: Add scripts/CI checks to: (a) fail on tracked secrets or tracked .env/.env.local, (b) ensure all required keys exist in .env.example, and (c) detect duplicate/conflicting definitions across env files. Integrate with Task 6 secret scanning if available.
+### Details:
+- Add a script (pnpm env:validate) that checks:
+  - No tracked .env/.env.local or other non-example env files.
+  - All required keys referenced in code exist in .env.example.
+  - No redundant base key duplication in .env.ci; report conflicts.
+  - In CI, ephemeral files (e.g., .env.runtime) do not persist after their step.
+- Integrate with Task 6 secret scanning and redact sensitive logs.
+
+## 7. Update documentation and migration notes [done]
+### Dependencies: None
+### Description: Revise README/Contributing to explain the augmented workflow, migration from any existing .env to .env.local, how to run locally and in CI, and the no-duplication policy.
+### Details:
+- Add a decision tree: when to inject at runtime vs when to generate files.
+- Provide examples for: local (.env.example + .env.local), CI with injection, and CI with ephemeral dotenv file.
+- Include migration steps: rename/move any existing .env to .env.local and run pnpm env:local:init to backfill missing keys.
+
+## 8. Define exit criteria for env generation vs injection and implement supporting scripts [done]
+### Dependencies: None
+### Description: Codify exit criteria for .env.local generation patterns and the policy for when to inject at runtime vs generate files. Implement pnpm env:local:init and CI examples for ephemeral generation (if needed), plus validation hooks.
+### Details:
+Exit criteria:
+- .env.local generation: A documented, idempotent pnpm env:local:init exists; it never runs in CI; it does not overwrite without --force; it mirrors keys from .env.example with empty values and comments.
+- Injection-first policy: CI is configured to run with injected environment variables; .env.ci (if used) loads with override=false and contains no secrets.
+- Ephemeral generation in CI (exception): Example job demonstrates generating, using, and deleting an ephemeral dotenv file; validation fails if the file persists.
+- Guardrails: pnpm env:validate and secret scanning are wired into CI to enforce the above.
+

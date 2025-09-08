@@ -1,0 +1,128 @@
+# Task ID: 13
+# Title: SocrataAdapter: I/O policy (timeouts, retries, backoff)
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Make the SocrataAdapter resilient to network issues and rate limiting by implementing a robust I/O policy. [Updated: 9/6/2025] [Updated: 9/6/2025]
+# Details:
+Configure network requests with appropriate timeouts. Implement a retry mechanism with exponential backoff specifically for transient errors like `429 Too Many Requests` and 5xx server errors.
+<info added on 2025-09-07T04:11:23.222Z>
+Note: Do NOT handwrite TS/Zod types. Import any API models/schemas from src/generated/arcgis/* produced by the type-extraction pipeline.
+</info added on 2025-09-07T04:11:23.222Z>
+<info added on 2025-09-07T04:27:02.827Z>
+Adapters MUST import from src/generated/arcgis/current; do not handwrite types.
+</info added on 2025-09-07T04:27:02.827Z>
+
+# Test Strategy:
+Integration tests using a mock server (e.g., `msw`) that can be configured to return 429 or 5xx status codes. Verify that the adapter retries the request according to the backoff strategy.
+
+# Subtasks:
+## 1. Define I/O policy config, error taxonomy, and utilities [pending]
+### Dependencies: None
+### Description: Introduce a configurable I/O policy for the SocrataAdapter covering timeouts, retries, and backoff. Establish what is retryable (429 and 5xx), defaults, and helper utilities (e.g., parsing Retry-After).
+### Details:
+Implementation guidance:
+- Create types (TypeScript suggested):
+  - interface BackoffConfig { initialDelayMs: number; multiplier: number; maxDelayMs: number; jitter: "none" | "full" | "decorrelated"; }
+  - interface IOPolicyConfig { requestTimeoutMs: number; maxRetries: number; maxElapsedTimeMs: number; retryMethods: Array<"GET" | "HEAD" | "OPTIONS" | "PUT" | "DELETE" | "POST" >; retryOnNetworkErrors: boolean; respectRetryAfter: boolean; backoff: BackoffConfig; }
+  - interface IOSanitizedLog { requestId: string; attempt: number; method: string; url: string; status?: number; delayMs?: number; error?: string; }
+- Provide sane defaults (overridable via adapter ctor):
+  - requestTimeoutMs=10000, maxRetries=5, maxElapsedTimeMs=60000, retryMethods=["GET","HEAD","OPTIONS"], retryOnNetworkErrors=true, respectRetryAfter=true, backoff={ initialDelayMs: 250, multiplier: 2, maxDelayMs: 8000, jitter: "full" }.
+- Implement helpers:
+  - isRetryableStatus(status:number): boolean => status===429 || (status>=500 && status!==501)
+  - parseRetryAfter(h: string | null, nowMs: number): number | null -> support seconds integer and RFC1123 date; clamp to [0, backoff.maxDelayMs].
+  - clampDelay(delayMs:number, cfg:BackoffConfig): number
+  - redactUrlForLogs(url:string): string (remove tokens/query secrets)
+- Define error classes to classify failures:
+  - class TimeoutError extends Error { cause?: any }
+  - class RetryableHttpError extends Error { status:number; response: Response }
+  - class NonRetryableHttpError extends Error { status:number; response: Response }
+- Adapter config shape:
+  - class SocrataAdapterOptions { baseUrl:string; appToken?: string; io?: Partial<IOPolicyConfig> }
+  - Resolve final IOPolicyConfig in constructor by deep-merging defaults with provided options.
+- Security: ensure no secrets (e.g., app token, Authorization) are included in logs; provide a sanitizeHeadersForLogs function.
+
+## 2. Implement fetchWithTimeout and request context utilities [pending]
+### Dependencies: 13.1
+### Description: Create a low-level HTTP utility that wraps fetch with AbortController-based timeouts and provides a consistent request context for logging and retries.
+### Details:
+Implementation guidance:
+- Implement fetchWithTimeout(url: string, init: RequestInit & { timeoutMs?: number; signal?: AbortSignal }): Promise<Response>
+  - Use AbortController; if init.signal exists, create a linked controller that aborts when either signal aborts.
+  - Start a timer with timeoutMs (default from IOPolicyConfig.requestTimeoutMs); on timeout, abort and throw new TimeoutError("Request timed out") preserving cause.
+  - Ensure timer cleared on settle.
+- Implement sleepAbortable(ms:number, signal?:AbortSignal): Promise<void> to await backoff delays with cancellation support.
+- Define RequestContext:
+  - interface RequestContext { requestId: string; method: string; url: string; headers: Record<string,string>; startedAt: number; }
+  - Provide makeRequestContext(method:string, url:URL, headers:HeadersInit): RequestContext; requestId could be a nanoid/uuid or incremental counter.
+- Helper buildUrl(base:string, path:string, query?:Record<string,string|number|undefined>): URL that properly URL-encodes SoQL params.
+- Header injection hook:
+  - function withAppToken(headers:HeadersInit, appToken?:string): HeadersInit that adds "X-App-Token" when present; do not log its value.
+- Return raw Response; do not consume body here. Do not retry here (handled in the next subtask).
+
+## 3. Implement retry wrapper with exponential backoff and jitter [pending]
+### Dependencies: 13.1, 13.2
+### Description: Build a reusable retryingRequest wrapper that executes a request, classifies outcomes, and retries on transient errors (429, 5xx, network/timeout) using exponential backoff with jitter and optional Retry-After support.
+### Details:
+Implementation guidance:
+- API design:
+  - async function retryingRequest(exec: (attempt:number, signal:AbortSignal)=>Promise<Response>, opts: { ctx: RequestContext; policy: IOPolicyConfig; method: string; }, outerSignal?: AbortSignal): Promise<{ response: Response; attempts: number; totalDelayMs: number; }>
+- Control flow:
+  - Initialize attempt=1, totalDelayMs=0, startTime=Date.now(), prevDelay=policy.backoff.initialDelayMs.
+  - Create an AbortController for each attempt; if outerSignal aborts, propagate and stop.
+  - Call exec(attempt, attemptController.signal) which should internally use fetchWithTimeout.
+  - If network error/TimeoutError and policy.retryOnNetworkErrors is true -> retry; else rethrow.
+  - If response.ok -> return immediately.
+  - If isRetryableStatus(response.status) -> compute delay; else throw new NonRetryableHttpError.
+- Backoff computation (for retryable cases):
+  - If policy.respectRetryAfter and status in {429,503} and Retry-After present: delayMs = min(parseRetryAfter(header), policy.backoff.maxDelayMs).
+  - Else use exponential backoff with jitter:
+    - Without jitter: delay = initial * multiplier^(attempt-1) (clamped to maxDelay).
+    - With "full" jitter (recommended): delayMs = random(0, delayBase) where delayBase = clamp(initial * multiplier^(attempt-1)).
+    - With "decorrelated" jitter: next = min(maxDelay, random(initial, prevDelay * 3)); prevDelay = next.
+  - Ensure not to exceed policy.maxElapsedTimeMs: if (Date.now() + delayMs - startTime) > maxElapsedTimeMs or attempt > maxRetries, stop and return last response if available or throw last error.
+- Idempotency and method rules:
+  - Only retry if opts.method is in policy.retryMethods OR caller explicitly opts-in via an optional override flag (not required for GET/HEAD/OPTIONS typical for Socrata reads).
+- Observability:
+  - On each retry decision, log a sanitized IOSanitizedLog with requestId, attempt, status/error, and delay (omit secrets). Logging can be via existing logger.
+- Return the final successful Response or throw the terminal error (with attached metadata like attempts and last status when available).
+
+## 4. Integrate retrying I/O into SocrataAdapter [pending]
+### Dependencies: 13.2, 13.3
+### Description: Wire the new I/O policy, timeout, and retry/backoff wrapper into all SocrataAdapter network calls. Expose configuration and ensure non-retryable errors surface cleanly.
+### Details:
+Implementation guidance:
+- SocrataAdapter constructor: accept options { baseUrl, appToken?, io?: Partial<IOPolicyConfig> } and resolve to full policy.
+- Replace direct fetch calls with retryingRequest + fetchWithTimeout pipeline:
+  - For read operations (GET queries):
+    - Build URL with SoQL query params.
+    - Prepare headers with X-App-Token if provided.
+    - exec = (attempt, signal) => fetchWithTimeout(url.toString(), { method: "GET", headers, signal, timeoutMs: policy.requestTimeoutMs })
+    - Call retryingRequest(exec, { ctx: makeRequestContext("GET", url, headers), policy, method: "GET" }, outerSignal?)
+- After a successful response, keep existing flow (e.g., JSON parsing, Zod validation from Task 12). Do not validate on failed attempts.
+- Error handling:
+  - If retryingRequest throws NonRetryableHttpError, rethrow with adapter-specific context (endpoint, requestId, attempts).
+  - If terminal retryable failures occur (exhausted retries), return a clear error including last status and attempts.
+- Ensure all adapter methods that perform HTTP calls follow this path. Default to retry only for methods allowed by policy; provide a per-call override if needed for safe PUT/DELETE in future.
+- Logging: on debug level, emit sanitized logs with requestId, attempts, and total delay (no tokens or raw query values that may contain secrets).
+
+## 5. Integration tests with MSW to validate timeouts, retries, and backoff [pending]
+### Dependencies: 13.4
+### Description: Add comprehensive integration tests using a mock server (msw) to simulate 429 and 5xx responses, network failures, and slow responses to validate the I/O policy end-to-end.
+### Details:
+Implementation guidance:
+- Test setup:
+  - Use msw to define handlers for the Socrata endpoints used by the adapter.
+  - Provide a controllable clock: use fake timers or an injectable scheduler/random for deterministic backoff assertions.
+- Scenarios:
+  1) 500 then 200: first response 500, second 200. Assert 2 attempts, delay followed backoff range, final payload returned.
+  2) 429 with Retry-After: handler returns 429 with Retry-After: "2" on first attempt, then 200. Assert the adapter waits ~2s (use fake timers) before retry; attempts=2.
+  3) Network error then 200: first attempt throws (e.g., connect reset), then success. Assert retry occurred when retryOnNetworkErrors=true.
+  4) Timeout: handler delays longer than requestTimeoutMs on first N attempts, then responds. Assert TimeoutError triggers retries; verify attempts count and that AbortSignal aborts immediately when caller cancels.
+  5) Non-retryable 400: ensure no retry; attempts=1.
+  6) Exhausted retries: always 503; verify attempts=maxRetries and total elapsed respects maxElapsedTimeMs.
+- Assertions:
+  - Attempt count, observed delays (via fake timers or injected scheduler), and that Retry-After overrides exponential backoff.
+  - No sensitive headers or tokens appear in logs; headers sanitized.
+- Include CI-friendly test configuration with reasonable max durations using fake timers to keep tests fast.
+

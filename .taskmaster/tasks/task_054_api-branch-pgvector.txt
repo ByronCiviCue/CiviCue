@@ -1,0 +1,70 @@
+# Task ID: 54
+# Title: Lint: add ESLint flat config for Node/TS/ESM
+# Status: done
+# Dependencies: 3, 3.1
+# Priority: high
+# Description: Configure ESLint with flat config format for Node.js, TypeScript, and ESM compatibility
+# Details:
+Set up ESLint 9 with flat config using an ESM config file (eslint.config.mjs) that supports Node.js, TypeScript, and ESM modules. Configure base rules for code quality and consistency and wire up the plugin/resolver suite that will be installed in Task 55. Include proper file globs and ignore patterns, and add a pnpm script to run linting.
+
+Implementation notes:
+- Config file: create eslint.config.mjs at the repo root and export default an array of flat config objects.
+- ESM: use ESM imports and export default [...].
+- Language options: ecmaVersion: "latest", sourceType: "module". Set env for node.
+- Files: apply to JS/TS files (e.g., **/*.ts, **/*.tsx, **/*.mts, **/*.cts, **/*.js, **/*.mjs, **/*.cjs).
+- Ignores: node_modules, dist, build, coverage, .turbo, .next (if present), and src/generated/**.
+- TypeScript: set parser to @typescript-eslint/parser; set parserOptions with tsconfigRootDir and project pointing to tsconfig.json for type-aware rules (fall back gracefully if project references are not available).
+- Extends/base: include @eslint/js recommended rules and enable/merge recommended rule sets from the installed plugins (typescript-eslint, import, n, promise, sonarjs, security, regexp). Configure import/resolver with typescript and node.
+- Scripts: add to package.json: "lint": "eslint . --max-warnings=0".
+
+Exit criteria:
+- eslint.config.mjs is present at the repo root and checked in.
+- pnpm lint runs locally without error (after dependencies from Task 55 are installed).
+
+# Test Strategy:
+- Verify config file presence: eslint.config.mjs exists at the repo root and exports an array of flat config objects.
+- Verify script: package.json contains a "lint" script that runs "eslint . --max-warnings=0".
+- Local run (after Task 55 installs dependencies): run "pnpm lint" at the repo root; it should execute ESLint without crashing and produce lint results for TS/JS files.
+- Spot checks:
+  - Run "pnpm exec eslint --print-config src/index.ts" (or any TS file) to confirm the parser and plugins are applied.
+  - Confirm ignores: add a dummy file under src/generated/ and ensure it is not linted.
+
+Exit: eslint.config.mjs present; pnpm lint runs locally.
+
+# Subtasks:
+## 1. Create ESM flat config file [done]
+### Dependencies: None
+### Description: Add eslint.config.mjs at repo root using ESM imports/exports and export default an array of flat config entries.
+### Details:
+
+
+## 2. Configure Node/TS/ESM settings [done]
+### Dependencies: None
+### Description: Set languageOptions (ecmaVersion latest, sourceType module), env for node, files globs for JS/TS (ts, tsx, mts, cts, js, mjs, cjs), and ignores (node_modules, dist, build, coverage, src/generated/**).
+### Details:
+
+
+## 3. Wire TypeScript parser and plugin [done]
+### Dependencies: None
+### Description: Use @typescript-eslint/parser and plugin; set parserOptions.tsconfigRootDir and project (tsconfig.json) for type-aware rules; include the recommended config(s).
+### Details:
+
+
+## 4. Enable core and plugin rule sets [done]
+### Dependencies: None
+### Description: Include @eslint/js recommended rules and configure plugins: import (with resolver: typescript, node), n, promise, sonarjs, security, regexp. Merge in their recommended rules as applicable for flat config.
+### Details:
+
+
+## 5. Add lint script [done]
+### Dependencies: None
+### Description: Add "lint": "eslint . --max-warnings=0" to package.json scripts.
+### Details:
+
+
+## 6. Validate exit criteria [done]
+### Dependencies: None
+### Description: After Task 55 completes, run "pnpm lint" locally and ensure it executes successfully. Confirm eslint.config.mjs is present and committed.
+### Details:
+
+

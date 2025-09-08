@@ -1,0 +1,105 @@
+# Task ID: 48
+# Title: Typegen: compute fingerprints (sha256) and compare with fingerprints/<provider>/*.sha256
+# Status: pending
+# Dependencies: 47
+# Priority: medium
+# Description: Add a CLI stage that computes SHA-256 fingerprints for fetched provider schema snapshots under tmp/schema/<provider>/*.json and compares them to stored fingerprints in fingerprints/<provider>/*.sha256, optionally updating the fingerprint files.
+# Details:
+Goal
+- Provide a deterministic fingerprinting step in the typegen pipeline that detects when fetched provider schemas (from tmp/schema/<provider>/*.json) have changed and gates downstream generation.
+
+CLI/entrypoint
+- Create scripts/typegen-fingerprint.mjs (Node ESM).
+- Usage examples:
+  - node scripts/typegen-fingerprint.mjs --provider socrata --mode check
+  - node scripts/typegen-fingerprint.mjs --provider all --mode write --prune
+- Flags/options:
+  - --provider socrata|ckan|arcgis|all (default: all)
+  - --schemaDir <path> (default: tmp/schema)
+  - --fingerprintsDir <path> (default: fingerprints)
+  - --mode check|write (default: check)
+  - --prune (only with --mode write): delete stale fingerprints that no longer have a corresponding schema JSON
+  - --failOnStale (default: true in check mode): treat stale fingerprints as failure
+  - --concurrency <n> (default: 8)
+  - --raw (optional): hash raw file bytes instead of canonicalized JSON (debug/escape hatch)
+  - --outReport <path> (optional; default: tmp/fingerprint/report.json): write a summary report
+
+Behavior
+- Discovery:
+  - For each selected provider, resolve schema files by glob: <schemaDir>/<provider>/*.json.
+  - Derive fingerprint file paths by mirroring basenames: fingerprints/<provider>/<basename>.sha256; e.g., tmp/schema/socrata/abcd.json -> fingerprints/socrata/abcd.sha256.
+  - If a manifest exists at <schemaDir>/<provider>/manifest.json, use it to order/report items, but do not rely on it for file naming (still derive from basenames).
+- Hashing:
+  - Default: canonicalize JSON before hashing to ensure deterministic results even if whitespace or key order differ.
+    - Algorithm: read file -> JSON.parse -> stableStringify(value) where stableStringify sorts object keys recursively and preserves arrays -> compute SHA-256 (hex) over UTF-8 bytes of the canonical string.
+  - Fallback: if parse fails and --raw is not set, surface an error; if --raw is set, stream the raw file bytes into SHA-256.
+  - Implement hashing with Node crypto.createHash('sha256') and streaming for memory safety on large inputs.
+- Comparison:
+  - If a .sha256 file exists, read, trim, and compare to the computed hex digest.
+  - Classify each item as: match (OK), changed (digest differs), new (no .sha256 exists).
+  - Additionally, detect stale fingerprints: any .sha256 without a corresponding JSON basename (by scanning fingerprints/<provider>/*.sha256 and comparing to discovered JSON files).
+- Output/exit codes:
+  - Print a colorized summary per provider and totals (OK/changed/new/stale) and list changed/new/stale items.
+  - Exit code (check mode): 0 if all match and no stale; 1 if any changed/new; also 1 if stale and --failOnStale.
+  - Exit code (write mode): always 0; write or update .sha256 files for changed/new; if --prune, delete stale .sha256 files.
+  - Write JSON summary to --outReport path with arrays of items and their statuses for downstream tooling/CI logs.
+
+Implementation notes
+- File layout created if missing: ensure fingerprints/<provider> directories exist before writes.
+- Concurrency: limit concurrent file reads/hashes to --concurrency using a simple p-limit.
+- Idempotency: repeated runs in check mode on unchanged inputs should produce identical output and exit code.
+- Package.json scripts:
+  - "typegen:fingerprint": "node scripts/typegen-fingerprint.mjs --provider all --mode check"
+  - "typegen:fingerprint:write": "node scripts/typegen-fingerprint.mjs --provider all --mode write"
+- Integration hooks:
+  - Expose a small programmatic API from scripts/typegen-fingerprint.mjs (e.g., export async function runFingerprints(opts)) so scripts/typegen.mjs (Task 45) can call it later, but do not depend on Task 45 for this task.
+- Repo hygiene:
+  - Add tmp/fingerprint/ to .gitignore.
+  - Commit fingerprints/<provider>/*.sha256 (these are the expected-state artifacts used to gate changes); optionally add a README in fingerprints/ explaining the contract.
+
+Edge cases and considerations
+- Missing provider schema directory: warn and skip that provider instead of failing the whole run (exit 0 if all other providers are OK). If --provider is a single provider and it’s missing, exit 0 with a warning to keep the step non-blocking until fetch is run.
+- Large files: prefer streaming raw bytes when --raw, but canonical JSON may require loading into memory; document that schema snapshots should be reasonably sized. If needed, implement a streaming canonicalizer later.
+- Cross-platform line endings: canonicalization uses JSON, so EOL differences are normalized.
+- File naming safety: sanitize basenames to avoid path traversal; only accept *.json files directly under <provider>.
+
+
+# Test Strategy:
+Prereqs
+- Run the fetch stage (Task 47) to populate tmp/schema/{socrata,ckan,arcgis}/ with at least 2 JSON files each. Ensure fingerprints/ directories exist or let the tool create them.
+
+Happy path (first write)
+1) Run: pnpm typegen:fingerprint:write
+2) Verify files are created: fingerprints/{socrata,ckan,arcgis}/*.sha256, one per schema JSON with identical basenames; contents are 64-char hex + newline.
+3) Verify exit code is 0 and summary shows items as written/updated.
+
+Determinism and canonicalization
+4) Pick one schema JSON; reorder keys or reformat whitespace without changing values.
+5) Run: pnpm typegen:fingerprint
+6) Expect: status remains OK; digest unchanged (proves canonicalization).
+
+Change detection
+7) Modify a value inside a schema JSON (e.g., change a field type).
+8) Run: pnpm typegen:fingerprint
+9) Expect: exit code 1; summary lists that file under changed.
+
+New and stale handling
+10) Add a new JSON file tmp/schema/ckan/new.json without a fingerprint.
+11) Run: pnpm typegen:fingerprint
+12) Expect: exit code 1; summary lists new under CKAN.
+13) Create an extra fingerprint fingerprints/arcgis/orphan.sha256 with any content not matching a JSON basename.
+14) Run: pnpm typegen:fingerprint --failOnStale
+15) Expect: exit code 1; summary lists stale.
+16) Run: pnpm typegen:fingerprint:write --prune
+17) Expect: orphan.sha256 is deleted; subsequent check returns 0 (assuming no other diffs).
+
+Provider filter and missing dirs
+18) Run: node scripts/typegen-fingerprint.mjs --provider socrata --mode check
+19) Expect: only Socrata files processed; others skipped.
+20) Temporarily rename tmp/schema/ckan to simulate missing; run --provider ckan; expect warning and exit 0 (non-blocking when provider dir missing).
+
+Unit tests (optional but recommended)
+- Test stableStringify for nested objects and arrays to ensure sorted keys.
+- Test hash computation for a known small JSON object against a precomputed SHA-256.
+- Test classification logic (match/new/changed/stale) with a mocked filesystem.
+

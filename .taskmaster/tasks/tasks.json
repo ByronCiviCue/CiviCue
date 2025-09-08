@@ -3125,11 +3125,96 @@
             "testStrategy": ""
           }
         ]
+      },
+      {
+        "id": 62,
+        "title": "Socrata Dataset Core (reusable across cities)",
+        "description": "Build a reusable dataset layer that all city branches can use for fetching actual data from Socrata APIs, supporting v2/v3 endpoints, SoQL queries, all data types including geospatial, and proper authentication patterns.",
+        "details": "This epic provides the foundation for actual data retrieval from Socrata datasets, complementing the Discovery API catalog layer (Task 7). Key components: dataset row client with pagination, column metadata fetching, SoQL query builder, comprehensive type codecs, v3 POST query support, test infrastructure, and regional endpoint routing. All branches (311, housing, traffic, etc.) will depend on this core.",
+        "testStrategy": "Each subtask has specific test requirements. Overall integration tests will verify end-to-end data fetching from real Socrata datasets with various data types, authentication methods, and query patterns using record/replay fixtures.",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "v2 dataset row client",
+            "description": "Build a client for /resource/<id>.json with offset/limit pagination. Headers: X-App-Token via our env resolver; light retry + throttle knob. Return typed rows as unknown[] initially; no writes.",
+            "details": "Implementation steps:\n- Create HTTP client for Socrata v2 dataset API endpoint /resource/<id>.json\n- Implement offset/limit pagination (not scroll - that's Discovery-only)\n- Add X-App-Token header support via existing env resolver (socrataHeadersFor)\n- Light retry logic: simple exponential backoff for 429/5xx, respect Retry-After\n- Throttling configuration knob (requests per second/minute)\n- Return raw rows as unknown[] array for type codec processing\n- No file writes - pure data fetching\n- Support for both authenticated and unauthenticated requests\n- Proper error handling with meaningful messages\n- Verbose logging for debugging pagination and retry behavior",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 62
+          },
+          {
+            "id": 2,
+            "title": "Column metadata & type map",
+            "description": "Fetch /api/views/<id>.json and normalize columns (name, fieldName, dataTypeName, description, format). Produce a TypeMap usable by codecs and SoQL builder.",
+            "details": "Implementation steps:\n- Create metadata fetcher for Socrata views API endpoint /api/views/<id>.json\n- Parse column definitions: name, fieldName, dataTypeName, description, format, position\n- Normalize Socrata data types to internal type system (text, number, boolean, money, calendar_date, fixed_timestamp, floating_timestamp, point, line, polygon, etc.)\n- Create TypeMap interface that codecs and SoQL builder can consume\n- Handle missing/malformed column metadata gracefully\n- Support column aliasing (technical name vs display name)\n- Cache metadata per dataset to avoid repeated fetches\n- Add validation for required column fields\n- Map geospatial types properly (point, line, polygon, multipoint, multiline, multipolygon)\n- Include column format hints for parsing (date formats, number precision, etc.)\n- Export type definitions for downstream consumers",
+            "status": "pending",
+            "dependencies": [
+              "62.1"
+            ],
+            "parentTaskId": 62
+          },
+          {
+            "id": 3,
+            "title": "SoQL builder (typed DSL)",
+            "description": "Provide select/where/order/group/limit/offset with safe quoting and parameterization. Emit $select, $where, $order, $group, $limit, $offset query params.",
+            "details": "Implementation steps:\n- Create SoQL query builder with fluent interface (method chaining)\n- Implement SELECT clause builder with column validation against TypeMap\n- Add WHERE clause builder with type-aware parameter binding and SQL injection prevention\n- Support ORDER BY with ASC/DESC and multi-column sorting\n- Add GROUP BY clause with aggregation function support (COUNT, SUM, AVG, etc.)\n- Implement LIMIT and OFFSET for pagination\n- Add HAVING clause for grouped query filtering\n- Safe string escaping and parameter quoting based on column types\n- Support for geospatial functions (within_box, within_circle, intersects)\n- Date/time function support (date_trunc, extract, between)\n- Export to $-prefixed query parameters for v2 API (?$select=..., ?$where=...)\n- Type checking against column metadata to prevent runtime errors\n- Support for complex expressions and nested conditions\n- Query validation and optimization hints",
+            "status": "pending",
+            "dependencies": [
+              "62.2"
+            ],
+            "parentTaskId": 62
+          },
+          {
+            "id": 4,
+            "title": "Type codecs (incl. geo)",
+            "description": "Implement parsers/formatters for all Socrata types; geo as WKT or GeoJSON. Unit tests with property checks and snapshots.",
+            "details": "Implementation steps:\n- Create codec system for all Socrata data types based on socratadata analysis\n- Basic types: text, number, boolean, money, row_identifier, row_version\n- Temporal types: calendar_date, fixed_timestamp, floating_timestamp with timezone handling\n- Geospatial types: point, line, polygon, multipoint, multiline, multipolygon\n- Complex types: url (with description), photo, document, location (composite)\n- Export geospatial data as both WKT and GeoJSON formats\n- Handle null/undefined values gracefully with Option<T> pattern\n- Add format validation and parsing error handling\n- Support timezone conversion for floating timestamps\n- Document/photo URL construction using metadata base URL\n- Location type parsing (coordinates + address components)\n- Unit tests with property-based testing for edge cases\n- Snapshot testing for complex geospatial structures\n- Performance benchmarks for large dataset parsing\n- Type-safe interfaces with proper TypeScript definitions",
+            "status": "pending",
+            "dependencies": [
+              "62.2"
+            ],
+            "parentTaskId": 62
+          },
+          {
+            "id": 5,
+            "title": "v3 POST query support + Basic auth",
+            "description": "Support POST queries for advanced/private datasets with Basic (key_id/secret). Configurable per host/dataset; never log secrets.",
+            "details": "Implementation steps:\n- Create v3 API client for POST /api/v3/views/{four_by_four}/query.json\n- Implement Basic authentication using key_id/secret credentials (not Bearer tokens)\n- JSON request body format: { query: 'SoQL string', page: { pageNumber: 1, pageSize: 1000 }, includeSynthetic: true }\n- Pagination using pageNumber increment (different from v2 offset/limit)\n- Host/dataset-specific auth configuration (some datasets require auth, others don't)\n- Environment-based credential resolution (per-host overrides like SOCRATA__data.sfgov.org__API_KEY_ID)\n- Never log or expose credentials in error messages or debug output\n- Graceful fallback to v2 when v3 auth fails or is unavailable\n- Support for synthetic columns (system-generated fields like :id, :created_at, :updated_at)\n- Advanced query capabilities that v2 doesn't support\n- Error handling for auth failures, invalid credentials, and quota limits\n- Integration with SoQL builder for complex query construction\n<info added on 2025-09-08T03:58:59.406Z>\nTag: security-review\nRationale: Handles Basic auth key_id/secret; treat as sensitive and ensure zero logging/exposure.\nSecurity acceptance criteria:\n- Authorization headers and credentials are never logged, stored, or included in errors/metrics.\n- Redaction is applied to any request/response logging and traces.\n- Secrets are read only from environment with per-host scoping; never persisted to disk or sent to analytics.\n- Add tests asserting redaction and absence of secrets in logs and error messages.\n</info added on 2025-09-08T03:58:59.406Z>",
+            "status": "pending",
+            "dependencies": [
+              "62.3"
+            ],
+            "parentTaskId": 62
+          },
+          {
+            "id": 6,
+            "title": "Test rig (record/replay)",
+            "description": "Add HTTP cassette recorder; snapshot complex responses; property tests \"≥ N rows\". Replace live tests in CI with replayed fixtures.",
+            "details": "Implementation steps:\n- Set up HTTP record/replay system (similar to VCR for Ruby or HTTP cassettes)\n- Integration with existing test framework to record API calls during development\n- Playback recorded responses during CI/testing to avoid live API calls\n- Snapshot testing for complex response structures and data types\n- Property-based testing with assertions like \"at least N rows returned\"\n- Schema invariant tests (all rows have required fields, types are consistent)\n- Response validation against expected data structures\n- Fixture management and organization by test scenario\n- Support for different recording modes (record, replay, pass-through)\n- Anonymization/redaction of sensitive data in fixtures\n- Easy fixture regeneration when API contracts change\n- Performance testing with synthetic large datasets\n- Integration with both v2 and v3 API clients\n- Test coverage for error scenarios (429, 5xx, network failures)",
+            "status": "pending",
+            "dependencies": [
+              "62.1"
+            ],
+            "parentTaskId": 62
+          },
+          {
+            "id": 7,
+            "title": "Regional endpoint routing",
+            "description": "Config for US/EU; auto-pick per host; override via env.",
+            "details": "Implementation steps:\n- Add configuration system for regional Socrata endpoints (US vs EU datacenters)\n- Default routing logic: api.us.socrata.com vs api.eu.socrata.com\n- Host-based auto-detection for regional routing (e.g., EU domains route to EU endpoints)\n- Environment variable overrides for explicit datacenter selection\n- Support for per-domain endpoint configuration (some domains may use different regions)\n- Failover logic: try primary region, fallback to secondary on failure\n- Configuration validation and error handling for invalid regions\n- Documentation for supported regions and routing rules\n- Integration with both Discovery API and Dataset API clients\n- Performance optimization: cache region resolution per domain\n- Support for future region expansion (APAC, etc.)\n- Environment-based overrides: SOCRATA_REGION=EU, SOCRATA__domain.com__REGION=US\n- Default behavior maintains backwards compatibility (US region)\n- Proper URL construction for regional endpoints",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 62
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-07T22:00:43.828Z",
+      "updated": "2025-09-08T03:18:50.628Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",

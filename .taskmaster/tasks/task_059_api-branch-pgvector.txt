@@ -1,0 +1,89 @@
+# Task ID: 59
+# Title: Env: add pre-commit guard to block .env* commits
+# Status: done
+# Dependencies: 58, 3.1
+# Priority: high
+# Description: Implement a native Git pre-commit hook (no Husky) that blocks commits containing any .env* files (including .env and .envrc) and also runs the project's lint:changed task on staged changes. Exit criteria: attempting to commit a dummy .env at the repo root triggers hook failure and aborts the commit with a clear error message.
+# Details:
+- Do NOT use Husky. Implement a native Git hook.
+- Create a POSIX shell script at .git/hooks/pre-commit and make it executable (chmod +x .git/hooks/pre-commit).
+- The hook must:
+  1) Enumerate staged files only: git diff --cached --name-only -z
+  2) Block the commit if any staged path matches the regex: ^\.env(\.|$)|\.envrc
+     - This should catch .env, .env.local, .env.production, .env.example, and .envrc at the repo root.
+     - Print a clear, actionable error message listing the offending files and explaining why the commit is blocked.
+     - Exit non-zero to abort the commit.
+  3) If no matches, run the code quality step: npm run lint:changed
+     - If lint:changed fails, abort the commit and surface the linter output.
+- Fail fast: if sensitive files are detected, do not run lint:changed.
+- Provide clear messaging, e.g.:
+  - "Pre-commit blocked: sensitive env files staged (X, Y). Remove them from the index before committing."
+  - On lint failure: "Pre-commit blocked: lint:changed failed. Fix lint issues or adjust your changes."
+- Notes:
+  - Keep this implementation strictly as a native Git hook (no Husky, no core.hooksPath changes required).
+  - The provided regex is intended for repo-root file names. If needed in the future, we can extend it to nested paths, but for this task use the exact pattern provided.
+- Exit criteria:
+  - Committing a dummy .env at the repo root reliably triggers hook failure (non-zero exit) with a clear error listing .env and guidance to unstage/remove it.
+
+# Test Strategy:
+Manual verification
+
+Prerequisites
+- Ensure .git/hooks/pre-commit exists and is executable (chmod +x .git/hooks/pre-commit).
+- Ensure npm run lint:changed is defined and exits non-zero on lint failures.
+
+Exit criteria
+- echo "DUMMY=1" > .env
+- git add .env && git commit -m "test: dummy .env"
+- Expect: Commit is rejected. Output lists .env and explains why it’s blocked. Hook exits non-zero.
+
+Tests
+1) Blocks .env at root
+- echo "FOO=bar" > .env
+- git add .env && git commit -m "test: add .env"
+- Expect: Commit is rejected. Output lists .env and explains why it’s blocked.
+
+2) Blocks .env.local at root
+- echo "FOO=bar" > .env.local
+- git add .env.local && git commit -m "test: add .env.local"
+- Expect: Commit is rejected with the same style of message.
+
+3) Blocks .envrc at root
+- touch .envrc
+- git add .envrc && git commit -m "test: add .envrc"
+- Expect: Commit is rejected with a clear error.
+
+4) Blocks .env.example at root (intentional per regex)
+- echo "FOO=example" > .env.example
+- git add .env.example && git commit -m "test: add .env.example"
+- Expect: Commit is rejected (matches ^\.env(\.|$)).
+
+5) Runs lint:changed and allows commit on success
+- Modify a normal source file (e.g., src/foo.ts) with lint-clean changes.
+- git add src/foo.ts && git commit -m "test: lint ok"
+- Expect: Hook runs npm run lint:changed; commit succeeds.
+
+6) Runs lint:changed and blocks on failure
+- Intentionally introduce a lint error in a staged file (e.g., add an unused variable).
+- git add the file and attempt commit.
+- Expect: lint:changed fails; commit is aborted with linter output surfaced.
+
+# Subtasks:
+## 1. Create native Git pre-commit hook shell script [done]
+### Dependencies: None
+### Description: Write .git/hooks/pre-commit (POSIX sh) that lists staged files (git diff --cached --name-only -z), checks for matches to ^\.env(\.|$)|\.envrc, prints clear errors with the offending paths, and exits non-zero if matched. Make it executable with chmod +x.
+### Details:
+
+
+## 2. Integrate lint:changed into the hook [done]
+### Dependencies: None
+### Description: If no env files are detected, run `npm run lint:changed` from the hook. On failure, abort the commit and show the output.
+### Details:
+
+
+## 3. User guidance and setup note [done]
+### Dependencies: None
+### Description: Add a short note (e.g., in CONTRIBUTING.md) explaining that the project uses a native Git hook (no Husky), the hook lives at .git/hooks/pre-commit, and must be executable. Include basic troubleshooting tips.
+### Details:
+
+

@@ -1,0 +1,95 @@
+# Task ID: 46
+# Title: Pre-commit: Block direct edits under src/generated/** and add Do-Not-Edit README
+# Status: pending
+# Dependencies: 5
+# Priority: medium
+# Description: Introduce a Husky pre-commit guard that rejects commits changing files in src/generated/** (except READMEs and .gitkeep) and add a README explaining that the directory is auto-generated and must not be edited by hand.
+# Details:
+Objectives
+- Prevent manual edits to any files under src/generated/** via a pre-commit hook.
+- Provide clear developer guidance via a README placed in src/generated/ (and optionally in subfolders) stating “DO NOT EDIT BY HAND” and how to regenerate artifacts.
+- Allow controlled bypasses for generator-driven commits (env var or one-time token file) without undermining normal developer workflows.
+
+Implementation
+1) Add README(s)
+- Create src/generated/README.md with:
+  - Top banner: “AUTO-GENERATED FILES — DO NOT EDIT BY HAND.”
+  - Explanation that all content under src/generated/{socrata,ckan,arcgis} is produced by code generators and will be overwritten.
+  - How to regenerate (e.g., pnpm typegen:all once Task 45 lands) and a note that commits touching src/generated/** are blocked by pre-commit.
+  - How to perform a generator-authorized commit: set ALLOW_GENERATED_EDITS=1 for the commit, or create .git/allow-generated-commit (deleted by the hook after use).
+  - Allowed exceptions: README.md and .gitkeep inside src/generated/**.
+- Optionally add per-adapter README.md files in src/generated/{socrata,ckan,arcgis}/README.md with the same message, so the warning is visible in every folder.
+- Add .gitkeep files for empty directories to ensure the tree exists if needed.
+
+2) Implement a robust, cross-platform pre-commit guard
+- Create scripts/hooks/block-generated-edits.mjs (Node ESM) that:
+  - Executes: git diff --cached --name-only --diff-filter=ACMR to list staged added/changed/renamed files.
+  - Filters paths starting with src/generated/.
+  - Exclude allowed files: src/generated/README.md, src/generated/.gitkeep, and any src/generated/**/README.md or src/generated/**/.gitkeep.
+  - If any blocked files remain and neither env ALLOW_GENERATED_EDITS=1 nor .git/allow-generated-commit exists, print a clear error and exit 1.
+  - If .git/allow-generated-commit exists, allow the commit and delete that file to make the bypass one-time.
+  - Exit 0 otherwise.
+- Example logic (pseudocode):
+  - staged = exec('git diff --cached --name-only --diff-filter=ACMR')
+  - blocked = staged.filter(p => p.startsWith('src/generated/') && !isAllowed(p))
+  - if (blocked.length > 0) {
+      if (process.env.ALLOW_GENERATED_EDITS === '1' || exists('.git/allow-generated-commit')) {
+        if (exists('.git/allow-generated-commit')) unlink('.git/allow-generated-commit')
+        exit(0)
+      } else {
+        print error with list of blocked files and remediation steps
+        exit(1)
+      }
+    }
+- Place the script under scripts/hooks/ and ensure it has a node shebang or is invoked via node.
+
+3) Wire into Husky pre-commit
+- Edit .husky/pre-commit to invoke the new script before other checks to fail fast for forbidden changes:
+  - node scripts/hooks/block-generated-edits.mjs
+- Ensure the existing checks from Task 5 (TODO/FIXME scanning, required review files) still run after this script; preserve their behavior.
+
+4) Developer ergonomics and documentation
+- Update CONTRIBUTING.md (or the main README) with a short section explaining:
+  - src/generated/** is protected.
+  - How to regenerate artifacts (reference Task 45 commands once available).
+  - How to perform an authorized commit when the generator updates artifacts: use ALLOW_GENERATED_EDITS=1 for that commit or run: echo > .git/allow-generated-commit before committing (the hook removes it afterwards). Emphasize that this is for generator-driven updates only.
+
+Notes and considerations
+- This task intentionally does not depend on the typegen pipeline (Task 45) and will work today; once Task 45 is delivered, the typegen scripts can set ALLOW_GENERATED_EDITS=1 or drop the one-time token automatically before committing.
+- The guard covers added/changed/renamed files; extend to deletions by including D in --diff-filter if you also want to block deletions of generated files.
+- If your CI commits updated generated files, set ALLOW_GENERATED_EDITS=1 in the CI step that commits.
+- Teams can still override with git commit --no-verify in emergencies, but this should be discouraged and monitored.
+
+
+# Test Strategy:
+Manual verification
+1) Basic block behavior
+- Modify or create a file under src/generated/arcgis/example.ts (or any non-README/.gitkeep file).
+- git add -A && git commit -m "test: change generated file"
+- Expected: commit is rejected with a clear error listing the offending files.
+
+2) Allowed files are permitted
+- Edit src/generated/README.md and commit.
+- Expected: commit succeeds.
+- If per-adapter README.md files exist under src/generated/{socrata,ckan,arcgis}/README.md, edits to those should also succeed.
+
+3) Env-var bypass for generator-driven updates
+- export ALLOW_GENERATED_EDITS=1
+- Modify a file under src/generated/**, stage, and commit.
+- Expected: commit succeeds.
+- Unset the variable and repeat; Expected: commit is blocked again.
+
+4) One-time token bypass
+- touch .git/allow-generated-commit
+- Modify a file under src/generated/**, stage, and commit.
+- Expected: commit succeeds and the .git/allow-generated-commit file is automatically deleted by the hook.
+- Verify the token file no longer exists.
+
+5) Regression: existing Task 5 hooks still run
+- Stage a file containing TODO or remove required review files to ensure Task 5’s checks still trigger after the generated-guard runs.
+- Expected: with no generated-file changes, Task 5’s hooks behave as before; with generated-file changes, the new guard fails first.
+
+6) Optional: deletion behavior (if enabled)
+- If you include D in --diff-filter, try deleting a file under src/generated/** and committing.
+- Expected: commit is blocked unless bypass is set.
+

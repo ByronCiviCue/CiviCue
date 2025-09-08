@@ -10,10 +10,11 @@
 //   node scripts/build-datasf-index.mjs --dryRun
 //   SOCRATA_APP_TOKEN=... node scripts/build-datasf-index.mjs --domain=data.sfgov.org
 
-// Socrata API client and token resolver for Task 7.2
+// Socrata API client for Task 7.2
 // Note: .mjs requires compiled JS from dist/ (NodeNext .js suffix maps to .ts source)
 import { socrataFetch } from '../dist/src/lib/http/socrata.js';
-import { resolveSocrataAppToken } from '../dist/src/lib/env-providers/socrata.js';
+import fs from 'fs/promises';
+import path from 'path';
 
 /**
  * Frozen schema for Socrata dataset registry objects.
@@ -362,10 +363,7 @@ async function main() {
   const effectiveUntil = UNTIL || new Date().toISOString().split('T')[0];
   
   if (VERBOSE) {
-    const token = resolveSocrataAppToken(DOMAIN);
-    const tokenStatus = token ? 'configured' : 'not configured';
     console.log(`Verbose mode enabled`);
-    console.log(`App Token: ${tokenStatus}`);
   }
 
   if (DRY_RUN) {
@@ -395,9 +393,41 @@ No network calls or file writes performed in this dry-run mode.
   const { normalized, stats } = normalizeAll(rawResults, DOMAIN, effectiveSince, effectiveUntil, INCLUDE_STALE, VERBOSE);
   console.log(`Normalized ${normalized.length} items (${stats.excludedStaleCount} stale excluded)`);
 
-  // File writing will be implemented in Task 7.4
-  console.log('File writing not implemented yet. Normalized results ready but not saved.');
-  process.exit(0);
+  // Build payload with frozen schema
+  const payload = {
+    schemaVersion: 1,
+    source: 'socrata',
+    domain: DOMAIN,
+    generatedAt: new Date().toISOString(),
+    retention: { since: effectiveSince, until: effectiveUntil },
+    totalCount: normalized.length,
+    datasets: normalized
+  };
+
+  // Safety threshold check
+  if (normalized.length < 200 && !INCLUDE_STALE) {
+    console.error(`Safety threshold not met: only ${normalized.length} datasets (minimum 200 required).`);
+    console.error('Use --includeStale to override this safety check.');
+    process.exit(1);
+  }
+
+  // Ensure directory exists
+  const outputDir = path.dirname(OUT_PATH);
+  await fs.mkdir(outputDir, { recursive: true });
+
+  // Atomic write
+  const tempPath = `${OUT_PATH}.tmp`;
+  try {
+    await fs.writeFile(tempPath, JSON.stringify(payload, null, 2));
+    await fs.rename(tempPath, OUT_PATH);
+    console.log(`Wrote ${OUT_PATH} with ${normalized.length} datasets (horizon ${effectiveSince}..${effectiveUntil})`);
+  } catch (err) {
+    // Clean up temp file on error
+    try {
+      await fs.unlink(tempPath);
+    } catch {}
+    throw err;
+  }
 }
 
 main().catch((err) => {

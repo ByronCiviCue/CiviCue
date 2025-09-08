@@ -1,0 +1,83 @@
+# Task ID: 15
+# Title: Fill normalization-map.md
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Document the strategy for normalizing disparate data fields from various sources into a unified schema.
+# Details:
+Edit the `__docs__/catalogs/normalization-map.md` file to define canonical field names (e.g., `address`, `permit_type`) and map source-specific field names to them.
+
+# Test Strategy:
+Peer review of the markdown document for clarity, completeness, and logical consistency of the normalization strategy.
+
+# Subtasks:
+## 1. Inventory source fields and sample values [pending]
+### Dependencies: None
+### Description: Identify and catalog source-specific field names and example values for the datasets to be normalized, starting with Socrata SF assets listed in the registry index.
+### Details:
+Implementation approach:
+- Enumerate sources and datasets: Use the existing registry index (e.g., registry:socrata:sf) to list dataset IDs and human-readable names.
+- For each dataset, gather fields: Fetch metadata (column names, data types, descriptions) and 10–20 sample records to capture example values and obvious enumerations (e.g., status, permit_type).
+- Identify concept synonyms: For core concepts (address, permit_type, status, applicant, issued_date, latitude/longitude, parcel_id, etc.), note likely synonyms and spelling/casing variants (e.g., PermitType, permit_typ, permit_type).
+- Capture units and formats: Note date/time formats, currency fields, units (ft, m, USD), and geospatial representations (lat/lon vs GeoJSON).
+- Record findings succinctly so they can be embedded later as an Appendix A in normalization-map.md or used to populate mapping tables.
+Output: A concise inventory of fields per dataset with sample values and notes on synonyms, units, and enumerations.
+
+## 2. Define canonical field dictionary and naming conventions [pending]
+### Dependencies: 15.1
+### Description: Create the unified schema: a list of canonical field names with clear definitions, types, and conventions informed by the inventory.
+### Details:
+Implementation approach:
+- Naming conventions: lowercase snake_case; ASCII; descriptive not abbreviated; stable across sources; avoid source-specific jargon.
+- Types and formats: strings (UTF-8, NFC normalized), numbers, booleans, datetime as ISO 8601 UTC (e.g., 2024-03-15T17:45:00Z), geometry as GeoJSON, coordinates as WGS84 (latitude, longitude).
+- Required vs optional: mark minimal required fields (e.g., source, source_record_id, permit_type, status, address if applicable) and optional ones.
+- Propose canonical fields (adjust based on 15.1): id (internal), source, source_record_id, record_url, address, address_number, street_name, city, state, postal_code, latitude, longitude, geometry, permit_type, permit_subtype, status, description, applicant_name, contractor_name, filed_at, issued_at, expires_at, completed_at, estimated_cost_usd, parcel_id, zoning, land_use, notes.
+- For each field: define definition, type, units/format, allowed values or enum reference (e.g., status, permit_type), and examples.
+- Document global policies: null handling (use null, not empty string); currency normalized to USD; enum values canonicalized to a documented set with fallback other/unknown.
+
+## 3. Specify normalization and transformation rules [pending]
+### Dependencies: 15.2
+### Description: Document the mapping methodology and transformation cookbook from source fields to canonical fields, including enum mappings, unit conversions, and edge-case handling.
+### Details:
+Implementation approach:
+- String normalization: trim, collapse internal whitespace, normalize Unicode (NFC), strip HTML/markup, standardize casing as needed (e.g., title case for names, uppercase for state codes), preserve meaningful capitalization in free text.
+- Dates/times: parse common formats; handle timezones; convert to UTC; distinguish date-only vs datetime; document fallback and invalid date behavior (set to null and note).
+- Enumerations: define mapping tables for permit_type and status with aliases; case-insensitive matching; include fallback categories other and unknown; document any source-specific quirks.
+- Units and numerics: convert currency to USD (estimated_cost_usd); document rounding rules; normalize area/length units if present; coerce non-numeric strings to null with note.
+- Addresses: define splitting/merging rules (address_number, street_name, postal_code); standardize common abbreviations while retaining original where needed; do not perform geocoding in normalization; prefer source-provided lat/lon if available, otherwise null.
+- Identifiers: prefer stable source_record_id; avoid generating new IDs unless required; document any hashing scheme if unavoidable; ensure no PII is exposed.
+- Error and conflict handling: when multiple source fields could map to the same canonical field, specify precedence; explicitly document known ambiguities and decision rationale.
+- Provide a reusable mapping row template with columns: canonical_field, source, dataset_id, source_field(s), transform(s), value_map (if enum), example_input, example_output, notes.
+
+## 4. Author __docs__/catalogs/normalization-map.md with schema, rules, and initial mappings [pending]
+### Dependencies: 15.2, 15.3
+### Description: Write and commit the normalization-map.md file including the canonical dictionary, conventions, transformation rules, and per-source mapping tables seeded for at least one high-priority dataset.
+### Details:
+Implementation approach:
+- Create document structure:
+  1) Title, date, owners
+  2) Purpose & scope
+  3) Canonical field dictionary (table listing field, definition, type, required, format/units, allowed values, notes)
+  4) Naming conventions and global policies
+  5) Normalization & transformation rules (from 15.3)
+  6) Per-source mappings:
+     - For each initial dataset (start with a Socrata SF dataset from the registry index), add a subsection with source name, dataset_id, link, and a mapping table using the template (canonical_field, source_field(s), transform(s), value_map, example_input/output, notes).
+     - Include enum value maps for permit_type and status as discovered.
+  7) Conflicts, exceptions, and open questions
+  8) QA checklist
+  9) Appendix A: Field inventory summary (from 15.1)
+- Populate with concrete mappings for at least 10 canonical fields for the first dataset (e.g., address, permit_type, status, filed_at, issued_at, description, applicant_name, latitude, longitude, estimated_cost_usd).
+- Save and format at path: __docs__/catalogs/normalization-map.md. Ensure consistent table headings and anchors for cross-referencing.
+
+## 5. Validation pass, coverage check, and follow-ups [pending]
+### Dependencies: 15.4
+### Description: Validate completeness and consistency of the document, ensure adequate coverage of canonical fields and initial sources, and create follow-up tasks for gaps.
+### Details:
+Implementation approach:
+- Coverage checklist: For each canonical field, verify at least one mapping exists for the initial dataset(s) or is explicitly marked N/A with rationale.
+- Consistency check: Confirm field types, formats, and enum values in mappings align with the canonical dictionary and rules. Ensure example transformations are accurate and reproducible.
+- Cross-reference: Compare with any existing adapter expectations (e.g., SocrataAdapter) and registry schema to spot mismatches.
+- Lint and style: Run any markdown lints if available; ensure tables render; fix typos and formatting.
+- Follow-ups: Create tickets or TODOs for additional sources/datasets to be mapped, unresolved questions, or rule refinements.
+- Finalize PR: Summarize changes, tag reviewers, and address feedback.
+

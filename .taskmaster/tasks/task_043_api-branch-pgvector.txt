@@ -1,0 +1,76 @@
+# Task ID: 43
+# Title: Adopt CKAN type-extraction outputs (publish to src/generated/ckan; export index)
+# Status: pending
+# Dependencies: 41, 39
+# Priority: medium
+# Description: Publish CKAN codegen outputs to src/generated/ckan and generate an exported index that provides stable imports and a runtime schema registry keyed by baseUrl and resourceId, aligned with the RFC.
+# Details:
+Goal
+- Move/emit CKAN type-extraction artifacts from the CKAN generator to src/generated/ckan and provide a top-level barrel (index.ts) that re-exports all generated modules and exposes a runtime schema registry keyed by baseUrl + resourceId.
+
+Deliverables
+- src/generated/ckan/<resourceId>.ts: one module per CKAN resource with clear AUTO-GENERATED headers (source baseUrl, resourceId, timestamp, generator version, and hash of inputs). Each module should export:
+  - export const <ResourcePascal>Schema: z.ZodObject<...>
+  - export type <ResourcePascal> = z.infer<typeof <ResourcePascal>Schema>
+  - export const meta = { baseUrl: string, resourceId: string, name?: string }
+- src/generated/ckan/index.ts: barrel exports + registry and helpers:
+  - export * from "./<resourceId>" for all generated modules
+  - export interface CKANRegistryEntry { key: string; baseUrl: string; resourceId: string; name?: string; schema: z.ZodTypeAny }
+  - export const CKANTypeRegistry: Record<string, CKANRegistryEntry>
+  - export function makeCkanKey(baseUrl: string, resourceId: string): string // normalizes baseUrl (strip trailing '/') and returns `${baseUrl}::${resourceId}`
+  - export function getCkanSchema(baseUrl: string, resourceId: string): z.ZodTypeAny | undefined
+  - export const CKAN_KEYS: readonly string[] // stable listing of keys
+- Codegen changes (in the CKAN generator from Task 39):
+  - Default --outDir to src/generated/ckan; allow override.
+  - After generating per-resource modules, (re)generate index.ts by scanning outDir for *.ts (excluding index.ts) and producing deterministic, alphabetized exports and registry entries.
+  - Include DO NOT EDIT header and reference to the RFC and generator command used.
+- Package/build integration:
+  - Ensure tsconfig includes src/generated/**.
+  - If the package uses "exports"/"files", ensure dist/generated/ckan/** is included at build time; copy or emit to build output.
+  - Add scripts:
+    - "codegen:ckan": invokes the CKAN generator with at least two representative resources.
+    - "verify:generated:ckan": runs codegen and fails if git diff is non-empty (determinism/up-to-date guard).
+- Commit policy & conventions (align with RFC):
+  - Generated code is committed to version control with stable ordering and formatting.
+  - Filenames: <resourceId>.ts; symbol names: PascalCase from a sanitized resource name or Resource_<ShortHash> fallback.
+  - Avoid importing from application code into generated files to prevent cycles; generated code should be leaf modules used by adapters/consumers.
+
+Implementation notes
+- Registry generation should embed source metadata from each module (import { meta, <ResourcePascal>Schema } and construct entries), not duplicate it.
+- Normalize baseUrl by lowercasing host and stripping trailing slashes to prevent duplicate keys.
+- Provide a lightweight runtime helper parseCkanRow(baseUrl, resourceId, row) that fetches the schema and parses a single row.
+- Ensure the generator can append friendly name (from CKAN resource.title) into meta.name when available.
+- Include eslint-disable headers only for generated sections as needed; keep formatting via prettier.
+
+Example index.ts shape (abbreviated)
+- Auto-generated:
+  - export * from "./a1b2c3d4-...";
+  - export * from "./deadbeef-...";
+  - import { meta as _meta0, ResourceFooSchema } from "./a1b2c3d4-...";
+  - import { meta as _meta1, ResourceBarSchema } from "./deadbeef-...";
+  - export const CKANTypeRegistry = { [makeCkanKey(_meta0.baseUrl, _meta0.resourceId)]: { key: makeCkanKey(_meta0.baseUrl, _meta0.resourceId), baseUrl: _meta0.baseUrl, resourceId: _meta0.resourceId, name: _meta0.name, schema: ResourceFooSchema }, /* ... */ } as const;
+  - export const CKAN_KEYS = Object.keys(CKANTypeRegistry) as const;
+  - export function getCkanSchema(baseUrl: string, resourceId: string) { return CKANTypeRegistry[makeCkanKey(baseUrl, resourceId)]?.schema; }
+
+Operationalization
+- Update documentation: docs/adapters/ckan/generated-types.md describing import paths, registry usage, and how to add new resources.
+- Wire the codegen script in CI (pre-push or PR workflow) to run verify:generated:ckan.
+
+
+# Test Strategy:
+Repository-level checks
+- Generate at least two CKAN resources (from any accessible CKAN instance) via pnpm codegen:ckan with --outDir defaulting to src/generated/ckan. Verify:
+  - Files exist: src/generated/ckan/<resourceId>.ts per resource and src/generated/ckan/index.ts.
+  - Each generated file has the AUTO-GENERATED header and exports Schema, type, and meta.
+  - index.ts re-exports all per-resource modules and defines CKANTypeRegistry, CKAN_KEYS, makeCkanKey, getCkanSchema.
+- Type/build validation
+  - pnpm typecheck passes with the generated CKAN files present.
+  - pnpm build succeeds; no circular dependency warnings involving src/generated/ckan.
+  - If the package has export maps, verify that compiled artifacts for generated CKAN modules are present under dist and importable from build outputs.
+- Registry behavior
+  - Add a small test or script that imports { CKANTypeRegistry, getCkanSchema } from src/generated/ckan, asserts CKAN_KEYS.length >= 2, and successfully parses a known sample row using the located schema.
+  - Verify makeCkanKey normalizes baseUrl (e.g., trailing slash and case differences produce the same key).
+- Determinism/up-to-date
+  - Run pnpm verify:generated:ckan twice in a row; assert no git diff after the second run.
+- Lint/format
+  - pnpm lint and pnpm format:check pass on generated files (with allowed eslint disables confined to generated sections).

@@ -1,0 +1,71 @@
+# Task ID: 2
+# Title: Env setup: .env with SOCRATA_APP_ID and provider keys
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Set up environment variables for Socrata and AI provider API keys.
+# Details:
+Create a `.env` file template (`.env.example`) and document the required variables like `SOCRATA_APP_ID` and keys for the configured AI providers. The application should access these variables for authentication.
+
+# Test Strategy:
+The application should fail to start or log a clear error if required variables are missing. Verify by running the app with and without the `.env` file.
+
+# Subtasks:
+## 1. Define env schema and create .env.example template [done]
+### Dependencies: None
+### Description: Establish the list of required and optional environment variables for Socrata and AI providers and create a version-controlled .env.example template.
+### Details:
+1) Decide on canonical variable names:
+- Required: SOCRATA_APP_ID
+- Optional (depending on providers): AI_PROVIDER (openai|anthropic|azure-openai|google), OPENAI_API_KEY, ANTHROPIC_API_KEY, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, GOOGLE_API_KEY
+2) Create .env.example at repo root with comments and placeholders:
+# Core
+NODE_ENV=development
+# Socrata
+SOCRATA_APP_ID=
+# AI Provider selection
+AI_PROVIDER=
+# OpenAI
+OPENAI_API_KEY=
+# Anthropic
+ANTHROPIC_API_KEY=
+# Azure OpenAI
+AZURE_OPENAI_API_KEY=
+AZURE_OPENAI_ENDPOINT=
+# Google (Vertex/GenAI)
+GOOGLE_API_KEY=
+3) Ensure .gitignore contains:
+.env
+.env.*
+!.env.example
+4) Record which variables are required vs. optional and the conditions under which optional variables become required (e.g., if AI_PROVIDER=openai then OPENAI_API_KEY is required).
+
+## 2. Implement environment loader with validation and fail-fast behavior [done]
+### Dependencies: 2.1
+### Description: Create a centralized configuration module that loads .env, validates variables, and exits with a clear error if required values are missing.
+### Details:
+1) Add dependencies (Node/TS assumed): npm i dotenv zod (or joi). 2) Create src/config/env.ts that:
+- Imports dotenv/config early to load .env (or call dotenv.config()).
+- Defines a schema: always require SOCRATA_APP_ID; if AI_PROVIDER=openai require OPENAI_API_KEY; if anthropic require ANTHROPIC_API_KEY; if azure-openai require AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT; if google require GOOGLE_API_KEY.
+- Parses process.env and either returns a strongly typed config object or logs a concise, actionable error and process.exit(1).
+- Exports the parsed config for app-wide use.
+3) Ensure the module prints which variables are missing and, if applicable, which AI provider triggered the requirement.
+
+## 3. Wire config loader into app startup and clients [done]
+### Dependencies: 2.2
+### Description: Integrate the validated environment config into the application entrypoint and ensure Socrata and AI provider clients consume the values for authentication.
+### Details:
+1) In the application entry (e.g., src/index.ts), import the config module before initializing any services so validation runs at boot. 2) Update Socrata client/adapter initialization to set the X-App-Token header using config.SOCRATA_APP_ID on all requests. 3) Implement AI provider client factory that branches on config.AI_PROVIDER and instantiates the appropriate client with the corresponding key/endpoint variables. 4) Replace any direct process.env access in the codebase with values from the config module to centralize validation and usage.
+
+## 4. Document setup and configure secrets in CI [done]
+### Dependencies: 2.1
+### Description: Publish developer setup instructions and configure CI to provide required environment variables securely.
+### Details:
+1) Add a CONFIGURATION or README section: steps to copy .env.example to .env, set SOCRATA_APP_ID, choose AI_PROVIDER, and fill the corresponding keys. 2) Include notes about not committing secrets and how .gitignore protects them. 3) For CI (e.g., GitHub Actions), store secrets (SOCRATA_APP_ID, AI_PROVIDER, and provider-specific keys) in repo/org secrets and reference them in workflow env: SOCRATA_APP_ID: ${{ secrets.SOCRATA_APP_ID }}, etc. 4) If multiple environments (dev/staging/prod), document naming conventions for secrets and how they map to deployments.
+
+## 5. Add start-up checks and smoke tests for missing variables [done]
+### Dependencies: 2.2, 2.3
+### Description: Ensure the application fails clearly when required env vars are missing and succeeds when provided, via automated checks.
+### Details:
+1) Add an npm script (e.g., npm run check:env) that imports the config module; it should exit non-zero with a readable message if validation fails. 2) Create tests: (a) rename .env temporarily or clear env in the test process and assert the process exits non-zero with a clear error; (b) provide a minimal .env via injected environment and assert the process exits zero. 3) Optionally, add a prestart script to run check:env so yarn start/npm start fails early if misconfigured. 4) In CI, add a smoke step that runs check:env using injected secrets to ensure the pipeline is correctly configured.
+

@@ -1,0 +1,79 @@
+# Task ID: 44
+# Title: Adopt ArcGIS type-extraction outputs (publish to src/generated/arcgis; export index)
+# Status: pending
+# Dependencies: 41, 40
+# Priority: medium
+# Description: Publish ArcGIS FeatureServer type-extraction/codegen outputs to src/generated/arcgis and generate an exported index that provides stable imports and a runtime schema registry keyed by layerUrl (and serviceUrl + layerId), aligned with the RFC.
+# Details:
+Goal
+- Emit ArcGIS type-extraction artifacts from the generator to src/generated/arcgis and provide a top-level barrel (index.ts) that re-exports all generated modules and exposes a runtime schema registry keyed by normalized layerUrl and serviceUrl + layerId.
+
+Deliverables
+- src/generated/arcgis/<file>.ts: one module per FeatureServer layer with clear AUTO-GENERATED headers (source URLs, layerId, layerName, timestamp, generator version, and hash of inputs). Each module should export:
+  - schema: zod schema of a feature row.
+  - Row and PartialRow types inferred from the schema.
+  - metadata: { layerUrl, serviceUrl, layerId, layerName, fields summary, generatedAt, generatorVersion, inputHash }.
+- src/generated/arcgis/index.ts: barrel exports for each module and an ArcGISTypeRegistry with helper lookups.
+- Codegen changes to emit to this location, (re)generate the index deterministically, and respect naming/layout from the RFC.
+
+Implementation details
+- File layout and naming
+  - Default outDir for the ArcGIS generator is src/generated/arcgis.
+  - Create one file per layer. Prefer a sanitized slug derived from host + service path + layerId (e.g., host__services__Public_Safety__FeatureServer__2). If the slug exceeds 100 chars, append a short hash to ensure uniqueness. Ensure filenames are stable across runs and OS-safe.
+  - Include an AUTO-GENERATED header with a do-not-edit notice, original inputs, and a reproducibility hash.
+- Module shape
+  - Export schema (Zod), Row, PartialRow, and metadata for each layer.
+  - Avoid importing application code from generated modules. Only import from zod and internal codegen runtime helpers (if any) colocated under src/generated/_runtime to prevent circular dependencies.
+- Index generation (src/generated/arcgis/index.ts)
+  - Barrel re-exports: export * as <SanitizedModuleName> from './<file>'; Provide named exports for schema and metadata when helpful (optional; the barrel can expose namespaces only if that avoids name collisions).
+  - Provide a RegistryEntry type describing { schema, Row, PartialRow, metadata }.
+  - Build ArcGISTypeRegistry as a frozen object or Map with lookups by:
+    - normalizedLayerUrl (trim trailing slashes, enforce https scheme if originally https, and lowercase host only).
+    - a composite key serviceUrl + '#' + layerId.
+  - Helper functions:
+    - getByLayerUrl(url): returns RegistryEntry | undefined.
+    - getByServiceAndLayer(serviceUrl, layerId): returns RegistryEntry | undefined.
+    - list(): returns an array of { key, metadata } for discovery.
+  - Ensure deterministic ordering (sort by normalizedLayerUrl) to produce stable diffs.
+  - Avoid circular dependencies by building the registry within index.ts and importing modules only once each.
+- CLI integration
+  - Extend the ArcGIS codegen CLI (from the spike) to accept multiple layers in a single invocation, deduplicate targets, and default --outDir to src/generated/arcgis.
+  - After emitting modules, regenerate index.ts. If no modules exist (empty set), generate a minimal index with an empty registry.
+  - Provide a --dryRun flag that prints planned writes and keys without touching disk.
+  - Ensure idempotency: running the generator twice with the same inputs must yield byte-identical outputs.
+- Policy and ergonomics
+  - Formatting: run Prettier on all generated files. Respect the repository’s ESLint configuration and disable rules as needed via file-level pragmas in generated files only.
+  - Commit policy: generated artifacts live in source control; large sample payloads are not stored.
+  - Documentation: add short usage notes to docs/rfcs/0041-type-extraction-workflow.md references if needed (do not alter decisions; just link to ArcGIS specifics), and add a README in src/generated/arcgis with usage and key-format notes.
+
+Usage examples (non-normative)
+- Importing a schema for validation: import { getByLayerUrl } from 'src/generated/arcgis'; const entry = getByLayerUrl('https://example.com/arcgis/rest/services/Fire/FeatureServer/2'); if (entry) entry.schema.parse(row);
+- Importing a generated module directly: import * as Fire2 from 'src/generated/arcgis/host__Fire__FeatureServer__2';
+
+
+# Test Strategy:
+Repository-level checks
+- Local generation
+  - Run the generator for at least two public layers (e.g., from ESRI SampleServer or any public municipality):
+    - pnpm codegen:arcgis --layerUrl <LayerUrl1>
+    - pnpm codegen:arcgis --layerUrl <LayerUrl2>
+  - Verify files exist: src/generated/arcgis/<slug1>.ts, <slug2>.ts and src/generated/arcgis/index.ts.
+  - Confirm each file header includes inputs (layerUrl, serviceUrl, layerId), generatedAt, generatorVersion, and inputHash.
+- Type and build checks
+  - pnpm typecheck passes with the generated directory present.
+  - pnpm build succeeds with no circular dependency warnings and no unused var errors originating from generated files.
+- Registry behavior
+  - Programmatically test at runtime (e.g., a small script or unit tests):
+    - getByLayerUrl(originalUrl) returns an entry and entry.metadata.layerId matches the source.
+    - getByServiceAndLayer(serviceUrl, layerId) returns the same entry.
+    - list() returns at least two entries with sorted keys.
+    - Normalization: same URL with/without trailing slash resolves to the same registry entry.
+  - Negative case: unknown URL returns undefined without throwing.
+- Schema validation spot-check
+  - Fetch a small sample of features for each layer used and assert that entry.schema.safeParse(row).success is true for at least 5 records per layer.
+- Determinism and idempotency
+  - Run the generator twice with identical inputs and confirm a zero-diff (git diff shows no changes). Confirm index.ts order is stable.
+- Lint/format
+  - pnpm lint and pnpm format:check pass or are intentionally suppressed via file-level pragmas in generated files only.
+- Documentation
+  - README present in src/generated/arcgis explaining key formats and how to consume the registry. RFC references are aligned (no contradiction to Task 41 decisions).

@@ -1,0 +1,83 @@
+# Task ID: 37
+# Title: Establish openapi.yaml and integrate Spectral linting into CI
+# Status: pending
+# Dependencies: 2
+# Priority: medium
+# Description: Create or standardize the OpenAPI spec file (openapi.yaml) and enforce linting in CI with Spectral as a required check.
+# Details:
+Scope
+- Ensure the repository contains a canonical OpenAPI 3.x spec at a stable path (recommended: openapi/openapi.yaml). If a spec already exists (e.g., openapi.yaml, api/openapi.yaml, or multiple fragments), consolidate/standardize to the chosen path and update any docs/refs accordingly.
+- Add and configure Spectral for OpenAPI linting with a maintained ruleset and a few project-specific rules. Wire this lint to run locally via npm script and in CI as a required status check.
+
+Implementation Steps
+1) Create or migrate the spec file
+- Path: openapi/openapi.yaml
+- Use OpenAPI 3.0.3 or 3.1.0 (choose 3.0.3 if tooling compatibility is uncertain).
+- Include at least the following paths to align with existing/planned work:
+  - GET /v1/health (200 with a simple JSON body, e.g., { status: "ok" })
+  - POST /v1/search/hybrid (request body with query params/object and a 200 response schema)
+  - GET /v1/reports/permits (query params and a 200 response schema)
+- Define shared components/schemas for common response envelopes and error format (e.g., ErrorResponse with code, message, details). Add basic examples where useful.
+- Include operationId, tags, and description for each operation.
+
+2) Add Spectral configuration
+- Dev dependency: @stoplight/spectral-cli (pin a specific major/minor, e.g., ^6.x).
+- File: .spectral.yaml at repo root. Start with rulesets:
+  extends:
+    - spectral:oas
+  rules:
+    operation-operationId: error
+    operation-tags: warn
+    oas3-schema: error
+    info-contact: off
+    no-$ref-siblings: error
+    operation-default-response: off
+    operation-2xx-response: error
+    oas3-unused-components-schema: warn
+  (Adjust severities to fit the team’s tolerance; prefer failing on clear errors.)
+- If spec is split into multiple files, ensure $ref resolution works (use relative refs like ./components/schemas/Thing.yaml and keep them under openapi/).
+
+3) Package scripts
+- Add to package.json:
+  - "lint:openapi": "spectral lint openapi/openapi.yaml"
+  - Optionally: "lint:openapi:strict": "spectral lint --fail-severity=warn openapi/openapi.yaml" to fail on warnings too.
+
+4) CI integration (GitHub Actions example)
+- New workflow file: .github/workflows/openapi-lint.yml
+  - Triggers: pull_request, push to main.
+  - Steps:
+    - actions/checkout@v4
+    - actions/setup-node@v4 with Node 20 and npm cache
+    - npm ci
+    - npx spectral lint openapi/openapi.yaml (or run the package script)
+- Name the job openapi-lint and add it as a required status check in branch protection rules.
+- If you already have a consolidated CI workflow (from the main pipeline), insert a dedicated step/job named openapi-lint rather than creating a separate workflow, so it’s consistently enforced across PRs.
+
+5) Documentation
+- Update CONTRIBUTING.md and/or README.md:
+  - Where the spec lives and how to edit it
+  - How to run lint locally (npm run lint:openapi)
+  - Definition of done: new/changed endpoints must be reflected in openapi/openapi.yaml and pass lint
+
+6) Guardrails and hygiene
+- Add CODEOWNERS entry for openapi/ and .spectral.yaml (e.g., platform/API owners).
+- Consider adding a pre-commit hook (husky) to run lint:openapi for changed spec files (optional, not a substitute for CI).
+
+Notes
+- This task does not generate TypeScript types; that is covered by a separate task. Ensure paths and spec stability so type generation can build on this.
+- Keep the initial ruleset pragmatic; you can ratchet severities over time as the spec matures.
+
+# Test Strategy:
+Local verification
+1) If creating a new spec: run npm run lint:openapi. Expect 0 errors. If migrating an existing spec: run lint and fix reported issues until there are no errors (warnings allowed initially unless strict mode is enabled).
+2) Introduce a deliberate violation (e.g., remove operationId from one path) and confirm lint fails locally with a clear error message. Revert the change.
+3) If using $refs across files, temporarily break a ref path and verify Spectral reports an unresolved $ref error; fix and re-run.
+
+CI verification
+4) Open a pull request that modifies openapi/openapi.yaml correctly; confirm the openapi-lint job runs and passes.
+5) Open a PR with a deliberate rule violation (e.g., missing 2xx response or invalid schema type). Confirm the openapi-lint job fails and blocks merge. Remove the violation and confirm it passes.
+6) In repository settings, ensure the openapi-lint job is a required status check for main. Confirm that merging without a passing openapi-lint is prevented.
+
+Alignment checks
+7) Confirm the spec includes the endpoints: GET /v1/health, POST /v1/search/hybrid, GET /v1/reports/permits with basic schemas.
+8) Validate that documentation (README/CONTRIBUTING) contains the lint instructions and the canonical spec path.

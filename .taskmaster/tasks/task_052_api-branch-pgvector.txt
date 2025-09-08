@@ -1,0 +1,125 @@
+# Task ID: 52
+# Title: Pre-commit: Block edits to src/generated/** with TYPEGEN_ALLOW override
+# Status: pending
+# Dependencies: 5, 46
+# Priority: medium
+# Description: Add a Husky pre-commit hook that blocks commits changing any files under src/generated/** (except README.md and .gitkeep). Permit an explicit override only when TYPEGEN_ALLOW=1 is set in the environment.
+# Details:
+Goal
+- Prevent accidental edits to generated artifacts under src/generated/**.
+- Allow deliberate, generator-driven commits via a clear, explicit env var: TYPEGEN_ALLOW=1.
+
+Scope and rules
+- Block any staged changes where the path starts with src/generated/.
+- Exceptions: README.md and .gitkeep anywhere under src/generated/ are allowed.
+- If TYPEGEN_ALLOW is set to "1" or "true" (case-insensitive), print a warning and allow the commit to proceed.
+- Provide a clear, actionable error message listing offending files and how to proceed.
+
+Implementation
+1) Create a portable Node ESM guard script
+- File: scripts/precommit-block-generated.mjs
+- Behavior:
+  - Read staged files: `git diff --cached --name-only -z` to robustly parse filenames.
+  - Filter to those under src/generated/ using a path check (no external deps): `p.replace(/\\/g, '/')` then `p.startsWith('src/generated/')`.
+  - Exempt any path whose basename is README.md or .gitkeep.
+  - If the filtered list is non-empty and TYPEGEN_ALLOW is not set to 1/true, exit 1 with a helpful message.
+  - If TYPEGEN_ALLOW is set to 1/true, log a short waiver message and exit 0.
+
+Code sketch:
+```js
+#!/usr/bin/env node
+import { execSync } from 'node:child_process';
+import path from 'node:path';
+
+function getStaged() {
+  const out = execSync('git diff --cached --name-only -z', { encoding: 'utf8' });
+  return out.split('\u0000').filter(Boolean);
+}
+
+function isBlocked(p) {
+  const norm = p.replace(/\\\\/g, '/');
+  if (!norm.startsWith('src/generated/')) return false;
+  const base = path.posix.basename(norm);
+  if (base === 'README.md' || base === '.gitkeep') return false;
+  return true;
+}
+
+const staged = getStaged();
+const offenders = staged.filter(isBlocked);
+const allow = String(process.env.TYPEGEN_ALLOW || '').toLowerCase();
+const isAllowed = allow === '1' || allow === 'true';
+
+if (offenders.length && !isAllowed) {
+  const list = offenders.map(f => `  - ${f}`).join('\n');
+  console.error('\nCommit blocked: changes to generated artifacts are not allowed.');
+  console.error('Files:');
+  console.error(list);
+  console.error('\nIf this commit is the result of a generation step, rerun with:');
+  console.error('  TYPEGEN_ALLOW=1 git commit -m "<message>"');
+  console.error('\nNotes: README.md and .gitkeep under src/generated/ are allowed.');
+  process.exit(1);
+}
+
+if (offenders.length && isAllowed) {
+  console.warn('TYPEGEN_ALLOW acknowledged: permitting changes under src/generated/**');
+}
+```
+
+2) Wire into Husky pre-commit
+- Update .husky/pre-commit to run the script early, before linting/tests, for fast feedback:
+  - Add: `pnpm -s precommit:block-generated`
+- Add npm script to package.json:
+  - "precommit:block-generated": "node scripts/precommit-block-generated.mjs"
+
+3) Developer docs
+- Update CONTRIBUTING.md (or the README in src/generated/ if present from Task 46) with:
+  - Policy: do not edit src/generated/** by hand.
+  - How to adopt generator output: set TYPEGEN_ALLOW=1 only for generator-driven commits.
+  - Cross-platform examples:
+    - macOS/Linux: `TYPEGEN_ALLOW=1 git commit -m "chore(typegen): adopt"`
+    - PowerShell: `$env:TYPEGEN_ALLOW=1; git commit -m "chore(typegen): adopt"; Remove-Item Env:TYPEGEN_ALLOW`
+
+4) Nice-to-haves (optional)
+- Also recognize "yes" as a truthy value if desired, but keep the contract documented as TYPEGEN_ALLOW=1.
+- Ensure the hook exits quickly on large diffs (early return if no staged files).
+
+Operational considerations
+- This hook complements the broader guard from Task 46 and standard Husky setup from Task 5.
+- CI can set TYPEGEN_ALLOW=1 for controlled, generator-driven commits if needed, but default should be off.
+
+
+# Test Strategy:
+Prereqs: Husky is installed and enabled (core.hooksPath=.husky).
+
+1) Blocks non-exempt files
+- Edit src/generated/foo/bar.ts (or any non-README/.gitkeep file).
+- git add -A && git commit -m "test: edit generated"
+- Expect: Commit is rejected. Message lists the path and shows the TYPEGEN_ALLOW instruction.
+
+2) Allows exempt files
+- Edit src/generated/README.md and src/generated/foo/.gitkeep.
+- git add -A && git commit -m "chore: update generated readme and keep"
+- Expect: Commit succeeds without requiring TYPEGEN_ALLOW.
+
+3) Override works
+- Edit src/generated/foo/bar.ts.
+- macOS/Linux: TYPEGEN_ALLOW=1 git commit -am "chore(typegen): adopt"
+- Windows PowerShell: $env:TYPEGEN_ALLOW=1; git commit -am "chore(typegen): adopt"; Remove-Item Env:TYPEGEN_ALLOW
+- Expect: Commit succeeds and prints a warning acknowledging the override.
+
+4) Mixed changes still block by default
+- Edit src/app.ts and src/generated/foo/bar.ts.
+- git add -A && git commit -m "feat: app + generated"
+- Expect: Rejected unless TYPEGEN_ALLOW=1 is set.
+
+5) No staged generated files
+- Edit files outside src/generated/ only.
+- git add -A && git commit -m "feat: regular change"
+- Expect: Commit proceeds as usual.
+
+6) Edge cases
+- Rename a file under src/generated/ (not README/.gitkeep) and commit.
+- Expect: Still blocked.
+- Delete a file under src/generated/ and commit.
+- Expect: Blocked (deletions count as changes) unless TYPEGEN_ALLOW=1.
+

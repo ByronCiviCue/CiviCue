@@ -1,0 +1,78 @@
+# Task ID: 60
+# Title: Env: add CI secret scan (gitleaks or similar)
+# Status: done
+# Dependencies: 58, 3.1
+# Priority: high
+# Description: Integrate secret scanning tool in CI pipeline to detect leaked credentials and define clear exit criteria for verification.
+# Details:
+Adopt gitleaks for CI secret scanning and enforce failures on findings.
+
+Configuration
+- Add a repository-root .gitleaks.toml with:
+  - redact = true (ensure leaked values are redacted in logs)
+  - allowlist.paths to exclude generated and non-source content:
+    - src/generated/**
+    - fingerprints/**
+    - test fixtures (e.g., test/fixtures/** and **/__fixtures__/**)
+- Keep default rules plus any necessary project-specific tweaks only if false positives appear.
+
+CI Integration (GitHub Actions)
+- Add a workflow that runs on pull_request and fails the check if any leaks are detected.
+- Use the action gitleaks/gitleaks@v2.
+- Steps outline:
+  - actions/checkout@v4 with fetch-depth: 0 (ensures proper diff context)
+  - gitleaks/gitleaks@v2 with args: detect --redact --exit-code 1 --source . --config .gitleaks.toml
+- Name the workflow job "gitleaks" so it is clearly visible in the PR checks.
+- Surface findings as a failed PR check; the redaction setting prevents secrets from appearing in logs.
+
+Scope and Behavior
+- Primary execution on PRs (incoming changes). The job must fail on any finding.
+- Exclusions ensure typegen artifacts and known fixture content are ignored to reduce noise.
+- Optional: provide a manual workflow_dispatch job for on-demand scans if needed later.
+
+Notifications
+- Rely on the failed GitHub check/PR status for notification. Consider adding CODEOWNERS to route reviews if desired.
+
+Exit Criteria
+- The GitHub Actions UI shows a job named "gitleaks" on PRs.
+- Seeding a clearly marked fake secret in a non-excluded path causes the gitleaks job to fail with redacted output.
+- Removing the fake secret (or pushing a follow-up commit that removes it) results in the job passing.
+
+# Test Strategy:
+Automated CI validation and local spot checks
+1) PR failure on seeded test secret
+- Open a temporary test PR that adds a clearly marked dummy secret (e.g., TEST_SECRET=EXAMPLE_GITHUB_PAT_xxxxxxxxxxxxxxxxxxxxxxx) in a non-excluded path (e.g., src/app.ts comment). Expect the gitleaks job to fail, and the secret value to be redacted in logs. Remove the dummy secret before merging.
+2) Exclusion verification
+- Add the same dummy secret string inside src/generated/foo.txt (or a test fixture file). Expect the CI job to pass due to exclusions.
+3) Local run parity
+- Run locally: gitleaks detect --redact --exit-code 1 --source . --config .gitleaks.toml. Confirm it exits 1 with the dummy secret present in non-excluded paths and exits 0 once removed.
+4) Negative test
+- Open a PR with no secrets. Expect the job to pass cleanly.
+5) Exit criteria verification
+- On the temporary PR, confirm the GitHub Actions UI displays a job named "gitleaks". Verify fail→pass behavior by first observing the failure with the seeded secret and then the pass after removing it (new commit or amended PR).
+
+# Subtasks:
+## 1. Create .gitleaks.toml with redaction and exclusions [done]
+### Dependencies: None
+### Description: Add .gitleaks.toml at repo root with redact=true and allowlist for src/generated/**, fingerprints/**, and test fixtures (e.g., test/fixtures/**, **/__fixtures__/**). Keep default rules; only tune if false positives appear.
+### Details:
+
+
+## 2. Add GitHub Action to run gitleaks on PRs [done]
+### Dependencies: None
+### Description: Create .github/workflows/gitleaks.yml that runs on pull_request using gitleaks/gitleaks@v2. Checkout with fetch-depth: 0 and run detect with: --redact --exit-code 1 --source . --config .gitleaks.toml. Name the job "gitleaks" so it is clearly visible in PR checks and fails on any findings.
+### Details:
+
+
+## 3. Document usage and local reproduction [done]
+### Dependencies: None
+### Description: Add a CONTRIBUTING entry describing how to run gitleaks locally with the repo config and how exclusions/redaction work.
+### Details:
+
+
+## 4. Validate CI behavior with a temporary dummy secret [done]
+### Dependencies: None
+### Description: Open a short-lived test PR that introduces a dummy secret in a non-excluded path to confirm CI fails with redacted output; then remove it and confirm the job passes before merge (demonstrating fail→pass).
+### Details:
+
+

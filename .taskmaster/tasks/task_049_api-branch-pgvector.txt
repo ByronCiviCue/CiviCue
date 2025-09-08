@@ -1,0 +1,151 @@
+# Task ID: 49
+# Title: Typegen: Generate TS types + Zod schemas into src/generated/<provider>/next
+# Status: pending
+# Dependencies: 47, 48
+# Priority: medium
+# Description: Implement a generation stage that reads normalized provider schema snapshots and emits TypeScript types and Zod schemas to src/generated/<provider>/next with an index and runtime registry. Skips unchanged inputs based on fingerprints.
+# Details:
+Goal
+- Add a deterministic code generation step that converts normalized provider schema snapshots from tmp/schema/<provider>/*.json into TypeScript + Zod artifacts under src/generated/<provider>/next.
+- Honor the fingerprint gate so we only (re)generate modules whose inputs changed.
+- Produce a provider-level index.ts that re-exports modules and exposes a runtime registry for schema lookup by provider-specific keys.
+
+CLI/entrypoint
+- File: scripts/typegen-generate.mjs (Node ESM)
+- Usage examples:
+  - node scripts/typegen-generate.mjs --provider socrata --stage next
+  - node scripts/typegen-generate.mjs --provider all --stage next --force
+  - node scripts/typegen-generate.mjs --provider ckan --stage next --clean
+- Flags/options:
+  - --provider socrata|ckan|arcgis|all (default: all)
+  - --stage next (required; future-proofing for promote/stable stages)
+  - --outDir src/generated (default)
+  - --schemaDir tmp/schema (default)
+  - --force (ignore fingerprints; regenerate all)
+  - --clean (remove src/generated/<provider>/next before generation)
+  - --concurrency <n> (default: 8)
+  - --verbose
+
+Inputs
+- tmp/schema/<provider>/manifest.json and per-entity schema JSON files created by the fetch stage (Task 47).
+- fingerprints/<provider>/*.sha256 created by the fingerprint stage (Task 48) to determine changed inputs, unless --force is set.
+
+Outputs (per provider)
+- src/generated/<provider>/next/
+  - <moduleFile>.ts: one file per dataset/resource/layer with:
+    - AUTO-GENERATED header (timestamp, generator version, input source path/URL, input SHA256, provider, entity id/name)
+    - export const schema: z.ZodObject<...>
+    - export type T = z.infer<typeof schema>
+    - export const meta = { provider, key, title, sourceUrl, fingerprint, generatedAt }
+  - index.ts: re-exports all modules and exposes a registry API.
+  - manifest.json: list of generated modules, their keys, and source fingerprints.
+
+Provider-specific mapping rules
+- Socrata
+  - Key: 4x4 dataset id (e.g., abcd-1234). If table variants exist, include view id.
+  - Field mapping (best-effort; fallback to z.unknown()):
+    - text/url/email/phone/line: string (z.string())
+    - number/money/percent/double/float: number (z.number())
+    - checkbox: boolean (z.boolean())
+    - calendar_date/floating_timestamp: string (z.string())
+    - location/point/multipoint/shape: object/tuple -> default z.any() with typed TODO comments
+    - json: z.unknown()
+  - Nullability: if field marked nullable/format suggests optional, use z.<type>().nullable().optional().
+
+- CKAN
+  - Key: resource_id (UUID).
+  - Field mapping via resource_schema.fields[].type; common types: text->string, numeric->number, int->number, bool->boolean, date/datetime->string, json->unknown; fallback to z.unknown().
+
+- ArcGIS
+  - Key: normalized layerUrl (serviceUrl + '/<layerId>'), also expose alt key {serviceUrl, layerId} in meta.
+  - esriFieldTypeString -> string; OID/SmallInteger/Integer/Single/Double -> number; Date -> number (epoch ms) or string based on config (default number); Geometry fields -> z.any(); domains (coded values) -> z.union of literal values when available else base type; nullable -> nullable/optional.
+
+File naming and module structure
+- Socrata: <fourByFour>__<slugifiedName>.ts (slugify to kebab-case; safe characters only).
+- CKAN: <resourceId>__<slugifiedResourceName>.ts
+- ArcGIS: <layerIdOrHash>__<slugifiedLayerName>.ts (use a short hash of layerUrl to avoid collisions when names repeat).
+- Stabilize export names:
+  - export const schema_<shortKey>
+  - export type T_<shortKey> = z.infer<typeof schema_<shortKey>>
+  - export const meta_<shortKey>
+  - Keep field order stable as in input schema.
+
+Index and registry
+- Generate src/generated/<provider>/next/index.ts that:
+  - Re-exports all module types and schemas.
+  - Exposes getSchemaByKey(key: string) and listSchemas(): Array<{ key, title, schema }>
+  - For ArcGIS also supports getSchemaByServiceLayer(serviceUrl: string, layerId: number).
+  - The registry is a plain object built from meta.key values at build time (no dynamic fs reads at runtime).
+
+Determinism and formatting
+- Ensure stable codegen: identical output given identical inputs.
+- Run Prettier on written files.
+- Always include the input fingerprint in the file header and meta.fingerprint.
+- Concurrency with a queue to limit fs churn.
+
+Implementation sketch (pseudocode)
+- discoverInputs(provider): read manifest.json; fallback to glob of *.json.
+- isChanged(input): if --force return true; else compute sha256(input) and compare to fingerprints/<provider>/<basename>.sha256; return true if different or missing.
+- toZodField(provider, field): map provider-specific types to zod nodes (with nullable/optional handling).
+- generateModule(input): build AST/string for schema, types, and meta; write to file.
+- buildIndex(modules): synthesize index.ts with re-exports and registry map.
+
+DX & Config
+- Respect TYPEGEN_CONFIG if provided (align with Task 45), but this task can function standalone via --schemaDir.
+- Log a clear summary: processed N inputs, generated M modules, skipped K unchanged.
+
+Docs and headers
+- Prepend each generated file with a banner:
+  // AUTO-GENERATED BY typegen (scripts/typegen-generate.mjs)
+  // DO NOT EDIT BY HAND. Source: <inputPath> | Provider: <provider> | Key: <key>
+  // Input SHA256: <sha> | Generated: <ISO timestamp> | Generator: v0.1.0
+
+Edge cases
+- Name collisions: append a short hash to filename if conflict detected.
+- Extremely wide schemas: split long union types over lines, rely on Prettier.
+- Missing/invalid schemas: skip with warning; do not fail the whole run unless --strict is passed.
+- Geometry/unknown types: emit z.any() with TODO comments; avoid over-constraining.
+
+Package.json scripts
+- Add: "typegen:generate": "node scripts/typegen-generate.mjs --provider all --stage next"
+
+Artifacts to commit
+- src/generated/<provider>/next/**/*
+- No direct edits required; pre-commit guard from Task 46 will block manual changes (FYI).
+
+
+# Test Strategy:
+Prereqs
+- Complete Task 47 (fetch) to populate tmp/schema/{socrata,ckan,arcgis}/ with at least 2 inputs each and a manifest.json.
+- Complete Task 48 (fingerprint) to write fingerprints/{provider}/*.sha256 for those inputs.
+
+Happy path (first generation)
+1) Run: pnpm typegen:generate
+2) Verify directories exist:
+   - src/generated/{socrata,ckan,arcgis}/next/
+   - Each contains N .ts files, an index.ts, and a manifest.json.
+3) Open any generated file and confirm header contains provider, key, Input SHA256, and timestamp.
+4) Type-check: tsc -p tsconfig.json should succeed without errors.
+5) Runtime quick check:
+   - In a scratch script, import { getSchemaByKey } from 'src/generated/socrata/next'
+   - Call getSchemaByKey('<aKnownKey>') and schema.parse(sampleRecord) using a sample from tmp/schema; expect validation to succeed.
+
+Idempotence
+6) Re-run: pnpm typegen:generate
+   - Expect 0 files changed. git status should be clean.
+
+Changed-input behavior
+7) Modify one tmp/schema JSON (or re-fetch a dataset to change its schema) and re-run fingerprints in write mode.
+8) Run: pnpm typegen:generate
+   - Expect only the corresponding module file to be updated. Verify meta.fingerprint changed accordingly.
+
+Registry checks
+9) Import index.ts for each provider and verify:
+   - listSchemas().length equals number of generated modules
+   - getSchemaByKey returns undefined for unknown keys and a schema for known keys
+   - For ArcGIS, getSchemaByServiceLayer(serviceUrl, layerId) returns the expected schema.
+
+Clean flag
+10) Run: node scripts/typegen-generate.mjs --provider socrata --stage next --clean
+   - Directory src/generated/socrata/next is removed then recreated. Files are regenerated as expected.
+

@@ -1,0 +1,43 @@
+# Task ID: 23
+# Title: Implement /v1/search/hybrid
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement the hybrid search endpoint and connect it to the Branch Engine.
+# Details:
+Create the `/v1/search/hybrid` endpoint. This endpoint will take a search query, pass it to the appropriate branch engine (e.g., `sf.housing.permits`), and return the fused, deduplicated results.
+
+# Test Strategy:
+Integration test that calls the endpoint and verifies that it correctly invokes the branch engine and returns structured data. A contract test will validate the API schema.
+
+# Subtasks:
+## 1. Define API contract and validation for POST /v1/search/hybrid [pending]
+### Dependencies: None
+### Description: Create the OpenAPI specification and runtime validators for the hybrid search endpoint. Specify request/response schemas, required fields, and error shapes so downstream implementation can rely on a stable contract.
+### Details:
+1) Update openapi.yaml: define POST /v1/search/hybrid with application/json request body. Request fields: branch (string, required; e.g., "sf.housing.permits"), query (string, required), filters (object, optional), page (integer >=1, default 1), size (integer 1..100, default 20), sort (string, optional), includeFields (array of string, optional), debug (boolean, optional). 2) Define 200 response schema: data: { results: [ { id: string, score: number, title: string, snippet: string, url: string, source: string, dedupeKey: string, record: object, provenance: object, highlights: object, publishedAt: string(datetime) } ], total: integer, page: integer, size: integer, branch: string, timings: object, requestId: string }. 3) Define error responses: 400 (validation error with code/message/errors[]), 404 (unknown branch), 500 (internal). 4) Generate or handcraft runtime validation: if using Fastify, derive JSON schemas and register with route; if Express, implement validation via Ajv or Zod. 5) Add examples for typical request/response to guide implementations. 6) Document server-enforced max size to 100 in the schema description and validation.
+
+## 2. Implement BranchEngine interface and registry [pending]
+### Dependencies: 23.1
+### Description: Create a common BranchEngine interface and a registry to resolve engines by branch key. Provide an adapter for sf.housing.permits that delegates to the branch engine implementation.
+### Details:
+1) Define interface BranchEngine with method search(params: { query: string; filters?: Record<string, any>; page: number; size: number; sort?: string; includeFields?: string[]; debug?: boolean; context?: { requestId: string } }): Promise<{ results: any[]; total?: number; timings?: Record<string, number> }>. 2) Create BranchEngineRegistry: register(key: string, engine: BranchEngine), get(key: string): BranchEngine | throws UnknownBranchError. Provide a bootstrap location to register known engines at app start. 3) Implement UnknownBranchError extending Error with code="BRANCH_NOT_FOUND" so HTTP mapping can return 404. 4) Implement a PermitsBranchAdapter that wraps the sf.housing.permits engine (from Task 17): inside search(), call underlying plan->fetch->fuse pipeline or a provided searchHybrid() if available; ensure the adapter returns fused, normalized, deduplicated results with fields required by the API contract (id, score, title, snippet, url, source, dedupeKey, record, provenance, highlights, publishedAt). 5) Ensure adapter handles pagination inputs (page/size) by either passing through or slicing after fuse. 6) Register the adapter under key "sf.housing.permits" in the registry at app initialization.
+
+## 3. Build HybridSearchService (orchestration, dedup, scoring, pagination) [pending]
+### Dependencies: 23.1, 23.2
+### Description: Implement a service layer that takes validated request data, resolves the appropriate branch engine, executes the search with timeouts, applies server-wide policies (size clamp), and returns response DTOs matching the API schema.
+### Details:
+1) Create HybridSearchService.execute(input): validates/clamps size to MAX_SIZE=100, ensures page>=1, computes offset. 2) Resolve the engine using BranchEngineRegistry.get(branch). 3) Execute with timeout and cancellation using AbortController or a custom timer; include requestId in context. 4) Receive engine results; if engine already returns fused/deduped results, trust them. Otherwise, apply fallback fusion: a) normalize scores to [0,1] via min-max; b) deduplicate by dedupeKey or by stable hash of {title,url,address} with case/whitespace normalization; c) for duplicates, keep highest score and merge provenance. 5) Apply sorting by score desc and paginate deterministically (offset=(page-1)*size). 6) Build response DTO: { data: { results, total: computed or estimate, page, size, branch, timings: { engineMs, totalMs }, requestId } }. 7) Map domain errors: UnknownBranchError -> 404, TimeoutError -> 504 (to be remapped in HTTP), otherwise -> 500. 8) Instrument with basic logging (respecting secrets policy) and metrics hooks (optional).
+
+## 4. Implement HTTP route /v1/search/hybrid and wire to service [pending]
+### Dependencies: 23.1, 23.3
+### Description: Create the HTTP endpoint, plug in request validation, invoke the HybridSearchService, and map errors to HTTP statuses. Register the route with the application server.
+### Details:
+1) In the web server (Express or Fastify), add POST /v1/search/hybrid. 2) Attach request body validator based on the schemas from the OpenAPI spec; reject invalid payloads with 400 and a standardized error body. 3) Generate a requestId for tracing and pass to the service. 4) Call HybridSearchService.execute with parsed body (branch, query, filters, page, size, sort, includeFields, debug). 5) On success, return 200 with the DTO. 6) Error mapping: UnknownBranchError -> 404 with {code:"BRANCH_NOT_FOUND"}; validation issues -> 400 with {code:"VALIDATION_ERROR"}; timeouts -> 504 with {code:"TIMEOUT"}; others -> 500 with {code:"INTERNAL"}. 7) Add minimal observability: log requestId, branch, latency; ensure logs do not contain secrets. 8) Register the route during app startup and export for integration tests.
+
+## 5. Integration and contract tests for /v1/search/hybrid [pending]
+### Dependencies: 23.2, 23.3, 23.4, 23.1
+### Description: Create end-to-end tests that boot the server with a stubbed branch engine, exercise the endpoint, and verify contract conformance and behavior (branch dispatch, dedup, pagination).
+### Details:
+1) Spin up the app in test mode with a stub BranchEngine registered under "sf.housing.permits" returning deterministic results including duplicates to verify dedup. 2) Integration tests: a) basic query returns 200 and results array; b) verify registry dispatch by asserting stub invocation with the exact params; c) verify deduplication and sorting; d) verify pagination (page/size) and size clamping; e) unknown branch yields 404; f) simulated timeout yields 504. 3) Contract tests: use an OpenAPI response validator (e.g., jest-openapi or openapi-response-validator) to assert responses match the spec. 4) Include negative tests for validation errors (missing query, invalid size). 5) Add CI job to run tests and report coverage.
+

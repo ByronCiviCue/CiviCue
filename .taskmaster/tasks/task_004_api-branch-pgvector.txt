@@ -1,0 +1,138 @@
+# Task ID: 4
+# Title: OpenAPI lint and TS type generation
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Set up a process to lint the OpenAPI specification and automatically generate TypeScript types from it.
+# Details:
+Integrate an OpenAPI linter (e.g., Spectral) into the CI pipeline. Use a code generation tool (e.g., `openapi-typescript`) to create TypeScript interfaces from `openapi.yaml`, ensuring API handlers and clients are strongly typed.
+
+# Test Strategy:
+CI job should fail on an invalid OpenAPI spec. Verify that generated types match the spec and cause compile errors when misused in the code.
+
+# Subtasks:
+## 1. Install tooling and add package scripts for OpenAPI lint and TS generation [done]
+### Dependencies: None
+### Description: Add required dev dependencies and baseline scripts to lint the OpenAPI spec and generate TypeScript types from openapi.yaml.
+### Details:
+- Ensure the OpenAPI spec lives at the repo root as openapi.yaml (or adjust scripts accordingly).
+- Install dev dependencies:
+  - pnpm add -D @stoplight/spectral-cli openapi-typescript typescript
+- Create directory for generated types:
+  - mkdir -p src/generated && git add src/generated && (optional) add an empty .gitkeep
+- In package.json, add scripts:
+  - "openapi:lint": "spectral lint openapi.yaml"
+  - "openapi:lint:ci": "spectral lint openapi.yaml --fail-severity=warn"
+  - "openapi:gen": "openapi-typescript openapi.yaml -o src/generated/openapi-types.d.ts --export-type"
+  - "openapi:check": "pnpm -s openapi:gen && git diff --exit-code -- src/generated/openapi-types.d.ts"
+  - "typecheck": "tsc --noEmit"
+- Ensure tsconfig.json includes the generated folder (add to include if needed):
+  - { "include": ["src", "src/generated"] }
+- Decide commit policy for generated types:
+  - Recommended: commit src/generated/openapi-types.d.ts, and use openapi:check in CI to enforce up-to-date output.
+
+## 2. Configure Spectral ruleset and clean up spec for lint compliance [done]
+### Dependencies: 4.1
+### Description: Create a Spectral configuration with OpenAPI best-practice rules, optionally add targeted ignores, and bring the spec to a passing state.
+### Details:
+- Add a .spectral.yaml at the repo root:
+  ---
+  extends:
+    - spectral:oas
+  rules:
+    operation-operationId-unique: error
+    operation-tags: warn
+    operation-tag-defined: warn
+    tags-alphabetical: off
+    info-contact: warn
+    no-$ref-siblings: error
+    oas3-schema: error
+    oas3-valid-schema-example: error
+    operation-parameters: error
+    operation-default-response: warn
+  ---
+- Optional: Add a .spectral-ignore file to temporarily suppress known issues while refactoring:
+  # Example
+  # openapi.yaml:123: oas3-valid-schema-example
+- Run pnpm openapi:lint and iterate on openapi.yaml until no errors remain. Aim for zero warnings over time; CI will fail on warnings via openapi:lint:ci.
+- Document any temporary ignores with links to issues for cleanup.
+
+## 3. Set up deterministic TypeScript type generation from openapi.yaml [done]
+### Dependencies: 4.1
+### Description: Finalize codegen output path and options, ensure generated types are included in TypeScript builds, and provide guidance for using them.
+### Details:
+- Use the existing script: pnpm openapi:gen which generates src/generated/openapi-types.d.ts.
+- Ensure tsconfig.json includes the generated directory (already suggested in 4.1). If using path aliases, optionally add:
+  - compilerOptions.paths: { "@generated/*": ["src/generated/*"] }
+- Run pnpm openapi:gen and commit the generated file to stabilize downstream consumers.
+- Usage guidance for API code (example):
+  - import type { paths } from "../generated/openapi-types";
+  - type HealthOk = paths["/v1/health"]["get"]["responses"][200]["content"]["application/json"];
+  - type SearchHybridParams = paths["/v1/search/hybrid"]["get"]["parameters"]["query"];
+- If the spec path differs, update package.json scripts accordingly.
+- Optionally add a developer convenience command:
+  - "openapi:regen": "pnpm openapi:gen && pnpm typecheck"
+
+## 4. Integrate OpenAPI lint and typegen checks into CI [done]
+### Dependencies: 4.2, 4.3
+### Description: Add a dedicated CI workflow that fails on lint issues and when generated types are out of date.
+### Details:
+- For GitHub Actions, create .github/workflows/openapi.yml:
+  name: openapi-lint-and-types
+  on:
+    pull_request:
+    push:
+      branches: [ main ]
+  jobs:
+    validate-openapi:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: pnpm/action-setup@v3
+          with:
+            version: 9
+        - uses: actions/setup-node@v4
+          with:
+            node-version: 20
+            cache: 'pnpm'
+        - run: pnpm install --frozen-lockfile
+        - name: Lint OpenAPI (fail on warnings)
+          run: pnpm openapi:lint:ci
+        - name: Generate and verify types are up-to-date
+          run: pnpm openapi:check
+- For other CI providers, replicate the steps: install deps → run openapi:lint:ci → run openapi:check.
+- Ensure the workflow runs on PRs to block merges on spec/type issues.
+
+## 5. Enforce type usage in code and add type-level tests [done]
+### Dependencies: 4.3, 4.4
+### Description: Integrate generated types into API handlers/clients and add tsd tests to ensure misuse triggers compile errors, then include these checks in CI.
+### Details:
+- Update API handlers/clients to import generated types:
+  - import type { paths } from "../generated/openapi-types";
+  - Example: type PermitsResp = paths["/v1/reports/permits"]["get"]["responses"][200]["content"]["application/json"];
+- Add tsd for type-level tests:
+  - pnpm add -D tsd
+  - package.json scripts: "tsd": "tsd"
+  - Create test-d/api-types.test-d.ts with assertions that rely on the spec:
+    import { expectError } from 'tsd';
+    import type { paths } from '../src/generated/openapi-types';
+    type Health = paths['/v1/health']['get'];
+    declare const health: Health;
+    // Accessing an invalid property should be a type error
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error - property should not exist
+    // (tsd also supports expectError on expressions)
+    // @ts-ignore
+    // The following line should cause a type error picked up by tsd
+    // @ts-expect-error
+    // @ts-ignore
+    // @tsd: expect error when accessing non-existent property
+    expectError((health as any).nonExistentProp);
+    type Search = paths['/v1/search/hybrid']['get'];
+    // Ensure incorrect path key fails
+    // @ts-expect-error
+    type BadPath = paths['/not/exist'];
+- Update CI workflow (from 4.4) to run type checks after generation:
+  - Add a step after openapi:check: run: pnpm tsd && pnpm typecheck
+- Provide developer doc note: Run pnpm tsd locally to validate types after changing openapi.yaml.
+

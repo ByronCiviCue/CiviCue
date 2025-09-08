@@ -1,0 +1,43 @@
+# Task ID: 33
+# Title: CI tests: typecheck, lint, unit, golden, contract
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Configure the main CI pipeline to run a comprehensive suite of tests on every commit and pull request.
+# Details:
+The CI workflow (e.g., GitHub Actions) should include sequential steps for: 1. TypeScript type checking (`tsc --noEmit`), 2. Linting (`eslint`), 3. Unit tests, 4. Golden file tests, 5. API contract tests. The build must fail if any step fails.
+
+# Test Strategy:
+CI pipeline validation. Trigger the pipeline with a PR that intentionally fails one of the test steps (e.g., a linting error) to ensure it correctly blocks the merge.
+
+# Subtasks:
+## 1. Add npm/yarn scripts for typecheck, lint, unit, golden, and contract tests [pending]
+### Dependencies: None
+### Description: Define standardized package scripts so the CI workflow can call each test stage deterministically and fail on violations.
+### Details:
+In package.json, add scripts: "typecheck": "tsc --noEmit", "lint": "eslint . --ext .ts,.tsx --max-warnings=0", "test": "jest --ci", "test:unit": "jest --ci --selectProjects unit || jest --ci --runInBand --testPathPattern=unit", "test:golden": "jest --ci --selectProjects golden || jest --ci --runInBand --testPathPattern=golden", "test:contract": "jest --ci --selectProjects contract || jest --ci --runInBand --testPathPattern=contract". Ensure devDependencies include required tools if not already present: typescript, @types/node, eslint (+ plugins/config), jest, ts-jest (if using TS in tests), and any golden/contract helpers (e.g., jest-openapi). If using workspaces, ensure scripts are defined at the root or provide a dedicated CI script path. Keep lint warning budget at zero to guarantee CI failure on warnings.
+
+## 2. Create CI workflow skeleton with checkout, Node setup, caching, and install [pending]
+### Dependencies: 33.1
+### Description: Add a GitHub Actions workflow file that triggers on push to main and on PRs, prepares the Node environment, and installs dependencies.
+### Details:
+Create .github/workflows/ci.yml with: on: push (branches: ["main"]) and pull_request (branches: ["main"]). Add concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }. Define a single job `ci` on ubuntu-latest. Steps: (1) uses: actions/checkout@v4; (2) uses: actions/setup-node@v4 with `node-version: '20'`, `cache: 'npm'`; (3) name: Install dependencies, run: `npm ci`. Do not set `continue-on-error`. Optionally set env: `{ NODE_ENV: test }`. This job will be extended in later subtasks to add the sequential test steps.
+
+## 3. Add sequential steps: TypeScript typecheck then ESLint linting [pending]
+### Dependencies: 33.2
+### Description: Extend the CI workflow job to run type checking and linting in order, causing the build to fail if either fails.
+### Details:
+In .github/workflows/ci.yml, after the install step, add: (1) name: TypeScript typecheck, run: `npm run typecheck`; (2) name: Lint, run: `npm run lint`. Keep these as separate steps to ensure immediate failure and clear log output. Ensure ESLint uses `--max-warnings=0` in the script to fail on warnings.
+
+## 4. Add sequential steps: Unit tests then Golden file tests [pending]
+### Dependencies: 33.3
+### Description: Extend the CI workflow job to run unit tests and golden tests after linting, in strict sequence.
+### Details:
+In .github/workflows/ci.yml, after the Lint step, add: (1) name: Unit tests, run: `npm run test:unit`; (2) name: Golden file tests, run: `npm run test:golden`. Keep them as separate steps so a failure in unit tests prevents golden tests from running, preserving the intended order. If tests need additional env (e.g., OPENAPI_SPEC not relevant here), do not set them here; reserve for contract tests.
+
+## 5. Add final sequential step: API contract tests [pending]
+### Dependencies: 33.4
+### Description: Extend the CI workflow job with the last step for contract testing against openapi.yaml. Ensure this step runs only after unit and golden tests succeed.
+### Details:
+In .github/workflows/ci.yml, after Golden file tests, add: name: Contract tests, run: `npm run test:contract`, env: set OPENAPI_SPEC to the repository path of the spec (e.g., `OPENAPI_SPEC: ./openapi.yaml`) and any required test vars (e.g., `API_BASE_URL` if tests need it). Keep this as the final step to preserve order: typecheck -> lint -> unit -> golden -> contract. Do not set `continue-on-error`; rely on default failure on non-zero exit code so the build fails if contract tests fail.
+

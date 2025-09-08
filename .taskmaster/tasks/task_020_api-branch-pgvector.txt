@@ -1,0 +1,89 @@
+# Task ID: 20
+# Title: Branch engine observability hooks
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Add observability hooks into the branch engine to emit key operational metrics.
+# Details:
+Instrument the `plan/fetch/fuse` process to track and log metrics such as `rows_fetched`, `dedupe_rate`, `freshness_lag` (time since source data was updated), and `source_errors`.
+
+# Test Strategy:
+Unit tests should verify that the metric-emitting functions are called with the correct values during a simulated branch run.
+
+# Subtasks:
+## 1. Create metrics abstraction and logging sink [pending]
+### Dependencies: None
+### Description: Introduce a pluggable metrics interface and logging sink to emit branch engine metrics without coupling to a specific vendor. Define metric names, standard labels, and a run context object to be threaded through plan/fetch/fuse.
+### Details:
+Implementation steps:
+- Add src/observability/metrics.ts exporting:
+  - type MetricLabels = Partial<Record<'branch_id'|'branch'|'source'|'env'|'run_id'|'stage'|'error_type'|'freshness_available'|'dedupe_denominator_zero', string>>
+  - interface Metrics { counter(name: string, value: number, labels?: MetricLabels): void; gauge(name: string, value: number, labels?: MetricLabels): void; histogram(name: string, value: number, labels?: MetricLabels): void; }
+  - class LogMetrics that writes structured JSON to the existing logger (e.g., pino) in the form { type: 'metric', kind: 'counter'|'gauge'|'histogram', name, value, labels, ts }.
+  - class NoopMetrics that no-ops.
+  - function getMetrics(): Metrics reading process.env.METRICS_SINK in ['log','noop'] (default 'log').
+- Add src/observability/constants.ts:
+  - export const METRIC = { rows_fetched: 'branch.rows_fetched', dedupe_rate: 'branch.dedupe_rate', freshness_lag_seconds: 'branch.freshness_lag_seconds', source_errors: 'branch.source_errors' }.
+- Add src/branch/engine/run-context.ts:
+  - export type BranchRunContext = { runId: string; startedAt: number; branchId: string; branchName: string; env: string; metrics: Metrics }.
+  - export function createRunContext(params): BranchRunContext that sets runId (uuid v4), startedAt=Date.now(), env from NODE_ENV, metrics=getMetrics().
+- Ensure all metric names and labels are documented in src/observability/README.md (optional).
+
+## 2. Thread BranchRunContext through plan/fetch/fuse and instrument plan phase [pending]
+### Dependencies: 20.1
+### Description: Plumb a BranchRunContext through the branch engine pipeline. At plan start, generate a run context and ensure it is available to fetch and fuse. Add minimal plan-phase instrumentation and labels.
+### Details:
+Implementation steps:
+- Update function signatures to accept ctx: BranchRunContext:
+  - planBranch(ctx, branchSpec): Plan
+  - fetchSources(ctx, plan): FetchResult
+  - fuseRecords(ctx, fetched): FuseResult
+- At the entry point (e.g., src/branch/engine/index.ts runBranch or equivalent), create ctx via createRunContext({ branchId, branchName }). Pass ctx to plan/fetch/fuse.
+- Add stage label management helper: within each phase, create local labels = { branch_id: ctx.branchId, branch: ctx.branchName, run_id: ctx.runId, env: ctx.env, stage: 'plan'|'fetch'|'fuse' }.
+- Plan-phase instrumentation (optional but low-cost): if plan contains per-source metadata with last_updated_at, emit a freshness_lag_seconds gauge per source: lagSec = (Date.now() - last_updated_at)/1000 with labels { stage: 'plan', source, freshness_available: 'true' }. If not present, skip emission.
+- Ensure no PII is used in labels (ids/short names only).
+
+## 3. Instrument fetch phase for rows_fetched, freshness_lag, and source_errors [pending]
+### Dependencies: 20.1, 20.2
+### Description: Emit rows_fetched for each source, compute freshness_lag from source data timestamps, and emit source_errors on fetch failures. Ensure robust labeling and error handling.
+### Details:
+Implementation steps:
+- In src/branch/engine/fetch.ts (or equivalent), wrap per-source fetch with try/catch:
+  - On success: determine count = rows.length. Emit ctx.metrics.counter(METRIC.rows_fetched, count, { branch_id: ctx.branchId, branch: ctx.branchName, run_id: ctx.runId, env: ctx.env, stage: 'fetch', source }).
+  - Freshness lag: derive updatedAt candidates from rows (e.g., row.updated_at || row.source_updated_at). Compute maxUpdatedAt across rows; if available, lagSec = Math.max(0, Math.floor((Date.now() - maxUpdatedAt) / 1000)), emit ctx.metrics.gauge(METRIC.freshness_lag_seconds, lagSec, { ...labels, freshness_available: 'true', source }). If not available or rows is empty, either skip or emit with freshness_available: 'false' and value -1 (pick one behavior and keep consistent; recommended: skip emission when unavailable).
+  - On failure: in catch(e), emit ctx.metrics.counter(METRIC.source_errors, 1, { ...labels, stage: 'fetch', source, error_type: e.name || 'Error' }); then rethrow or collect error per existing error-handling policy.
+- Ensure single emission per source. For empty result sets, still emit rows_fetched with value 0.
+- Add unit-safe utility to extract timestamps and to coerce various date formats to epoch ms. Guard against invalid dates.
+- Avoid blocking I/O: metrics emission should be synchronous lightweight logging or batched non-blocking.
+
+## 4. Instrument fuse phase for dedupe_rate metric [pending]
+### Dependencies: 20.1, 20.2
+### Description: After deduplication, compute and emit dedupe_rate for the fused dataset. Handle zero-denominator cases and ensure consistent labeling.
+### Details:
+Implementation steps:
+- In src/branch/engine/fuse.ts (or equivalent), after dedup logic:
+  - Determine inputCount (pre-dedup total) and uniqueCount (post-dedup total). Compute duplicatesRemoved = Math.max(0, inputCount - uniqueCount).
+  - Compute rate: dedupeRate = inputCount > 0 ? duplicatesRemoved / inputCount : 0.
+  - Emit ctx.metrics.gauge(METRIC.dedupe_rate, Number(dedupeRate.toFixed(6)), { branch_id: ctx.branchId, branch: ctx.branchName, run_id: ctx.runId, env: ctx.env, stage: 'fuse', dedupe_denominator_zero: inputCount === 0 ? 'true' : 'false' }).
+- If dedup occurs per-source then merged, optionally emit both per-source and overall metrics. At minimum, emit an overall branch-level metric once per run.
+- Ensure emission occurs even if no duplicates (rate 0). Avoid NaN by guarding inputCount=0.
+- Keep the metric computation in a small helper to unit-test independently (e.g., computeDedupeRate(inputCount, uniqueCount)).
+
+## 5. End-to-end simulated branch run tests for observability hooks [pending]
+### Dependencies: 20.1, 20.2, 20.3, 20.4
+### Description: Create unit tests that simulate a branch run across plan/fetch/fuse and verify that metrics are emitted with correct values and labels: rows_fetched, dedupe_rate, freshness_lag, and source_errors.
+### Details:
+Implementation steps:
+- Add tests at tests/branch/observability.test.ts using a FakeMetrics implementation that records calls.
+- Simulate a run with:
+  - Plan: stub with two sources (A, B). Optionally include last_updated_at in plan for A to ensure plan-phase freshness emission (if implemented).
+  - Fetch: A returns 3 rows with updated_at timestamps; B throws an error. Use fake timers (e.g., jest.useFakeTimers().setSystemTime()) to make freshness deterministic.
+  - Fuse: dedup from 5 input rows to 4 unique rows -> expected dedupe_rate = 0.2.
+- Assertions:
+  - rows_fetched emitted once per successful source with correct counts and labels (branch_id, run_id, source, stage='fetch').
+  - freshness_lag_seconds emitted for source A with expected lag and freshness_available='true'.
+  - source_errors emitted for source B with error_type and stage='fetch'.
+  - dedupe_rate emitted once with expected value and dedupe_denominator_zero flag as appropriate.
+- Also ensure no PII in labels and no unexpected extra emissions occur. Add snapshot or structured assertions to guard the metric shape.
+- Update CI to run these tests and ensure they pass without depending on external services.
+

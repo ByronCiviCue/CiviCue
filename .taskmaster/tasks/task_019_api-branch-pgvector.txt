@@ -1,0 +1,82 @@
+# Task ID: 19
+# Title: Generator script: pnpm gen:branch
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Create a command-line script to scaffold a new data branch.
+# Details:
+Develop a script, accessible via `pnpm gen:branch`, that generates the boilerplate files (design doc, implementation file, test file) for a new branch, following a standard template.
+
+# Test Strategy:
+Run the script and verify that it creates the expected file structure and content. The generated code should be lint-free.
+
+# Subtasks:
+## 1. Define scaffolding spec and author standard templates [pending]
+### Dependencies: None
+### Description: Decide directory layout, file naming, and create reusable templates for design doc, implementation, and tests for a new data branch.
+### Details:
+Create a branch scaffold spec:
+- Output structure:
+  - docs/branches/{{slug}}.md (design doc)
+  - src/branches/{{slug}}/index.ts (implementation)
+  - src/branches/{{slug}}/index.test.ts (tests)
+- Create a templates folder: tools/templates/branch/
+  - design.md.hbs: include placeholders {{title}}, {{slug}}, {{description}}, {{date}}, {{author}}, sections: Overview, Data Sources, Transform Plan, Schema, Observability, Test Plan.
+  - index.ts.hbs: export a scaffolded branch module with TODOs and stubbed plan/fetch/fuse hooks; include typed placeholders and logger stubs.
+  - index.test.ts.hbs: minimal test verifying module shape and a stubbed run passes.
+- Define required template variables: slug (kebab-case), title (Title Case), description, date (ISO), year, author (from git config if available), owner (optional).
+- Establish naming rules for slug: ^[a-z0-9][a-z0-9-]*$; no spaces, lowercase only.
+- Document the spec in tools/templates/branch/README.md for future maintenance.
+
+## 2. Implement CLI to collect inputs and validate [pending]
+### Dependencies: 19.1
+### Description: Build a TypeScript CLI that parses flags, prompts for missing inputs, validates the branch slug, and prepares a payload for generation.
+### Details:
+Create tools/gen-branch.ts using commander (or yargs) + prompts:
+- Flags: --name <slug>, --title <string>, --description <string>, --dir <path> (default project root), --dry-run, --force, --open, --no-format.
+- Parse git user.name/email for default author; compute date/year.
+- If --name missing, prompt for a human name and slugify to kebab-case; validate against regex. If invalid or exists (see filesystem check), explain and re-prompt unless --force.
+- Derive defaults: title = Title Case of slug if not provided.
+- Build a config object with all template variables and the resolved output paths from Subtask 1.
+- Log a summary plan (files to be created; dry-run mode shows diff-like plan).
+
+## 3. Render templates and generate files with safety and formatting [pending]
+### Dependencies: 19.1, 19.2
+### Description: Implement the generation pipeline: render Handlebars templates, create directories, write files atomically, and optionally format and lint the outputs.
+### Details:
+In tools/gen-branch.ts add generation logic:
+- Use Handlebars to compile templates from tools/templates/branch/*.hbs with the config from Subtask 2. Register helpers for Title Case and date formatting if needed.
+- Resolve output paths; ensure parent directories exist (mkdirp). If files already exist and not --force, abort with a helpful message.
+- Write files atomically (e.g., to .tmp then rename) to avoid partial writes on failure.
+- If not --dry-run and --format (default), run Prettier and ESLint: `pnpm exec prettier --write` and `pnpm exec eslint --fix` against the three generated files. Capture and print formatter output. Fail the process if lint errors remain.
+- Optional: update a barrel export file src/branches/index.ts by appending an export line guarded by duplicate detection.
+- If --open, attempt to open the design doc in the default editor (use open or start depending on OS).
+- Provide clear process exit codes: 0 on success, non-zero on validation or IO errors.
+
+## 4. Wire up pnpm script, dependencies, and developer docs [pending]
+### Dependencies: 19.3
+### Description: Expose the generator via pnpm, add required deps, and document usage for contributors.
+### Details:
+Update package.json:
+- scripts: { "gen:branch": "tsx tools/gen-branch.ts" }
+- devDependencies: tsx, typescript, prettier, eslint (if not present).
+- dependencies: commander (or yargs), prompts (or inquirer), handlebars, execa, fs-extra, change-case (or own utils), open (optional).
+Ensure tools/gen-branch.ts is TypeScript-compatible; if repo is ESM/CJS constrained, align module type. Add tools/README.md with quickstart:
+- pnpm install
+- pnpm gen:branch --name my-branch --title "My Branch" --description "..."
+- Flags reference and examples for dry-run, force, custom dir.
+Commit templates under tools/templates/branch/.
+Verify script runs from repo root.
+
+## 5. Automated tests and CI verification for the generator [pending]
+### Dependencies: 19.4
+### Description: Add integration tests that execute pnpm gen:branch end-to-end and verify file structure, contents, and lint cleanliness, and wire into CI.
+### Details:
+Create tests/gen-branch.e2e.test.ts using Jest/Vitest:
+- Spawn `pnpm run gen:branch --name e2e-branch --title "E2E Branch" --description "Test"` in a temporary working directory mirroring repo structure (copy minimal config if needed).
+- Assert files created at docs/branches/e2e-branch.md, src/branches/e2e-branch/index.ts, src/branches/e2e-branch/index.test.ts.
+- Read files and assert placeholders replaced.
+- Run `pnpm exec eslint` and `pnpm exec prettier --check` on generated files; expect success.
+- Test failure paths: invalid slug yields non-zero exit; existing files without --force errors; with --force succeeds.
+Integrate into CI workflow: add a job that installs deps, runs the e2e test, and caches pnpm store to keep runs fast.
+

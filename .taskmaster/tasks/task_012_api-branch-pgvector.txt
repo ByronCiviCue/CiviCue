@@ -1,0 +1,102 @@
+# Task ID: 12
+# Title: SocrataAdapter: Zod schemas and runtime validation
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement fail-fast runtime validation for Socrata API responses using Zod schemas. [Updated: 9/6/2025] [Updated: 9/6/2025]
+# Details:
+Define Zod schemas that match the expected structure of Socrata API responses. The SocrataAdapter should parse all incoming data against these schemas and throw an error immediately if the data is malformed.
+<info added on 2025-09-07T04:11:04.234Z>
+Note: Do NOT handwrite TS/Zod types. Use src/generated/ckan/* from type-extraction.
+</info added on 2025-09-07T04:11:04.234Z>
+<info added on 2025-09-07T04:26:38.455Z>
+Adapters MUST import from src/generated/ckan/current; do not handwrite types.
+</info added on 2025-09-07T04:26:38.455Z>
+
+# Test Strategy:
+Unit tests that provide mock API responses, both valid and invalid, to the adapter. Assert that invalid responses throw the expected validation errors.
+
+# Subtasks:
+## 1. Define base Zod schemas for Socrata responses [pending]
+### Dependencies: None
+### Description: Create core Zod schemas that represent the generic structure of Socrata API responses, including success (array of row objects) and error payloads. These will be the foundation for validating all incoming data.
+### Details:
+Implementation steps:
+- Create file: src/adapters/socrata/schemas.ts
+- Export the following Zod schemas and TS types:
+  - SocrataApiErrorSchema: a flexible error schema for SODA errors. Include: code (string), error (string), message (string), and allow unknown extras via .passthrough(). Type: SocrataApiError.
+  - SocrataPrimitiveValue: z.union([z.string(), z.number(), z.boolean(), z.null()]).
+  - SocrataUnknownRowSchema: z.record(z.string(), z.union([SocrataPrimitiveValue, z.array(SocrataPrimitiveValue), z.record(z.string(), SocrataPrimitiveValue)])). This allows typical row values (including nested objects or arrays, which sometimes appear for geo fields).
+  - SocrataRowsSchema: z.array(SocrataUnknownRowSchema).
+  - isSocrataError(payload: unknown): boolean helper that returns true if payload is an object with string fields "code" and "error".
+- Export types for these schemas for downstream use.
+- Decision: keep row schema .passthrough() style to not reject unknown columns, but ensure dataset-specific validation in a builder (next subtask).
+
+## 2. Implement dataset-specific row schema builder and type coercions [pending]
+### Dependencies: 12.1
+### Description: Provide utilities to build precise row schemas per dataset, including coercion helpers for common Socrata type representations (numbers and dates encoded as strings).
+### Details:
+Implementation steps:
+- Create file: src/adapters/socrata/coercers.ts
+  - Export reusable Zod preprocessors:
+    - numberFromString: accepts numbers or numeric strings, outputs z.number().finite(). Rejects NaN/Infinity.
+    - intFromString: as above, but z.number().int().
+    - booleanFromString: accepts boolean, "true"/"false", "1"/"0", 1/0 and outputs z.boolean().
+    - dateFromIsoString: accepts Date or ISO-8601 string, returns z.date(). Reject invalid dates.
+    - optionalNullable: helper to wrap schemas to accept undefined or null.
+- Create file: src/adapters/socrata/rowSchemaBuilder.ts
+  - Define a SchemaSpec type: Record<string, z.ZodTypeAny> where keys are expected dataset columns and values are zod schemas (can use coercers above).
+  - Export function buildSocrataRowSchema(spec: SchemaSpec, options?: { strict?: boolean }): returns z.object(spec, options?.strict ? {} : { unknownKeys: 'passthrough' }). If strict=true, unknown fields cause validation errors; default is passthrough.
+  - Export helper presets for common Socrata field patterns, e.g., geojsonField = z.object({ type: z.string(), coordinates: z.any() }).passthrough().
+- Document usage in JSDoc: consumer passes a SchemaSpec for the target dataset (e.g., permits) to get a row schema with the right coercions.
+
+## 3. Integrate validation pipeline into SocrataAdapter fetch flow [pending]
+### Dependencies: 12.1, 12.2
+### Description: Wire Zod parsing into the SocrataAdapter so that all fetched JSON is validated. Throw immediately on any malformed data or on Socrata-declared errors.
+### Details:
+Implementation steps:
+- Create file: src/adapters/socrata/validation.ts with function parseSocrataResponse<T>(payload: unknown, rowSchema: z.ZodSchema<T>): T[] that:
+  1) If isSocrataError(payload) is true, throw new SocrataApiError (from subtask 4) with the parsed error payload.
+  2) Validate payload with z.array(rowSchema). Use parse (not safeParse) to fail fast; let ZodError bubble up.
+- Modify SocrataAdapter (e.g., src/adapters/socrata/SocrataAdapter.ts):
+  - Extend the public query method signature to accept a row schema or a SchemaSpec:
+    - query<T>(args, options?: { rowSchema?: z.ZodSchema<T>; schemaSpec?: SchemaSpec; validation?: 'strict' | 'off' }): Promise<T[]>.
+  - Inside query, after fetch + response.json():
+    - Determine the row schema: options.rowSchema || buildSocrataRowSchema(options.schemaSpec || {}, { strict: options.validation === 'strict' }). If neither provided, default to SocrataUnknownRowSchema so we still validate array-of-objects shape.
+    - Call parseSocrataResponse(json, rowSchema) and return its result.
+  - Ensure the adapter does not proceed to any transformation if parse throws; this enforces fail-fast.
+  - Do not add retries/backoff here (that belongs to Task 13). Keep network concerns unchanged.
+- Export types that make it easy for callers to import coercers and build per-dataset schemas.
+
+## 4. Add typed error classes and rich error formatting [pending]
+### Dependencies: 12.3
+### Description: Introduce custom error types for validation and Socrata API errors, with standardized shape, redacted payload excerpts, and useful context for debugging.
+### Details:
+Implementation steps:
+- Create file: src/adapters/socrata/errors.ts
+  - Export class ValidationError extends Error { name = 'ValidationError'; issues: ZodIssue[]; dataset?: string; query?: string; sample?: unknown; toJSON(): object }
+  - Export class SocrataApiError extends Error { name = 'SocrataApiError'; code: string; error: string; message: string; status?: number; dataset?: string; query?: string; toJSON(): object }
+  - Provide a helper formatZodIssues(issues: ZodIssue[]): string for concise messages.
+  - Provide a redactPayload(payload: unknown, { maxBytes = 2048 }): string to limit log size.
+- Update parseSocrataResponse to catch ZodError and rethrow ValidationError with:
+  - message composed from formatZodIssues + dataset/query context (if available via adapter call).
+  - issues included in the instance and a small sample of the first failing row in sample.
+- Ensure all thrown errors preserve stack traces and can be safely JSON-stringified via toJSON.
+
+## 5. Comprehensive unit tests with mock Socrata responses [pending]
+### Dependencies: 12.2, 12.3, 12.4
+### Description: Cover the end-to-end validation behavior of SocrataAdapter with representative valid and invalid payloads, ensuring fail-fast behavior and clear error outputs.
+### Details:
+Implementation steps:
+- Create test fixtures in src/adapters/socrata/__tests__/__fixtures__/:
+  - validRows.json: array with correctly typed and coercible values for a sample SchemaSpec (e.g., permit_number, issued_date as ISO string, valuation as numeric string).
+  - invalidRows_type.json: array with a row where valuation is 'N/A'.
+  - invalidRows_date.json: array with issued_date 'not-a-date'.
+  - socrataError.json: typical error payload with code/error/message.
+- In adapter.validation.e2e.test.ts (or similar), use a stubbed fetch to return these payloads and assert:
+  - Valid payload resolves to parsed typed rows.
+  - Each invalid payload immediately throws ValidationError; snapshot or assert on error message and issues length.
+  - Error payload throws SocrataApiError with correct code and message.
+  - Verify optional behavior when validation: 'strict' rejects unknown columns, and default allows passthrough.
+- Add coverage for boolean and integer coercions, and for arrays with mixed good/bad rows (ensure error thrown for first failing parse).
+

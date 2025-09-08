@@ -1,0 +1,179 @@
+# Task ID: 31
+# Title: Nightly registry rebuild job
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Set up a CI job to rebuild the Socrata registry nightly and report changes.
+# Details:
+Create a scheduled CI job (e.g., GitHub Actions cron) that runs the registry build script every night. If the index has changed, the job should automatically create a Pull Request with the changes and attach the profile diff as a comment.
+
+# Test Strategy:
+Manually trigger the job and verify that it runs successfully. If changes are introduced to a mock registry, confirm that a PR is created.
+
+# Subtasks:
+## 1. Create registry profile diff generator script [pending]
+### Dependencies: None
+### Description: Implement a script that compares the newly built Socrata registry index against the version on the default branch and emits a Markdown summary suitable for PR comments.
+### Details:
+Implementation plan:
+- Location: scripts/registry/profile-diff.(ts|js)
+- CLI signature: node scripts/registry/profile-diff.js --index-path <path> --base-ref <git ref, default origin/main> --out <dir, default artifacts>
+- Inputs:
+  - index-path: Path to the generated Socrata index file (e.g., data/registry/socrata/sf/index.json). Make this configurable via CLI flags or env INDEX_PATH.
+  - base-ref: Git ref to compare against (default origin/main). Fetch the file contents via `git show <base-ref>:<index-path>`.
+- Behavior:
+  1) Load base JSON from git show and current JSON from the working tree.
+  2) Compute a map by stable key (e.g., dataset id or resource identifier). Identify added, removed, and modified entries.
+  3) For modified entries, compare a set of profile fields (e.g., name, description, columns, rowCount, updatedAt). Keep the field list configurable via an array.
+  4) Produce artifacts/profile-diff.md containing:
+     - Summary counts (added/removed/changed)
+     - Lists of IDs for added/removed
+     - For changed, a compact per-ID section with fields that changed and old -> new values (truncate long values, escape backticks, limit list lengths).
+  5) Write artifacts/changed.flag with value true/false and also print CHANGED=true/false to stdout. If running in GitHub Actions with GITHUB_OUTPUT set, write changed=true/false to it (e.g., echo "changed=true" >> "$GITHUB_OUTPUT"). Always exit 0.
+- Edge cases:
+  - If base file does not exist (first run), treat all as added and still generate diff.
+  - If JSON parse fails, print a clear error and exit(1).
+- Tech notes:
+  - Use Node 18+.
+  - For TS: add a ts-node script entry or compile to JS. Export a main() so it can be unit-tested.
+  - Normalize IDs and sort outputs for deterministic diffs.
+- Package.json scripts:
+  - Add: "diff:registry": "node scripts/registry/profile-diff.js --index-path $INDEX_PATH --base-ref ${BASE_REF:-origin/main} --out artifacts".
+
+## 2. Add scheduled GitHub Actions workflow skeleton [pending]
+### Dependencies: None
+### Description: Create a GitHub Actions workflow file with nightly schedule and manual trigger, correct permissions, and concurrency settings.
+### Details:
+Implementation plan:
+- File: .github/workflows/registry-rebuild.yml
+- Triggers:
+  - schedule: cron: "0 3 * * *" (runs nightly at 03:00 UTC)
+  - workflow_dispatch: with optional inputs baseRef (default origin/main) and dryRun (boolean, default false)
+- Permissions: at top-level set
+  permissions:
+    contents: write
+    pull-requests: write
+- Concurrency:
+  concurrency:
+    group: registry-rebuild
+    cancel-in-progress: false
+- Job scaffold:
+  jobs:
+    rebuild:
+      name: Nightly Registry Rebuild
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+        # Steps to be added in subsequent subtasks
+
+## 3. Integrate build and change detection steps into the workflow [pending]
+### Dependencies: 31.1, 31.2
+### Description: Implement CI steps to build the registry, generate the diff, and determine whether changes exist.
+### Details:
+Implementation plan (edit .github/workflows/registry-rebuild.yml):
+- Define environment variables at job or step level:
+  - INDEX_PATH: data/registry/socrata/sf/index.json (adjust to your actual output)
+  - BASE_REF: ${{ github.event.inputs.baseRef || 'origin/main' }}
+- Steps to add under the rebuild job:
+  1) Node setup and dependency install
+     - uses: actions/setup-node@v4
+       with:
+         node-version: '20'
+         cache: 'npm'
+     - run: npm ci
+  2) Build registry
+     - run: npm run build:registry
+  3) Generate profile diff
+     - name: Generate profile diff
+       id: diff
+       run: |
+         mkdir -p artifacts
+         node scripts/registry/profile-diff.js --index-path "$INDEX_PATH" --base-ref "${{ env.BASE_REF }}" --out artifacts
+  4) Detect file changes
+     - name: Detect changes
+       id: detect
+       shell: bash
+       run: |
+         if git diff --quiet -- "$INDEX_PATH"; then
+           echo "changed=false" >> "$GITHUB_OUTPUT"
+         else
+           echo "changed=true" >> "$GITHUB_OUTPUT"
+         fi
+       # Also expose changed output at job level if desired
+     - name: Upload diff artifact (always)
+       uses: actions/upload-artifact@v4
+       with:
+         name: registry-profile-diff
+         path: artifacts/
+- Notes:
+  - Ensure actions/checkout@v4 uses fetch-depth: 0 so git show origin/main works.
+  - If the build creates multiple files, consider adding a pathspec and using git add before diffing if needed.
+  - If using pnpm/yarn, swap setup-node cache and install commands accordingly.
+
+## 4. Auto-create/update PR and post the diff as a comment [pending]
+### Dependencies: 31.3
+### Description: Extend the workflow to create or update a PR with the rebuilt index and attach the generated profile diff as a PR comment when changes are detected.
+### Details:
+Implementation plan (edit .github/workflows/registry-rebuild.yml):
+- After the Detect changes step, add gated steps:
+  1) Create or update PR
+     - name: Create PR
+       id: cpr
+       if: steps.detect.outputs.changed == 'true' && (github.event.inputs.dryRun != 'true')
+       uses: peter-evans/create-pull-request@v6
+       with:
+         commit-message: chore(registry): nightly rebuild
+         title: chore(registry): nightly Socrata index rebuild
+         body: Automated nightly rebuild of the Socrata registry.
+         branch: chore/nightly-registry
+         labels: automated, registry
+         signoff: true
+         add-paths: |
+           ${{ env.INDEX_PATH }}
+  2) Comment diff on PR
+     - name: Comment profile diff on PR
+       if: steps.detect.outputs.changed == 'true' && (github.event.inputs.dryRun != 'true') && steps.cpr.outputs.pull-request-number
+       uses: actions/github-script@v7
+       with:
+         script: |
+           const fs = require('fs');
+           const prNumber = Number('${{ steps.cpr.outputs.pull-request-number }}');
+           const body = fs.readFileSync('artifacts/profile-diff.md', 'utf8');
+           await github.rest.issues.createComment({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             issue_number: prNumber,
+             body
+           });
+- Permissions: Ensure the workflow has contents: write and pull-requests: write (already set in Subtask 2).
+- Optional: Add auto-merge label or enable automerge if repository policies allow.
+- Idempotency: Using a stable branch chore/nightly-registry ensures subsequent runs update the same PR instead of opening duplicates.
+
+## 5. Finalize configuration, documentation, and dry-run safety [pending]
+### Dependencies: 31.3, 31.4
+### Description: Add workflow inputs and documentation for configuration, provide a dry-run path that avoids making PRs, and document maintenance and troubleshooting.
+### Details:
+Implementation plan:
+- Enhance workflow_dispatch inputs at the top of registry-rebuild.yml:
+  - baseRef: string, default origin/main
+  - dryRun: boolean, default false
+- Wire inputs:
+  - Use ${{ github.event.inputs.baseRef || 'origin/main' }} for BASE_REF.
+  - Guard PR creation steps with (github.event.inputs.dryRun != 'true').
+  - In dry-run mode, add a step to write a short summary to $GITHUB_STEP_SUMMARY and rely on the uploaded artifact for the diff.
+- Documentation:
+  - Create docs/registry-rebuild.md describing:
+    - How the job works (schedule, build, diff, PR creation, comment)
+    - How to change cron timing
+    - How to set INDEX_PATH and the build command (npm run build:registry)
+    - Required permissions and that GITHUB_TOKEN must have contents and pull-requests write
+    - How to run manually with workflow_dispatch and optional baseRef/dryRun
+    - Troubleshooting common issues (missing index file, JSON parse errors, no changes detected)
+- Safeguards:
+  - Restrict workflow to run only on default branch by adding: if: github.ref == 'refs/heads/main' at job level for scheduled events if necessary.
+  - Add concurrency group already defined to prevent overlapping runs.
+  - Optionally add path filters if build is expensive.
+
+

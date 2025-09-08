@@ -1,0 +1,115 @@
+# Task ID: 41
+# Title: RFC: Type-extraction workflow across adapters (inputs, codegen targets, review gates, integration)
+# Status: pending
+# Dependencies: 38, 39, 40
+# Priority: medium
+# Description: Define the end-to-end workflow and standards for generating and integrating TypeScript types and Zod schemas from Socrata, CKAN, and ArcGIS sources. Specify inputs, codegen targets, naming/layout conventions, review gates, and adapter integration points.
+# Details:
+Deliverables
+- An RFC document (docs/rfcs/0041-type-extraction-workflow.md) with: problem statement, goals/non-goals, decision record, alternatives considered, and phased rollout plan.
+- A reference “contract” for generators and adapters (TypeRegistry and codegen module shape) with code snippets.
+- A standardized CLI surface across adapters and a directory layout for generated artifacts.
+- CI and review gates for schema evolution, plus guidance for breaking/unsafe changes.
+
+Scope and goals
+- Unify learnings from spikes (Socrata, CKAN, ArcGIS) into a single, consistent type-extraction workflow.
+- Define common inputs, codegen outputs, file layout, naming conventions, and integration interfaces for adapters.
+- Establish quality gates: schema diffing, golden tests, and required review for breaking changes.
+- Ensure the workflow plays well with runtime validation (Zod) and existing CI pipelines.
+
+Non-goals
+- Implementing the final generators (covered by spikes) beyond adjustments to align with this RFC.
+- Finalizing OpenAPI exposure (can be a follow-on RFC).
+
+Common CLI contract (standardize across adapters)
+- Required flags (adapter-specific where noted):
+  - --outDir <path> (common)
+  - Source identifiers: Socrata (--domain <host> --datasetId <id>), CKAN (--baseUrl <url> --resourceId <uuid>), ArcGIS (--layerUrl <url> OR --serviceUrl <url> --layerId <n>).
+- Optional flags (common semantics): --limit <n> (default 200), --coerceNumbers, --coerceBooleans, --coerceDates=epoch|iso|date, --nullableAsOptional, --emitJsonSchema, --emitJs, --dryRun, --overwrite, --prettier.
+- Exit codes: 0 success, 2 non-breaking diffs, 3 breaking diffs, >3 fatal errors.
+
+Codegen targets and module shape
+- Outputs per source written under src/adapters/<adapter>/types/<sourceKey>/
+  - <SourcePascal>Schema.ts exporting: 
+    - export const <SourcePascal>Schema: z.ZodObject<...>
+    - export type <SourcePascal>Row = z.infer<typeof <SourcePascal>Schema>
+    - export const metadata: { adapter: 'socrata'|'ckan'|'arcgis', sourceKey: string, generatedAt: string, generatorVersion: string, flags: Record<string,unknown> }
+  - Optional: <SourcePascal>.schema.json if --emitJsonSchema.
+- Registry file per adapter: src/adapters/<adapter>/types/registry.ts
+  - export const registry: TypeRegistry = { [sourceKey: string]: { schema, rowTypeName, modulePath, metadata } }
+- Naming conventions: PascalCase for types, camelCase for variables, kebab-case for files; stable sourceKey derivation rules per adapter.
+
+Adapter integration contract
+- Adapters must accept a schema provider:
+  - interface TypeRegistry { get(sourceKey: string): { schema: z.ZodTypeAny, rowTypeName: string, metadata: {...} } | undefined }
+  - Adapters consume registry.get(sourceKey) to validate responses (ties to Task 12) and to narrow runtime types.
+- Fallbacks when no generated schema exists: use permissive z.record(z.any()) with a warning and telemetry tag.
+- Import wiring examples:
+  - SocrataAdapter: resolve datasetId → sourceKey → registry.get → schema.parseAsync on response rows; emit validation metrics.
+  - CKAN/ArcGIS adapters mirror the same interface.
+
+Schema evolution and review gates
+- Introduce a schema-diff step that compares newly generated AST against committed golden files.
+  - Classification: add-only (non-breaking), type-narrowing/field-removal (breaking), metadata-only (non-functional).
+- PR automation:
+  - On diffs: attach a markdown report (added/removed/changed fields with types), churn summary, and a risk level.
+  - Require CODEOWNERS approval for breaking diffs; allow auto-merge for non-breaking diffs if CI is green.
+- Versioning:
+  - Stamp generatorVersion and flags into metadata; store prior snapshots under __snapshots__ for traceability.
+
+CI integration and commands
+- npm scripts:
+  - generate:types:socrata|ckan|arcgis ... (adapter-specific)
+  - diff:types to run schema diff against golden files and set exit codes
+  - check:types to run generate + diff in CI
+- GitHub Actions wiring (ties into Task 33): run check:types on PRs; fail on breaking diffs unless label override present.
+
+Mapping and inference policy (harmonize from spikes)
+- Canonical type mapping tables per adapter collected in the RFC, including flags behavior (coercions, nullability, date handling, geometry handling).
+- Sample-size guidance and heuristics for nullability/optionality inference.
+- Error-handling policy: network retries delegated to adapters; generators surface clear failure messages and non-zero exit.
+
+Security, compliance, and observability
+- Document PII fields detection warnings (best-effort based on field names and types) and redaction guidance in examples.
+- Emit generator telemetry: counts of fields by type, nullable rates, and diff outcomes.
+
+Rollout plan
+- Phase 1: Align spikes 38/39/40 with the CLI and module shape defined here; generate for one canonical dataset per adapter.
+- Phase 2: Add CI gates for selected datasets; collect feedback and iterate.
+- Phase 3: Expand coverage; enable breaking-change policy.
+
+Examples
+- Example generate command:
+  - pnpm generate:types:socrata --domain data.city.gov --datasetId abcd-1234 --outDir src/adapters/socrata/types --coerceDates=iso --nullableAsOptional --emitJsonSchema
+- Example adapter usage:
+  - const entry = registry.get(datasetId); if (entry) rows = entry.schema.array().parse(rows); else warn();
+
+# Test Strategy:
+Document acceptance criteria and run a structured review and dry-run:
+1) RFC review and approval
+- Open PR with RFC at docs/rfcs/0041-type-extraction-workflow.md.
+- Required approvals: at least one maintainer from each adapter (Socrata, CKAN, ArcGIS) and one platform/CI owner.
+- Check that RFC includes: CLI spec, codegen targets, registry interface, directory layout, mapping tables, diff policy, CI wiring, rollout plan, and examples.
+
+2) Conformance of spikes (one dataset per adapter)
+- Update each spike to implement the standardized flags (--outDir, --limit, --coerce*), output locations, and module shape.
+- Generate artifacts for one well-known dataset/resource/layer per adapter.
+- Verify generated files exist at the prescribed paths with correct exports and metadata.
+
+3) Schema diff gate dry-run
+- Commit generated outputs as golden files. Re-run generation after modifying a field mapping to simulate a breaking change.
+- Run npm run diff:types; expect exit code 3 and a markdown report artifact in CI with changed fields and risk level.
+- Re-run with an additive change; expect exit code 2 and non-blocking status.
+
+4) Adapter validation path check
+- Wire the SocrataAdapter happy-path to load the registry entry for the chosen dataset and validate one sample response with Zod (aligns with Task 12 behavior).
+- Confirm invalid rows trigger a Zod error and are surfaced with actionable messages; confirm metrics/logging are emitted.
+
+5) CI integration smoke test
+- Ensure check:types runs in the existing CI workflow (Task 33) and fails the build on breaking diffs.
+- Confirm PR labels/required reviews are enforced according to the RFC policy.
+
+6) Documentation completeness
+- RFC contains migration guidance for teams, including how to opt-in/out and how to override behavior via flags.
+- README updates for each adapter pointing to the new workflow.
+

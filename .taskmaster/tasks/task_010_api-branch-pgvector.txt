@@ -1,0 +1,106 @@
+# Task ID: 10
+# Title: Profile Detroit datasets and compare with SF
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Analyze the Detroit index and create a profile, including a comparison against the San Francisco catalog.
+# Details:
+Generate a profile for the Detroit catalog similar to the SF one. Additionally, perform a delta analysis comparing the two catalogs (e.g., overlapping themes, differences in data volume). Update `__docs__/catalogs/detroit-socrata-profile.md`.
+
+# Test Strategy:
+Manual review of the generated markdown file to check the accuracy of the Detroit profile and the validity of the comparison with SF.
+
+# Subtasks:
+## 1. Define profiling metrics and Detroit markdown template aligned with SF profile [pending]
+### Dependencies: None
+### Description: Establish a metrics spec and a markdown template for Detroit that mirrors the SF profile so outputs are comparable.
+### Details:
+Implementation guidance:
+- Review __docs__/catalogs/sf-socrata-profile.md and list its sections and metrics (e.g., Overview, Dataset counts by type/category, Update frequency distribution, Top tags, Data volume stats, Freshness, Notes).
+- Define a profiling spec (document or code comments) covering the metrics to compute for Detroit:
+  - counts: totalDatasets, byType, byCategory, byLicense (if present)
+  - freshness: percentUpdatedLast30d/90d/365d, medianDaysSinceUpdate
+  - update cadence: distribution of updateFrequency values if available
+  - tags: topTags with counts, tagCount distribution
+  - data volume: totalRows, medianRows, p90Rows, byType rows
+  - temporal coverage (optional): minCreatedAt, maxUpdatedAt
+- Create a Jinja2 markdown template at templates/detroit-socrata-profile.md.j2 with sections matching SF, plus a dedicated “Comparison with SF” section placeholders. Required template inputs:
+  - detroit: {counts, byType, byCategory, tags, freshness, volumes}
+  - compare: {categoryOverlap, tagOverlap, datasetCountDelta, freshnessDelta, rowVolumeDelta, typeDistributionDelta, notes}
+  - metadata: {generatedAt, sourceDetroitIndexPath, sourceSfIndexPath}
+- Ensure the template renders without special tooling and writes to __docs__/catalogs/detroit-socrata-profile.md.
+- Decide default input file paths (overridable by CLI): data/indexes/detroit-socrata-index.json and data/indexes/sf-socrata-index.json.
+
+## 2. Implement Socrata catalog loaders and normalization for Detroit and SF indexes [pending]
+### Dependencies: 10.1
+### Description: Build a small module to load the Detroit and SF catalog index JSON files and normalize to a common schema for profiling and comparison.
+### Details:
+Implementation guidance:
+- Language: Python 3.11. Create module src/catalogs/socrata/io.py with functions:
+  - load_index(path: str) -> list[dict]
+  - normalize(records: list[dict]) -> list[NormalizedDataset]
+- Define NormalizedDataset (dataclass or dict) with keys: id, name, type, category, tags (list[str]), rows (int|None), columns (int|None), createdAt (datetime|None), updatedAt (datetime|None), updateFrequency (str|None), license (str|None), domain (str|None), link (str|None).
+- Map common Socrata fields with fallbacks for indexes produced by Task 9 and SF index builder:
+  - id: record.get('resource',{}).get('id') or record.get('id')
+  - name: record.get('name')
+  - type: record.get('resource',{}).get('type') or record.get('type')
+  - category: record.get('classification',{}).get('domain_category') or record.get('category')
+  - tags: record.get('classification',{}).get('tags', []) or record.get('tags', [])
+  - rows: record.get('resource',{}).get('rows') or record.get('rows')
+  - columns: len(record.get('columns',[])) or record.get('columns_count')
+  - createdAt: parse epoch or ISO from record.get('createdAt') or record.get('metadata',{}).get('createdAt')
+  - updatedAt: parse epoch or ISO from record.get('metadata',{}).get('updatedAt') or record.get('rowsUpdatedAt')
+  - updateFrequency: record.get('metadata',{}).get('updateFrequency')
+  - license: record.get('metadata',{}).get('license') or record.get('license')
+  - domain: record.get('metadata',{}).get('domain') or record.get('domain')
+  - link: record.get('permalink') or record.get('link')
+- Implement robust date parsing (epoch seconds and ISO8601). Guard against missing fields and ensure tags is always a list[str].
+- Add basic validation: drop or warn on entries missing id or name. Log counts loaded per file.
+
+## 3. Implement Detroit catalog profiler to compute summary metrics [pending]
+### Dependencies: 10.2
+### Description: Compute the Detroit profile metrics from normalized datasets to feed the markdown template.
+### Details:
+Implementation guidance:
+- Create src/catalogs/socrata/profile.py with function profile_catalog(datasets: list[NormalizedDataset]) -> dict.
+- Computations:
+  - counts: totalDatasets; byType (Counter of type); byCategory (Counter of category with None grouped as 'Uncategorized'); byLicense (Counter if available).
+  - freshness: now = utcnow(); daysSinceUpdate per dataset (fallback to createdAt if updatedAt missing); percentUpdatedLast30d/90d/365d; medianDaysSinceUpdate.
+  - update cadence: Counter of updateFrequency normalized (lowercase, trimmed); include 'unknown' bucket.
+  - tags: Counter for tags; topTags e.g., top 25 with counts; tagCountDistribution (histogram of tags per dataset).
+  - data volume: rows list (exclude None); totalRows; medianRows; p90Rows; byTypeRows (sum per type).
+  - time coverage: minCreatedAt, maxUpdatedAt (ISO strings).
+- Return a dict matching the template's detroit input structure.
+- Ensure deterministic ordering (sort keys/arrays by count desc then alpha) for stable markdown output.
+
+## 4. Implement Detroit vs SF delta analysis [pending]
+### Dependencies: 10.2, 10.3
+### Description: Compute comparative metrics between Detroit and SF catalogs to populate the comparison section.
+### Details:
+Implementation guidance:
+- In src/catalogs/socrata/compare.py implement compare_catalogs(detroit: list[NormalizedDataset], sf: list[NormalizedDataset], detroitProfile: dict) -> dict.
+- Metrics:
+  - datasetCountDelta: detroitCount, sfCount, delta = detroit - sf, ratio = detroit/sf.
+  - typeDistributionDelta: for each dataset type in union, report counts per city and percent difference.
+  - categoryOverlap: Jaccard index on set of categories (non-null); list top overlapping categories with per-city counts; categories unique to Detroit/SF.
+  - tagOverlap: Jaccard on top N tags (e.g., 200) and overall; list top overlapping tags with counts; tags unique to each.
+  - freshnessDelta: percentUpdatedLast90d for each; difference in medianDaysSinceUpdate (reuse Detroit profile and compute SF metrics inline similarly to 10.3 freshness subset).
+  - rowVolumeDelta: totalRows and medianRows per city; deltas.
+- Output a dict keyed to the template's compare input.
+- Ensure defensive handling if SF rows are missing (compute metrics with available fields; if neither city has rows, mark rowVolumeDelta as N/A).
+
+## 5. Generate and write detroit-socrata-profile.md via CLI [pending]
+### Dependencies: 10.1, 10.3, 10.4
+### Description: Create a CLI that loads inputs, computes metrics and deltas, renders the template, and writes __docs__/catalogs/detroit-socrata-profile.md.
+### Details:
+Implementation guidance:
+- Create scripts/profile_detroit_catalog.py with arguments:
+  - --detroit-index (default: data/indexes/detroit-socrata-index.json)
+  - --sf-index (default: data/indexes/sf-socrata-index.json)
+  - --out (default: __docs__/catalogs/detroit-socrata-profile.md)
+  - --template (default: templates/detroit-socrata-profile.md.j2)
+- Flow: load and normalize both catalogs (io.py); compute Detroit profile (profile.py); compute compare dict (compare.py); render template (Jinja2) with {detroit, compare, metadata.generatedAt=UTC ISO timestamp, source paths}; write to output path.
+- Behavior: if Detroit index missing, exit with actionable message referencing Task 9 to build it. If SF index missing, warn and degrade gracefully by omitting comparison section in the markdown (template should handle missing compare by showing a note).
+- Ensure idempotent sorted output for stable diffs. Include a header with Last updated timestamp.
+- Add a make target or npm script if applicable (optional) to run the generator.
+

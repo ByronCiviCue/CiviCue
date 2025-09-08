@@ -158,3 +158,40 @@ normalized.sort((a, b) => {
 3. **Deduplication** → Map-based with latest-wins conflict resolution
 4. **Stable sort** → Name ascending with ID tiebreaker
 5. **Output** → Clean, deduplicated, sorted normalized dataset array
+
+## Assembly & Atomic Write
+
+The SF Socrata registry builder assembles and writes the final directory with the following characteristics:
+
+### Payload Schema (Frozen)
+```json
+{
+  "schemaVersion": 1,
+  "source": "socrata",
+  "domain": "data.sfgov.org",
+  "generatedAt": "2025-09-08T...",
+  "retention": { 
+    "since": "YYYY-MM-DD",
+    "until": "YYYY-MM-DD"
+  },
+  "totalCount": 1234,
+  "datasets": [...]
+}
+```
+
+### Atomic Write Strategy
+- Write to temporary file (`directory.json.tmp`)
+- Rename atomically to final path
+- On error, temp file is cleaned up
+- Ensures no partial writes
+
+### Safety Threshold
+- Minimum 200 datasets required
+- Override with `--includeStale` flag
+- Exits with code 1 if threshold not met
+
+### Exit Codes
+- 0: Success (dry-run or live write)
+- 1: Safety threshold failure
+
+Note: No diagnostics or extra fields are written to the output file.

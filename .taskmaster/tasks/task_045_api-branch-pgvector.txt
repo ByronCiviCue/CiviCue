@@ -1,0 +1,110 @@
+# Task ID: 45
+# Title: Wire typegen pipeline: scripts/typegen.mjs, npm run typegen:*, CI check
+# Status: pending
+# Dependencies: 41, 42, 43, 44
+# Priority: medium
+# Description: Implement a unified type-generation pipeline that orchestrates per-adapter generators via scripts/typegen.mjs, exposes npm run typegen:* commands, and adds a CI job that verifies generated artifacts are up to date.
+# Details:
+Objectives
+- Provide a single entry point to generate types/schemas for all supported adapters (Socrata, CKAN, ArcGIS) based on the RFC’s standardized CLI, targets, and commit policy.
+- Ensure outputs are written to src/generated/{socrata,ckan,arcgis} and that generation is idempotent.
+- Add CI that fails when generated artifacts are stale or uncommitted.
+
+Deliverables
+1) scripts/typegen.mjs (Node ESM)
+- Reads a config file (default: scripts/typegen.config.json; override via TYPEGEN_CONFIG or --config).
+- Config shape:
+  {
+    "socrata": [{"domain":"data.sfgov.org","datasetId":"abcd-1234"}],
+    "ckan": [{"baseUrl":"https://demo.ckan.org","resourceId":"uuid"}],
+    "arcgis": [{"layerUrl":"https://host/arcgis/rest/services/.../FeatureServer/0"}]
+  }
+- Commands/flags:
+  - --all (default): run all adapters present in config
+  - --socrata, --ckan, --arcgis: scope to a single adapter
+  - --concurrency <n> (default 4): parallelize per-adapter work safely
+  - --check: run generation and fail if git diff shows changes in src/generated
+  - --dry-run: print planned invocations without executing
+  - --force: bypass any caching and re-run all
+  - --quiet: reduce logging
+- Implementation notes:
+  - Validate config schema at startup; exit non-zero on invalid entries.
+  - Map config entries to underlying adapter CLIs from the RFC and adoption tasks:
+    - Socrata: pnpm codegen:socrata --domain <domain> --datasetId <datasetId> --outDir src/generated/socrata
+    - CKAN: pnpm codegen:ckan --baseUrl <baseUrl> --resourceId <resourceId> --outDir src/generated/ckan
+    - ArcGIS: pnpm codegen:arcgis --layerUrl <layerUrl> --outDir src/generated/arcgis
+  - Ensure stable invocation order (sort keys) for deterministic index generation.
+  - After each adapter run, verify required artifacts exist (module files and adapter index.ts as defined by adoption tasks) and exit non-zero with a helpful message if missing.
+  - Format generated files by invoking pnpm format if present, or rely on generators writing formatted output.
+  - In --check mode: after generation, run `git add -N src/generated` (to ensure paths are tracked), then `git diff --name-only -- src/generated` and fail with a clear summary if any changes are detected.
+  - Print a concise summary: counts per adapter, duration, and any warnings (e.g., skipped due to network).
+  - Respect environment variables needed by generators (e.g., SOCRATA_APP_ID). Propagate process.env.
+
+2) scripts/typegen.config.json (checked-in example)
+- Populate with a small but representative default set (2 entries per adapter) to exercise the pipeline.
+- Document how to extend it and how to override via TYPEGEN_CONFIG.
+
+3) package.json scripts
+- "typegen": "node --experimental-json-modules scripts/typegen.mjs --all"
+- "typegen:all": "node --experimental-json-modules scripts/typegen.mjs --all"
+- "typegen:socrata": "node --experimental-json-modules scripts/typegen.mjs --socrata"
+- "typegen:ckan": "node --experimental-json-modules scripts/typegen.mjs --ckan"
+- "typegen:arcgis": "node --experimental-json-modules scripts/typegen.mjs --arcgis"
+- "typegen:check": "node --experimental-json-modules scripts/typegen.mjs --check"
+
+4) CI workflow: .github/workflows/typegen.yml
+- Trigger: pull_request and push to main.
+- Steps:
+  - checkout with fetch-depth: 0
+  - setup Node LTS and pnpm cache
+  - pnpm install --frozen-lockfile
+  - pnpm build (or at least pnpm typecheck) to ensure generators compile
+  - pnpm typegen:all
+  - git diff --quiet -- src/generated || (echo "Generated artifacts are stale. Run pnpm typegen:all and commit." && exit 1)
+  - pnpm typecheck && pnpm build to guarantee the repo compiles with generated artifacts
+- Optional: matrix over Node versions if desired.
+
+5) Repo hygiene
+- Ensure src/generated/** is committed (not gitignored). Add a top-of-file AUTO-GENERATED header check if necessary.
+- Prettier/ESLint: either ignore generated files or ensure generators produce compliant code to keep CI green.
+- Update README: how to run typegen locally, how to add sources, how CI enforces consistency.
+
+Edge cases and considerations
+- Network flakiness: retry adapter invocations with exponential backoff (2 tries) and surface meaningful errors.
+- Determinism: sort inputs and ensure index generators produce stable order; avoid timestamp-only diffs in index files.
+- Partial failures: fail the whole run if any adapter fails; print a per-adapter summary of which entries errored.
+- Performance: cap concurrency to avoid rate limits; allow override via TYPEGEN_CONCURRENCY.
+
+
+# Test Strategy:
+Local verification
+1) Bootstrap
+- Ensure required env vars (e.g., SOCRATA_APP_ID) are present.
+- Populate scripts/typegen.config.json with 2 Socrata datasets, 2 CKAN resources, and 2 ArcGIS layers that are publicly accessible.
+
+2) First run generates artifacts
+- Run: pnpm typegen:all
+- Expect: files under src/generated/socrata, src/generated/ckan, src/generated/arcgis plus their respective index.ts files exist (as defined by Tasks 42–44). No runtime errors. Console summary shows counts per adapter.
+- Run: pnpm typecheck && pnpm build — both succeed.
+
+3) Idempotency
+- Run: pnpm typegen:all again
+- Run: git diff --name-only -- src/generated
+- Expect: no changes reported (empty output).
+
+4) Check mode
+- Intentionally edit one generated file (e.g., add a whitespace change).
+- Run: pnpm typegen:check
+- Expect: non-zero exit with a clear message that generated artifacts are stale and a list of changed files.
+- Re-run pnpm typegen:all and confirm the diff is clean.
+
+5) Per-adapter targeting and concurrency
+- Run: pnpm typegen:socrata and verify only Socrata targets run (inspect logs, timestamps).
+- Set TYPEGEN_CONCURRENCY=1 and re-run to verify serial execution.
+
+6) CI dry run (locally)
+- Using act or by inspecting the workflow, confirm steps: generation, git diff check, and typecheck/build. Push a branch/PR and observe the workflow failing when a generated file is manually modified without running typegen.
+
+7) Failure handling
+- Temporarily break connectivity (e.g., block network) and run pnpm typegen:all. Expect retries and a final failure with a readable error summary. Restore network and confirm success.
+

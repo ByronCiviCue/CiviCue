@@ -1,0 +1,99 @@
+# Task ID: 42
+# Title: Adopt Socrata type-extraction outputs (publish to src/generated/socrata; export index)
+# Status: pending
+# Dependencies: 41, 38
+# Priority: medium
+# Description: Publish the Socrata type-extraction/codegen outputs to src/generated/socrata and create an exported index that provides stable imports and a runtime registry for schemas. Align naming/layout, commit policy, and CLI with the RFC.
+# Details:
+Goal
+- Move/emit Socrata codegen artifacts to src/generated/socrata and provide a top-level barrel (index.ts) that re-exports all generated modules and exposes a runtime schema registry keyed by domain/datasetId.
+
+Deliverables
+- src/generated/socrata/<files>.ts: one module per dataset, with clear AUTO-GENERATED headers.
+- src/generated/socrata/index.ts: barrel exports + SocrataTypeRegistry and helper lookups.
+- Codegen changes to emit to this location and to (re)generate the index file deterministically.
+- CI check that verifies the generated directory is up to date with the current inputs.
+
+Implementation details
+1) Directory and file naming
+- Target dir: src/generated/socrata (as specified by the RFC).
+- File pattern: <domain>__<datasetId>.ts (double underscore to avoid ambiguity). Examples: data.sfgov.org__abcd-1234.ts, data.detroitmi.gov__wxyz-9876.ts.
+- Each file must include:
+  - AUTO-GENERATED header with source domain, datasetId, timestamp, and generator version hash.
+  - Named exports:
+    - export const <DatasetPascal>Schema: z.ZodObject<...>
+    - export type <DatasetPascal>Row = z.infer<typeof <DatasetPascal>Schema>
+    - Optional: export const meta = { domain, datasetId, name } for convenience.
+- Ensure generated files are ESLint/Prettier-compatible (add /* eslint-disable @typescript-eslint/no-explicit-any */ only where truly required).
+
+2) Barrel index generation (src/generated/socrata/index.ts)
+- Deterministically scan src/generated/socrata for pattern *.ts excluding index.ts.
+- For each module, compute a stable key and identifiers:
+  - key: `${domain}/${datasetId}` (e.g., "data.sfgov.org/abcd-1234").
+  - re-export all named exports with a prefixed namespace to avoid collisions:
+    - import * as M_i from "./<file>" where i is a zero-padded ordinal for deterministic order.
+    - export { <DatasetPascal>Schema as <DatasetPascal>Schema } from "./<file>" (direct named re-exports) for ergonomic imports.
+- Build a runtime registry:
+  - export const SocrataTypeRegistry: Record<string, { schema: z.ZodTypeAny; meta?: { domain: string; datasetId: string; name?: string } }> = { [key]: { schema: M_i.<DatasetPascal>Schema, meta: M_i.meta }, ... }.
+  - Provide helpers:
+    - export function getSocrataSchema(key: string) { return SocrataTypeRegistry[key]?.schema }
+    - export function hasSocrataSchema(key: string): boolean
+- Maintain a stable, alphabetically sorted order by key when authoring the index for minimal diffs.
+
+3) Codegen integration
+- Update the Socrata generator CLI (from the spike) to accept:
+  - --out src/generated/socrata
+  - --emit-index (default true) to (re)generate index.ts after emitting datasets.
+  - --manifest <path> optional JSON manifest of datasets to emit; otherwise, accept --domain and --dataset flags.
+- Ensure the generator adheres to the RFC’s naming/layout conventions and contract (TypeRegistry shape, module surface).
+- Add npm scripts:
+  - "codegen:socrata": "node ./scripts/codegen-socrata --out src/generated/socrata --emit-index"
+  - "check:generated": "pnpm codegen:socrata && git diff --quiet -- src/generated/socrata"
+- If RFC specifies committing generated artifacts, add .gitattributes: src/generated/** linguist-generated=true and ensure files are included in the repo.
+
+4) Type safety and DX
+- tsconfig paths: add alias "generated/*": ["src/generated/*"] if useful for imports.
+- Validate that tree-shaking works by avoiding default exports in generated modules; rely on named exports only.
+- Avoid circular imports: index.ts must only import from leaf files.
+
+5) Edge cases and resiliency
+- Collision handling: if two datasets normalize to the same <DatasetPascal>, keep file-level export names dataset-local, and rely on index-level named re-exports (identical names allowed if they originate from distinct modules). The runtime registry keys remain domain/datasetId, avoiding ambiguity.
+- Empty set: if no datasets are generated, index.ts still exports empty SocrataTypeRegistry and helper functions.
+
+6) Documentation
+- Update docs/rfcs/0041-type-extraction-workflow.md acceptance notes (or follow-up notes) with the final directory layout, export shapes, and CI policy, referencing the implemented paths and scripts.
+
+Integration notes
+- Downstream consumers (e.g., SocrataAdapter validation) should import schemas from "generated/socrata" or use getSocrataSchema(domain/datasetId); actual adapter integration can be delivered in a separate task.
+
+
+# Test Strategy:
+Repository-level checks
+- pnpm typecheck passes with src/generated/socrata populated by the generator.
+- pnpm build succeeds; no circular dependency warnings from the generated index.
+
+Codegen and index
+- Run pnpm codegen:socrata with at least two datasets (one from SF, one from Detroit if available). Verify:
+  - Files appear at src/generated/socrata/<domain>__<datasetId>.ts with AUTO-GENERATED headers.
+  - src/generated/socrata/index.ts is regenerated and contains:
+    - Sorted keys of form "<domain>/<datasetId>".
+    - Re-exports for each module's <DatasetPascal>Schema and meta.
+    - A SocrataTypeRegistry entry per dataset mapping to the correct schema.
+- Snapshot test: snapshot the generated index.ts (or its computed registry) to ensure deterministic ordering and shape.
+
+Runtime behavior
+- Unit test: import { SocrataTypeRegistry, getSocrataSchema } from "generated/socrata" and assert:
+  - hasSocrataSchema(key) returns true for generated datasets.
+  - getSocrataSchema(key) returns a Zod schema; parse a valid sample row and expect success; modify a field to an invalid value and expect a Zod error.
+- Verify that named re-exports are loadable via: import { <DatasetPascal>Schema } from "generated/socrata".
+
+CI and cleanliness
+- Run pnpm check:generated on CI to ensure there is no diff after regeneration.
+- Lint and format pass on generated files (or are appropriately suppressed according to RFC policy).
+
+Edge cases
+- Generate two datasets whose Pascal names could collide; confirm that:
+  - Both modules exist with distinct file names.
+  - Index generation succeeds and runtime registry has two distinct keys.
+  - Named re-exports do not produce TypeScript redeclaration errors.
+

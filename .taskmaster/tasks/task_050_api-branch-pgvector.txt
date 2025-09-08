@@ -1,0 +1,143 @@
+# Task ID: 50
+# Title: Typegen: compatibility check (current vs next) and adoption gate
+# Status: pending
+# Dependencies: 49
+# Priority: medium
+# Description: Add a CLI stage that compares generated “next” schemas/types with the baseline “current,” detects breaking vs non-breaking changes, and gates promotion by adopting next to current only when compatible or explicitly forced.
+# Details:
+Goal
+- Provide a deterministic compatibility checker and adoption gate in the typegen pipeline. It compares src/generated/<provider>/next against src/generated/<provider>/current, classifies changes (breaking/non-breaking), outputs a machine-readable report, and optionally promotes next -> current when allowed.
+
+CLI/entrypoint
+- Create scripts/typegen-compat.mjs (Node ESM).
+- Usage examples:
+  - node scripts/typegen-compat.mjs --provider socrata --mode check
+  - node scripts/typegen-compat.mjs --provider all --mode check --format pretty --out tmp/typegen-diff
+  - node scripts/typegen-compat.mjs --provider ckan --mode adopt
+  - node scripts/typegen-compat.mjs --provider arcgis --mode adopt --force --prune
+  - node scripts/typegen-compat.mjs --provider all --mode adopt --init
+- Flags/options:
+  - --provider socrata|ckan|arcgis|all (default: all)
+  - --mode check|adopt (default: check)
+  - --force (adopt even if breaking)
+  - --init (allow first-time adoption when no current exists)
+  - --prune (during adopt: remove files in current that aren’t present in next)
+  - --include <glob>|--exclude <glob> (limit entity keys)
+  - --format json|pretty (report output; default: pretty)
+  - --out <dir> (default: tmp/typegen-diff)
+  - --fail-on breaking|any (for check mode; default: breaking)
+
+Inputs/Outputs
+- Inputs: src/generated/<provider>/next (from Task 49) and src/generated/<provider>/current (baseline).
+- Output: console summary and a JSON report at tmp/typegen-diff/<provider>.json. In adopt mode, copies next -> current and writes/updates src/generated/<provider>/adoption.json (history of adoptions with timestamps, git sha if available, and flags).
+
+Implementation details
+1) Discovery and loading
+- Resolve provider directories: src/generated/{socrata,ckan,arcgis}/{current,next}.
+- Validate existence: require next for check/adopt; allow missing current only with --init (adopt will bootstrap current from next).
+- Each provider’s next/current should export a runtime registry (from Task 49). Import dynamically:
+  - const current = await import(pathToCurrentIndex).catch(() => null);
+  - const next = await import(pathToNextIndex);
+- Extract a stable key set from each registry (e.g., dataset/resource/layer ID), and the corresponding Zod schemas.
+
+2) Schema normalization for diffing
+- Convert Zod schemas to JSON Schema for structural comparison using zod-to-json-schema with stable options (e.g., { target: '2019-09', $refStrategy: 'none', definitions: undefined }). Ensure output is deterministic (sorted keys, stable enum order, strip descriptions/examples).
+- Alternatively, implement a minimal Zod AST walker extracting for each property: type, nullable, required, enum values, array item type, object properties. Keep this lightweight to avoid heavy dependencies.
+
+3) Diffing and compatibility rules
+- Per entity key, classify:
+  - added entity (present only in next): non-breaking.
+  - removed entity (present only in current): breaking unless adopting with --prune and --force.
+  - changed entity (present in both): produce a field-level diff.
+- Breaking conditions (examples):
+  - Remove a required property.
+  - Make a property required (optional -> required).
+  - Change base type (string -> number, object -> array, etc.).
+  - Narrow enum (remove values), remove null from union (nullable -> non-null), narrow array item type.
+  - Change shape of nested objects incompatibly (same rules recursively).
+- Non-breaking examples:
+  - Add an optional property.
+  - Widen enum (add values), add nullability, widen union.
+  - Add new entities.
+- Inconclusive cases (e.g., arbitrary transforms, effects) should be flagged as breaking unless --allow-inconclusive (optional future flag; default to conservative behavior today).
+
+4) Reporting
+- Produce a structured JSON report per provider with:
+  - summary: { addedEntities, removedEntities, changedEntities, breakingCount, nonBreakingCount }
+  - details: array of entity-level findings: { key, status: 'added'|'removed'|'changed', breaking: boolean, reasons: [strings], fieldDiff: { addedProps, removedProps, changedProps: [{ path, from, to, reason }] } }.
+- Write report to --out/<provider>.json and print a human-readable summary when --format pretty.
+- Exit codes: 0 (no failures), 2 (violations based on --fail-on), 1 (runtime/config errors).
+
+5) Adoption gate (mode=adopt)
+- Preconditions: run the same diff logic. If breaking changes detected, require --force to proceed; otherwise abort with exit code 2.
+- If --init and current is missing, treat as baseline adoption (no diff enforcement unless --force and --prune are set).
+- Promote next -> current by copying the entire provider directory tree from next to current, preserving file modes and relative structure.
+- If --prune, delete files under current that don’t exist under next (after backup to tmp if desired).
+- Update or create src/generated/<provider>/adoption.json appending an entry: { adoptedAt, gitSha (if git available), forced, pruned, summary }.
+- Ensure idempotency: re-running adopt with no changes results in no file diffs.
+
+6) Pipeline and CI integration
+- Add npm scripts:
+  - "typegen:compat:check": "node scripts/typegen-compat.mjs --mode check --provider all"
+  - "typegen:adopt": "node scripts/typegen-compat.mjs --mode adopt --provider all"
+- Recommend CI sequence: fetch (Task 47) -> fingerprint (Task 48) -> generate (Task 49) -> compat check (this task). Fail on breaking.
+
+7) Implementation notes
+- Keep dependencies minimal: zod-to-json-schema and a tiny deep-equal or custom comparator. Avoid heavy JSON Schema diff libs to maintain determinism.
+- Normalize object key order before writing reports for stable diffs and cacheability.
+- Provide clear error messages guiding the developer when next/current are missing and which prior task to run.
+
+File/Dir structure touched
+- scripts/typegen-compat.mjs
+- src/generated/<provider>/current (read/write on adopt)
+- src/generated/<provider>/next (read-only)
+- src/generated/<provider>/adoption.json (append-only history)
+- tmp/typegen-diff/*.json (reports)
+
+
+# Test Strategy:
+Prereqs
+- Complete Task 47 (fetch), Task 48 (fingerprint), and Task 49 (generate) so src/generated/<provider>/next exists with at least 2 entities per provider. Ensure there is either an existing src/generated/<provider>/current or be ready to run adopt --init.
+
+Happy path: first-time adoption
+1) Ensure no current/ exists for a provider (e.g., move it away if present).
+2) Run: pnpm typegen:adopt -- --provider socrata --init
+3) Verify: src/generated/socrata/current exists and mirrors next; adoption.json created with forced=false, pruned=false.
+
+No-change check
+4) Run: pnpm typegen:compat:check -- --provider socrata
+5) Expect exit code 0, console summary indicates 0 breaking changes; tmp/typegen-diff/socrata.json written.
+
+Non-breaking change
+6) Modify a source schema to add an optional field (e.g., add nullable/optional column in one Socrata dataset). Re-run fetch (47) and generate (49).
+7) Run: pnpm typegen:compat:check -- --provider socrata
+8) Expect exit code 0, report shows changedEntities>0 with non-breaking reasons (e.g., added optional property).
+9) Run: pnpm typegen:adopt -- --provider socrata
+10) Verify current updated; adoption.json appended with a new entry (forced=false).
+
+Breaking change (field removal/type change)
+11) Modify a schema to remove a required property or change a field type; re-run fetch and generate.
+12) Run: pnpm typegen:compat:check -- --provider socrata
+13) Expect exit code 2 (breaking). Report details list the breaking reasons.
+14) Run: pnpm typegen:adopt -- --provider socrata
+15) Expect failure unless --force is provided. Then run with --force and verify:
+    - current updated to next
+    - adoption.json entry has forced=true
+
+Entity removal with prune
+16) Remove an entity from the config so it disappears from next; re-run fetch and generate.
+17) Run: pnpm typegen:compat:check -- --provider socrata
+18) Expect breaking due to removed entity.
+19) Run: pnpm typegen:adopt -- --provider socrata --force --prune
+20) Verify current no longer contains removed entity files, adoption.json has pruned=true and lists removed keys in summary.
+
+Multi-provider aggregation
+21) Run: pnpm typegen:compat:check -- --provider all
+22) Validate combined report files exist for all providers and exit code reflects presence of any breaking changes.
+
+Idempotency and stability
+23) Re-run adopt when there are no changes and ensure no file diffs occur (git status clean). Reports remain identical between runs given the same inputs.
+
+Error handling
+24) Try running check without next present: expect clear error advising to run Task 49. Try adopt without --init and missing current: expect error advising to pass --init.
+

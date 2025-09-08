@@ -1,0 +1,91 @@
+# Task ID: 25
+# Title: Contract tests vs openapi.yaml
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create contract tests to validate that the API implementation conforms to the `openapi.yaml` specification.
+# Details:
+Use a contract testing library (e.g., `jest-openapi`) to automatically test the `/v1/health`, `/v1/search/hybrid`, and `/v1/reports/permits` endpoints. Tests should cover request and response validation against the OpenAPI definition.
+
+# Test Strategy:
+Automated contract tests run as part of the CI pipeline. The tests will fail if the API implementation deviates from the `openapi.yaml` contract.
+
+# Subtasks:
+## 1. Set up contract testing framework (Jest + jest-openapi) and project scaffolding [pending]
+### Dependencies: None
+### Description: Install and configure the contract testing toolchain to validate API responses and error handling against openapi.yaml.
+### Details:
+1) Dev dependencies: npm i -D jest jest-openapi supertest yaml openapi-sampler ts-node ts-jest @types/jest @types/supertest cross-env wait-on. If the project already uses Jest/TS, only add missing deps.
+2) Jest config: add/extend jest.config.(js|ts) to include: testMatch: ["**/__tests__/contract/**/*.test.(ts|js)"], testEnvironment: "node", setupFilesAfterEnv: ["<rootDir>/__tests__/contract/setup/openapi.setup.ts"], moduleFileExtensions: ["ts","js","json"]. If TS, configure ts-jest preset.
+3) Setup file __tests__/contract/setup/openapi.setup.ts: parse the OpenAPI file and register jest-openapi.
+   - Use process.env.OPENAPI_PATH || path.join(process.cwd(), "openapi.yaml").
+   - const YAML = require("yaml"); const jestOpenAPI = require("jest-openapi").default; jestOpenAPI(YAML.parse(fs.readFileSync(specPath, "utf8"))).
+   - Throw a clear error if the file cannot be found/parsed.
+4) HTTP helper __tests__/contract/utils/http.ts: export a supertest agent bound to process.env.TEST_BASE_URL || "http://localhost:3000" to avoid coupling to app internals.
+5) Sampler utils __tests__/contract/utils/sampler.ts: load and cache the parsed spec; export helpers to:
+   - sampleRequestBody(path, method, contentType='application/json') using openapi-sampler to generate a minimal valid request body when the spec defines one.
+   - read allowed methods for a path from the spec (get/post/put/etc.) so tests can assert they are using a defined method.
+6) NPM scripts:
+   - "test:contract": "jest --runInBand --testPathPattern=__tests__/contract"
+   - Optionally: "start:test" to boot the API locally (or rely on docker-compose). Document the expected port.
+7) Conventions: place all contract tests under __tests__/contract, one file per endpoint. Ensure tests call expect(response).toSatisfyApiSpec().
+
+## 2. Implement contract tests for GET /v1/health [pending]
+### Dependencies: 25.1
+### Description: Write tests that assert the health endpoint responses conform to the OpenAPI spec, including success and any defined error responses.
+### Details:
+1) Create __tests__/contract/health.test.ts.
+2) Use the HTTP helper to call GET /v1/health. If the spec lists a different method, fail fast using the sampler utils' allowed methods check.
+3) Success test:
+   - const res = await http().get('/v1/health').set('Accept','application/json');
+   - expect(res.status).toBe(200) if the spec defines 200 (otherwise assert the success code per spec);
+   - expect(res).toSatisfyApiSpec();
+4) Headers: If the spec defines content-type/headers for the 200 response, assert them (e.g., content-type contains application/json).
+5) Negative path (optional if defined in spec): If the spec defines error responses (e.g., 5xx schema), simulate a scenario if possible or at least assert the endpoint returns one of the documented status codes and that the response matches the error schema. Keep this resilient by skipping if the spec has no error responses for this operation.
+
+## 3. Implement contract tests for /v1/search/hybrid (success and invalid request cases) [pending]
+### Dependencies: 25.1
+### Description: Validate that /v1/search/hybrid accepts only requests defined in the spec and returns responses conforming to the documented schema. Cover at least one happy-path and one invalid-input case.
+### Details:
+1) Create __tests__/contract/search.hybrid.test.ts.
+2) Determine allowed method(s) from the spec via the sampler utils. Use the primary operation (commonly POST). If none found, fail the test setup.
+3) Happy-path:
+   - If requestBody is defined, generate a minimal valid payload using openapi-sampler; otherwise, build valid query params from the spec's parameters.
+   - Execute the request with correct content-type. Example (POST): await http().post('/v1/search/hybrid').set('Content-Type','application/json').send(payload).
+   - Assert status is one of the documented success codes (prefer 200). Assert expect(res).toSatisfyApiSpec().
+   - If the spec defines pagination/metadata fields, assert their presence per schema (length, types) but rely on toSatisfyApiSpec for full validation.
+4) Invalid-input case:
+   - From the request schema, remove one required property (read 'required' from the schema) or set a field to an invalid type.
+   - Send the invalid request and assert the response status is a documented client error (e.g., 400/422) and expect(res).toSatisfyApiSpec() to validate the error schema.
+5) Edge behavior (optional if defined): If the spec includes query params (e.g., top-k, filters), add a param-boundary test (e.g., topK=0 or excessive) expecting a defined error or clamped behavior per spec.
+
+## 4. Implement contract tests for /v1/reports/permits (success and invalid request cases) [pending]
+### Dependencies: 25.1
+### Description: Add tests to verify that the permits report endpoint adheres to the OpenAPI contract for both successful responses and request validation errors.
+### Details:
+1) Create __tests__/contract/reports.permits.test.ts.
+2) Determine the method (GET/POST/etc.) from the spec. If requestBody exists, use sampler to create a minimal valid payload; otherwise, build query params from required parameters.
+3) Happy-path test:
+   - Make the request using the correct method/content-type.
+   - Assert a documented success status (e.g., 200) and expect(res).toSatisfyApiSpec().
+   - If the spec defines array/object shapes (e.g., permits list), optionally assert key shape hints (non-empty when applicable) while primarily relying on the matcher for schema conformance.
+4) Invalid request test:
+   - Omit a required query parameter or field in the body, or set an invalid type.
+   - Expect a documented 4xx and validate expect(res).toSatisfyApiSpec() against the error schema.
+5) If the endpoint supports filters or date ranges, include a boundary test (e.g., startDate > endDate) expecting a defined error per spec.
+
+## 5. Integrate contract tests into CI and document run instructions [pending]
+### Dependencies: 25.2, 25.3, 25.4
+### Description: Add a CI job to run contract tests on every PR and main branch push, ensuring failures on contract violations. Provide developer docs for local execution.
+### Details:
+1) GitHub Actions workflow .github/workflows/contract-tests.yml (or your CI equivalent):
+   - Trigger: pull_request, push on main.
+   - Steps: checkout; setup Node (matching project version); npm ci; build if needed; start the API (npm run start:test or docker compose up -d) exposing TEST_BASE_URL; wait-on $TEST_BASE_URL/v1/health; run: OPENAPI_PATH=openapi.yaml TEST_BASE_URL=$TEST_BASE_URL npm run test:contract.
+   - Optionally upload JUnit/coverage artifacts.
+2) Make the job required in branch protection so PRs cannot merge on contract failures.
+3) Docs: Update README or /docs/contract-tests.md with:
+   - How to run locally: start API, set TEST_BASE_URL, run npm run test:contract.
+   - How to update tests when openapi.yaml changes (prefer updating the spec first, rerun tests, then adjust implementation).
+   - Guidance to add new endpoint contract tests: copy a test file, use sampler utils, and assert expect(res).toSatisfyApiSpec().
+4) Fast-fail: Ensure the workflow fails if openapi.yaml is missing/invalid (the setup file already throws) or if the server never becomes healthy (wait-on timeout).
+

@@ -1,0 +1,72 @@
+# Task ID: 6
+# Title: Implement Secrets Policy
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Establish and enforce a strict policy for handling secrets and sensitive tokens.
+# Details:
+Ensure environment variables are only accessible on the server. Implement log redaction to prevent tokens from being logged. Add a CI test that scans for hardcoded secrets or leakage patterns.
+
+# Test Strategy:
+Add a unit test for the logging utility to confirm it redacts known token patterns. The CI leakage test should fail if a fake secret is added to the codebase.
+
+# Subtasks:
+## 1. Author Secrets Policy and set repository guardrails [done]
+### Dependencies: None
+### Description: Create a formal secrets handling policy and implement immediate repository protections to prevent accidental leakage.
+### Details:
+- Create SECRETS.md (or add to SECURITY.md) covering: what is a secret, allowed storage (e.g., cloud secret manager/Vault), rotation cadence, naming conventions, and the rule: only PUBLIC_ prefixed variables can be exposed to client bundles.
+- Add .env.example with non-sensitive placeholders and update .gitignore to exclude .env*, secrets.*, private keys, and build artifacts.
+- Remove any tokens from committed config files (e.g., .npmrc) and replace with environment-based auth.
+- Add a pre-commit hook using Husky or pre-commit to run a lightweight secret scan (e.g., gitleaks --staged) and block commits with findings; add an allowlist file for known test fixtures.
+- Document developer workflow for retrieving secrets (e.g., from 1Password/Vault), local development using dotenv (server-only), and incident response (revocation/rotation steps).
+
+## 2. Implement server-only secrets access with a validated config module [done]
+### Dependencies: 6.1
+### Description: Create a centralized server-side config that reads environment variables, validates them, and prevents client bundling.
+### Details:
+- Create src/server/config/secrets.(ts|js) that reads process.env and validates via a schema (e.g., zod/joi). Throw on missing/invalid secrets at startup.
+- Export only the minimal getters needed by server code; do not export entire env.
+- Ensure this module is server-only: place under src/server, add ESLint import/no-restricted-paths or folder boundaries so client code cannot import it.
+- Configure bundler/framework to only expose explicitly whitelisted public variables (e.g., Vite PUBLIC_*, Next.js NEXT_PUBLIC_*). Document that secrets must never be whitelisted.
+- Refactor code to replace direct process.env access with the config module. Search-and-replace and code review to enforce the pattern.
+
+## 3. Add centralized logging with token redaction [done]
+### Dependencies: 6.1
+### Description: Introduce a logging utility that redacts sensitive values in messages, metadata, and HTTP headers before output.
+### Details:
+- Implement src/server/lib/logger.(ts|js) using a structured logger (e.g., pino/winston). Provide logger redaction middleware/serializers for http request/response objects.
+- Redact by key path for common sensitive fields: headers.authorization, headers.cookie, set-cookie, x-api-key, body.token, body.password.
+- Add message-level regex redaction for tokens (replace with [REDACTED]):
+  - JWT: \beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b
+  - AWS Access Key ID: \bAKIA[0-9A-Z]{16}\b
+  - AWS Secret Key: (?i)aws(.{0,20})?(secret|access)[^a-z0-9]?([A-Za-z0-9/+=]{40})
+  - Bearer tokens: (?i)bearer\s+[A-Za-z0-9._-]{15,}
+  - Generic 32+ hex/base64-ish strings near keywords (token|secret|key)
+  - Private key blocks: -----BEGIN [A-Z ]*PRIVATE KEY-----
+- Replace console.* usage with the logger and add HTTP middleware to ensure all request/response logging flows through redactors.
+- Ensure logs never include full query strings or bodies unless redacted; provide safe, minimal context.
+
+## 4. Integrate CI secret scanning with a failing canary test [done]
+### Dependencies: 6.1
+### Description: Add a CI job that scans the repository for hardcoded secrets and a controlled canary step that must fail when scanning a known fake secret.
+### Details:
+- Add .gitleaks.toml with curated rules and allowlist for known test files. Include patterns for JWTs, AWS keys, generic high-entropy strings, Bearer tokens, and private keys.
+- Create a CI job (e.g., GitHub Actions, GitLab CI):
+  1) Checkout; run gitleaks detect on the repo (must pass).
+  2) Create a temporary file (e.g., tmp/leak_canary.txt) with a fake secret like AKIA1111111111111111 or a known JWT-like token.
+  3) Run gitleaks detect -s tmp/leak_canary.txt and assert it returns non-zero. Treat non-zero as success for the canary step; if zero, fail the pipeline because detection is broken.
+- Add npm scripts: scan:secrets (repo scan) and scan:secrets:canary (writes temp secret and asserts detection). Wire scan:secrets into CI on push/PR.
+
+## 5. Enforce usage via lint rules and tests [done]
+### Dependencies: 6.2, 6.3, 6.4
+### Description: Add linting rules to prevent unsafe patterns and implement tests to verify redaction and server-only secret access.
+### Details:
+- ESLint rules:
+  - Ban console.* (except in logger implementation files) and suggest using the logger utility.
+  - Ban direct process.env access outside src/server/config/secrets.* using no-restricted-imports/no-restricted-syntax.
+  - Optionally add eslint-plugin-no-secrets or custom rule to flag suspicious literals.
+- Add unit tests for logger redaction (covering headers, body fields, and regex patterns). Place under tests/logger.redaction.test.*
+- Add an integration test that performs a request with Authorization: Bearer <token> and confirms captured logs include [REDACTED].
+- Add a static test that ensures client-side code does not import src/server/config/secrets.* (e.g., ESLint rule run in CI).
+

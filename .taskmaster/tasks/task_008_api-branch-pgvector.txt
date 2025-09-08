@@ -1,0 +1,112 @@
+# Task ID: 8
+# Title: Profile SF datasets
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Analyze the generated SF Socrata index to create a human-readable profile of the data catalog.
+# Details:
+Create a script that processes the SF index to generate summary statistics (e.g., total datasets, update frequency, common tags). The output should be written to `__docs__/catalogs/sf-socrata-profile.md`.
+
+# Test Strategy:
+Manual review of the generated `sf-socrata-profile.md` file to ensure the information is accurate and well-formatted.
+
+# Subtasks:
+## 1. Define input schema and loader for SF Socrata index [pending]
+### Dependencies: None
+### Description: Establish the expected structure of the generated SF Socrata index and implement a robust loader to read and normalize it for downstream processing.
+### Details:
+Implementation approach:
+- Location: create src/catalogs/sf/loader.ts (TypeScript) or scripts/sf/loader.js (Node.js).
+- Input: accept --input path (default: data/indexes/sf-socrata.json). Expect a JSON array of dataset objects (as exported from Socrata) but tolerate minor variations.
+- Types/interfaces (flexible, optional fields):
+  - Dataset: { id: string; name: string; description?: string; tags?: string[]; category?: string; license?: string; viewType?: string; owner?: { displayName?: string; id?: string }; rowsUpdatedAt?: number; createdAt?: number; metadata?: { domain?: string; custom_fields?: Record<string, any>; } }
+- Normalization utilities:
+  - parseDate(epochOrIso: number|string|undefined): Date|undefined
+  - getPublisher(d): string (owner.displayName || "Unknown")
+  - getUpdateTimestamp(d): number|undefined (prefer rowsUpdatedAt, fallback to updatedAt/createdAt)
+  - getTags(d): string[] (lowercase, trimmed)
+  - getType(d): string (normalize viewType to one of: "tabular", "map", "file", "other")
+- Loader function:
+  - loadSfIndex(filePath): Promise<Dataset[]>; read file, parse JSON; validate it is an array; map through normalization; handle errors with clear messages.
+  - Ensure deterministic behavior (e.g., freeze objects, avoid mutation downstream).
+- Error handling: if file missing/invalid JSON, throw with actionable guidance.
+
+## 2. Implement statistics aggregator for SF catalog [pending]
+### Dependencies: 8.1
+### Description: Compute summary statistics needed for the profile: totals, distributions, and top-N lists derived from the loaded index.
+### Details:
+Implementation approach:
+- Location: src/catalogs/sf/stats.ts
+- Input: Dataset[] from loader.
+- Outputs (Stats object):
+  - totals: { datasets: number }
+  - byType: Record<string, number> (tabular/map/file/other)
+  - byCategory: top categories with counts
+  - byPublisher: top publishers with counts
+  - tags: frequency map (string -> count), plus top N (e.g., top 25)
+  - updateRecency: { within7d, within30d, within90d, within1y, older } based on days since getUpdateTimestamp()
+  - updateStats: { avgDaysSinceUpdate, medianDaysSinceUpdate }
+  - licenses: frequency map (normalized license string)
+- Algorithms/notes:
+  - Use a safeDaysSince(date) helper (now - date) in days; ignore undefined dates in averages but count under "older" bucket only if no date? Better: include a separate bucket "unknown".
+  - Sorting: deterministic (alphabetical for ties, descending for counts); include only items count >= 2 for top lists unless total < 50, then show all.
+  - Normalization helpers: normalizeLicense(str) (e.g., "CC BY 4.0" -> "CC-BY-4.0"); normalizeCategory(str) (title case, trim).
+  - Median: sort numeric array; avg: sum/len; round to 1 decimal.
+- Public function: computeStats(datasets: Dataset[], opts?: { topN?: number }): Stats
+
+## 3. Render Markdown profile from computed stats [pending]
+### Dependencies: 8.2
+### Description: Create a renderer that converts the Stats object into a well-structured, human-readable markdown document.
+### Details:
+Implementation approach:
+- Location: src/catalogs/sf/markdown.ts
+- Input: Stats, plus metadata { generatedAt: Date, sourcePath: string }.
+- Output: string (markdown) following this structure:
+  - Title: "San Francisco Socrata Catalog Profile"
+  - Front-matter (optional): none required; include a generated notice at the top.
+  - Sections:
+    1) Overview: total datasets, source file, generated timestamp.
+    2) Dataset types: counts and percentages.
+    3) Update cadence: recency buckets, avg/median days since update.
+    4) Categories: top categories with counts.
+    5) Publishers: top publishers with counts.
+    6) Tags: top N tags with counts.
+    7) Licenses: distribution.
+  - Formatting rules:
+    - Use headings (##), bullet lists with "-", and code ticks for literals where useful.
+    - Percentages rounded to 1 decimal; counts formatted with thousands separators.
+    - Omit any section for which there is no data (e.g., no licenses), but always include Overview.
+- Public function: renderMarkdown(stats: Stats, meta: {generatedAt: Date; sourcePath: string}): string
+
+## 4. Create CLI to generate __docs__/catalogs/sf-socrata-profile.md [pending]
+### Dependencies: 8.1, 8.2, 8.3
+### Description: Wire loader, stats, and renderer into a CLI script and package script that writes the markdown file to the required path.
+### Details:
+Implementation approach:
+- Location: src/cli/profile-sf-socrata.ts (TypeScript) or scripts/profile-sf-socrata.mjs.
+- Behavior:
+  - Parse args: --input (default: data/indexes/sf-socrata.json), --out (default: __docs__/catalogs/sf-socrata-profile.md), --topN (default: 25), --quiet.
+  - Steps: loadSfIndex(input) -> computeStats(datasets, { topN }) -> renderMarkdown(stats, { generatedAt: new Date(), sourcePath: input }) -> ensure output directory exists -> write file (UTF-8) -> log summary.
+  - Ensure deterministic output ordering and stable locale for numbers (use en-US).
+  - Return non-zero exit code on failure; print helpful error messages.
+- Package integration:
+  - Add script to package.json: "profile:sf": "tsx src/cli/profile-sf-socrata.ts" (or node -r ts-node/register ... depending on toolchain).
+  - Document usage in repo README or task notes: pnpm profile:sf --input data/indexes/sf-socrata.json
+- Misc:
+  - Create __docs__/catalogs directory if missing.
+  - Add a file header: "Note: This file is generated. Do not edit by hand." at the top of the markdown.
+
+## 5. Quality checks, documentation, and manual verification [pending]
+### Dependencies: 8.4
+### Description: Polish, validate, and document the workflow to ensure the generated profile is accurate and maintainable.
+### Details:
+Implementation approach:
+- Add linting/formatting compliance for new files; ensure no type errors.
+- Run the CLI against the real SF index to produce __docs__/catalogs/sf-socrata-profile.md.
+- Manually verify:
+  - Counts and distributions look reasonable (sanity checks: totals match input length; top tags/publishers are plausible).
+  - Recency buckets align with sampled datasets.
+  - Sections are well-formatted and readable.
+- Document usage in CONTRIBUTING.md or a short docs note: how to update the profile and where the input index lives.
+- Commit generated markdown and scripts; consider adding the docs path to .gitignore exception if needed.
+
