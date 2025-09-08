@@ -5,7 +5,6 @@ vi.mock('../src/lib/env-providers/socrata.js', () => ({
 }));
 import { SocrataRowClient } from '../src/adapters/socrata/rowsClient.js';
 import { calculateBackoffDelay, parseRetryAfter } from '../src/adapters/socrata/http.js';
-import { SocrataClientErrorImpl } from '../src/adapters/socrata/types.js';
 import * as socrataProviders from '../src/lib/env-providers/socrata.js';
 
 describe('SocrataRowClient', () => {
