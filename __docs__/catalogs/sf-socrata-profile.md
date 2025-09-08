@@ -53,3 +53,108 @@ The SF Socrata registry builder outputs a directory.json file with the following
 - Filtered by domain: `data.sfgov.org`
 - Paginated with configurable page size (default: 1000)
 - Rate limit enhanced with `X-App-Token` header when available
+
+## Retention at Catalog Level
+
+The SF Socrata registry builder enforces retention policies during catalog normalization to avoid persisting obviously stale datasets in the directory index.
+
+### Retention Logic
+- **Default horizon**: Last 24 months from current date
+- **Override support**: Use `--since=<YYYY-MM-DD>` and `--until=<YYYY-MM-DD>` CLI flags
+- **Filtering field**: Uses `resource.updatedAt || resource.indexUpdatedAt` from Discovery API
+- **Exclusion rule**: Datasets with update dates older than the retention horizon are filtered out
+- **Defensive posture**: Datasets with missing update metadata are always included (avoids accidental exclusions)
+
+### CLI Options
+- `--since=<YYYY-MM-DD>`: Override default start date (24 months ago)
+- `--until=<YYYY-MM-DD>`: Override default end date (today)
+- `--includeStale`: Disable retention filtering entirely for audits or debugging
+
+### Retention Metadata
+Each normalized dataset includes retention context:
+```javascript
+retention: {
+  normalizedSince: "2023-09-07",     // Effective start date used
+  normalizedUntil: "2025-09-07",     // Effective end date used
+  filter: "updatedAt|indexUpdatedAt" // Which field determined inclusion
+}
+```
+
+### Tradeoff Rationale
+- **Discovery API limitation**: Cannot pre-filter by dataset dates via `$where` clauses
+- **Catalog-level filtering**: Removes obviously dead datasets from the index before storage
+- **Row-level retention**: Handled separately by branch ingesters using SoQL `$where` filtering
+- **Admin override**: Policy can be adjusted via CLI flags or future registry configuration
+- **Audit support**: `--includeStale` preserves all datasets for administrative review
+
+### Verbose Diagnostics
+When using `--verbose`, the builder shows:
+- Pre-normalization and post-normalization counts
+- Number of stale datasets excluded
+- Filter field statistics (`updatedAt` vs `indexUpdatedAt` usage)
+- Effective retention horizon applied
+
+## Normalization Semantics
+
+The SF Socrata registry builder transforms Discovery API results into a standardized schema with precise field mapping, retention enforcement, deduplication, and sorting rules.
+
+### Field Mapping (Discovery → Normalized)
+
+| Normalized Field | Source Mapping | Type | Notes |
+|------------------|----------------|------|-------|
+| `id` | `item.resource?.id` | `string` | Required; items without ID are skipped |
+| `name` | `item.resource?.name ?? null` | `string\|null` | Null if missing |
+| `type` | `item.resource?.type ?? null` | `string\|null` | Null if missing |
+| `domain` | `<CLI domain arg>` | `string` | Always uses CLI domain argument |
+| `permalink` | `item.permalink ?? null` | `string\|null` | Null if missing |
+| `createdAt` | `item.resource?.createdAt ?? null` | `string\|null` | ISO date string or null |
+| `updatedAt` | `item.resource?.updatedAt ?? item.resource?.indexUpdatedAt ?? null` | `string\|null` | Prefers updatedAt over indexUpdatedAt |
+| `tags` | `item.classification?.tags ?? []` | `string[]` | Empty array if missing |
+| `categories` | `item.classification?.categories ?? []` | `string[]` | Empty array if missing |
+| `owner` | `item.owner?.displayName ?? item.owner?.id ?? null` | `string\|null` | Prefers displayName |
+| `license` | `item.metadata?.license ?? item.metadata?.dataLicenseName ?? null` | `string\|null` | Multiple fallback sources |
+| `retention` | Computed metadata | `object` | See retention section above |
+
+### Null vs Empty String Policy
+- **Scalars**: Use `null` for unknown/missing values, never empty strings
+- **Arrays**: Use empty arrays `[]` for missing collections, never null
+- **Domain**: Always populated from CLI argument (never null/empty)
+
+### Retention Gate (Day-Level)
+1. Extract candidate date: `resource.updatedAt ?? resource.indexUpdatedAt ?? null`
+2. Convert to day string: `candidateDay = raw ? String(raw).slice(0,10) : null` (YYYY-MM-DD)
+3. Compare: If `candidateDay && candidateDay < effectiveSince && !includeStale` → exclude
+4. Defensive: Items with no update date are always included
+
+### Deduplication (Latest Wins)
+- Use `Map<string, object>` keyed by dataset `id`
+- On collision: Compare `updatedAt` day strings (`YYYY-MM-DD`)
+- Keep item with newer `updatedAt`; if equal or unknown, keep existing
+- Ensures exactly one entry per unique dataset ID
+
+### Stable Sort
+After deduplication, sort by:
+1. **Primary**: `name` (lexicographic, null-safe)
+2. **Tiebreaker**: `id` (lexicographic)
+
+Sort implementation:
+```javascript
+normalized.sort((a, b) => {
+  const nameCompare = (a.name ?? '').localeCompare(b.name ?? '');
+  if (nameCompare !== 0) return nameCompare;
+  return a.id.localeCompare(b.id);
+});
+```
+
+### Statistics Tracking
+- **preCount**: Items before normalization
+- **excludedStaleCount**: Items filtered out by retention gate
+- **postCount**: Items after normalization and deduplication  
+- **filterFieldStats**: Breakdown of which date fields were used for decisions
+
+### Data Flow Summary
+1. **Raw Discovery results** → Field mapping with null handling
+2. **Retention gate** → Day-level date comparison excludes stale datasets
+3. **Deduplication** → Map-based with latest-wins conflict resolution
+4. **Stable sort** → Name ascending with ID tiebreaker
+5. **Output** → Clean, deduplicated, sorted normalized dataset array
