@@ -1,9 +1,9 @@
 # Task ID: 16
-# Title: Design sf.housing.permits branch
-# Status: pending
-# Dependencies: None
+# Title: Define housing dashboard requirements w/ Byron
+# Status: deferred
+# Dependencies: 64
 # Priority: high
-# Description: Create a detailed design document for the `sf.housing.permits` data branch.
+# Description: Pause until stakeholders specify which housing data/dashboards matter. Ingestion is deferred until clarified. Depends on vectorization/ingestion shaping (64).
 # Details:
 Edit `__docs__/catalogs/branch-sf-housing-permits.md` to specify the source datasets, the fusion logic (how records are merged and deduplicated), and the final schema for the unified housing permits data.
 

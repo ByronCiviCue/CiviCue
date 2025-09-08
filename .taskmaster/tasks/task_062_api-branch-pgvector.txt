@@ -102,6 +102,15 @@ Implementation steps:
 - Advanced query capabilities that v2 doesn't support
 - Error handling for auth failures, invalid credentials, and quota limits
 - Integration with SoQL builder for complex query construction
+<info added on 2025-09-08T03:58:59.406Z>
+Tag: security-review
+Rationale: Handles Basic auth key_id/secret; treat as sensitive and ensure zero logging/exposure.
+Security acceptance criteria:
+- Authorization headers and credentials are never logged, stored, or included in errors/metrics.
+- Redaction is applied to any request/response logging and traces.
+- Secrets are read only from environment with per-host scoping; never persisted to disk or sent to analytics.
+- Add tests asserting redaction and absence of secrets in logs and error messages.
+</info added on 2025-09-08T03:58:59.406Z>
 
 ## 6. Test rig (record/replay) [pending]
 ### Dependencies: 62.1

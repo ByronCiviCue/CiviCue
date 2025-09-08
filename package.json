@@ -31,7 +31,7 @@
 
   "// TYPE / LINT / FORMAT": "",
   "typecheck": "tsc -p tsconfig.json --noEmit",
-  "build": "tsc -p tsconfig.json",
+  "build": "tsc -p tsconfig.build.json",
   "lint": "eslint .",
   "lint:ci": "eslint . --max-warnings=0",
   "lint:changed": "git diff --cached --name-only --diff-filter=d | grep -E '\\.(js|jsx|ts|tsx)$' | xargs --no-run-if-empty eslint --max-warnings=0 --no-warn-ignored",
@@ -61,6 +61,9 @@
   "registry:merge": "node scripts/merge-registries.mjs",
   "registry:load:pg": "node scripts/registry-to-pg.mjs --files=municipalities/CA/SF/directory.json,municipalities/MI/Detroit/directory.json",
   "registry:all": "npm run registry:refresh && npm run registry:merge && npm run registry:load:pg",
+
+  "// DISCOVERY PRUNE": "",
+  "sf:discovery:prune": "pnpm -s build && node scripts/prune-sf-discovery.mjs --in=data/sf/directory.json --outDir=data/sf",
 
   "// ENV / SECURITY / OPENAPI": "",
   "env:local:init": "node scripts/env-local-init.mjs",

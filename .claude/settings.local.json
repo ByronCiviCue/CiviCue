@@ -40,7 +40,8 @@
       "Bash(pnpm -s lint)",
       "Bash(cat:*)",
       "mcp__task-master-ai__add_subtask",
-      "mcp__task-master-ai__expand_task"
+      "mcp__task-master-ai__expand_task",
+      "Bash(jq:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

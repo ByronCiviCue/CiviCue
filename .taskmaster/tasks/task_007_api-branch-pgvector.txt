@@ -1,6 +1,6 @@
 # Task ID: 7
 # Title: Build SF Socrata index (registry:socrata:sf)
-# Status: pending
+# Status: done
 # Dependencies: None
 # Priority: high
 # Description: Create a script to crawl the San Francisco Socrata portal and build a local index of all available datasets.
@@ -11,7 +11,7 @@ The script will use the Socrata Discovery API to fetch metadata for all datasets
 Run the script and verify that the output index file is created and contains a plausible number of dataset entries with correct metadata fields.
 
 # Subtasks:
-## 1. Scaffold index builder script and configuration [pending]
+## 1. Scaffold index builder script and configuration [done]
 ### Dependencies: None
 ### Description: Create a standalone script to build the San Francisco Socrata registry and define configuration points (domain, output path, page size, app token).
 ### Details:
@@ -27,7 +27,7 @@ Implementation steps:
 - Establish lightweight logger (console) with verbose flag.
 - Decide JSON output shape (top-level metadata + datasets array).
 
-## 2. Implement Discovery API client with pagination and resilience [pending]
+## 2. Implement Discovery API client with pagination and resilience [done]
 ### Dependencies: 7.1
 ### Description: Build an API client to fetch all SF datasets from the Socrata Discovery API, handling pagination, timeouts, retries, and rate limiting.
 ### Details:
@@ -47,7 +47,7 @@ Implementation steps:
 - Return an array of raw catalog items.
 - Instrument with verbose logs: page offsets, retries, response counts.
 
-## 3. Normalize catalog items into registry dataset entries [pending]
+## 3. Normalize catalog items into registry dataset entries [done]
 ### Dependencies: 7.2
 ### Description: Define the registry schema and transform raw Discovery API results into normalized entries with consistent fields.
 ### Details:
@@ -68,7 +68,7 @@ Implementation steps:
 - Add deduplication helper by id to guard against overlapping pages.
 - Validate output entry shape (lightweight runtime checks or optional zod schema) and log warnings for malformed items; skip if critical fields (id, name) are missing.
 
-## 4. Assemble full registry and write to storage [pending]
+## 4. Assemble full registry and write to storage [done]
 ### Dependencies: 7.2, 7.3
 ### Description: Orchestrate crawling, normalization, and persistence to produce the final registry file at registry:socrata:sf.
 ### Details:
@@ -83,7 +83,7 @@ Implementation steps:
 - Support --dryRun to skip writing and only print summary.
 - Verbose logging: totals, first/last few IDs, output path.
 
-## 5. Add verification, documentation, and CI hook [pending]
+## 5. Add verification, documentation, and CI hook [done]
 ### Dependencies: 7.4
 ### Description: Provide a validation command, basic schema check for the output, usage docs, and an optional CI job to refresh the index on demand.
 ### Details:

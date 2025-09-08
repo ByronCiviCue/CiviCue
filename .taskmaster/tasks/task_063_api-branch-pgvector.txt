@@ -1,0 +1,11 @@
+# Task ID: 63
+# Title: Populate SF Registry Datasets
+# Status: done
+# Dependencies: 7
+# Priority: high
+# Description: Ingest and normalize the full San Francisco dataset registry (762 entries) into municipalities/CA/SF/directory.json. Ensure deduplication, retention horizon filtering, and validation against Socrata's /api/views. Serve as the authoritative index for downstream vector ingestion.
+# Details:
+
+
+# Test Strategy:
+Run build then validate locally; verify 762+ datasets populated with correct schema validation and atomic write completion.

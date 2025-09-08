@@ -955,13 +955,15 @@
       },
       {
         "id": 16,
-        "title": "Design sf.housing.permits branch",
-        "description": "Create a detailed design document for the `sf.housing.permits` data branch.",
+        "title": "Define housing dashboard requirements w/ Byron",
+        "description": "Pause until stakeholders specify which housing data/dashboards matter. Ingestion is deferred until clarified. Depends on vectorization/ingestion shaping (64).",
         "details": "Edit `__docs__/catalogs/branch-sf-housing-permits.md` to specify the source datasets, the fusion logic (how records are merged and deduplicated), and the final schema for the unified housing permits data.",
         "testStrategy": "Peer review of the design document to ensure it is feasible, well-defined, and aligns with the normalization map.",
         "priority": "high",
-        "dependencies": [],
-        "status": "pending",
+        "dependencies": [
+          "64"
+        ],
+        "status": "deferred",
         "subtasks": [
           {
             "id": 1,
@@ -1025,8 +1027,10 @@
         "details": "Based on the design doc, implement the three stages: `plan` (determine which data to fetch), `fetch` (retrieve data from sources using the SocrataAdapter), and `fuse` (normalize, deduplicate, and merge the data into a single collection).",
         "testStrategy": "Unit tests for each stage. The `fuse` stage in particular should be tested for its deduplication and normalization logic against mock datasets.",
         "priority": "high",
-        "dependencies": [],
-        "status": "pending",
+        "dependencies": [
+          "64"
+        ],
+        "status": "deferred",
         "subtasks": [
           {
             "id": 1,
@@ -3217,17 +3221,58 @@
         "description": "Ingest and normalize the full San Francisco dataset registry (762 entries) into municipalities/CA/SF/directory.json. Ensure deduplication, retention horizon filtering, and validation against Socrata's /api/views. Serve as the authoritative index for downstream vector ingestion.",
         "details": "",
         "testStrategy": "Run build then validate locally; verify 762+ datasets populated with correct schema validation and atomic write completion.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           7
         ],
         "priority": "high",
         "subtasks": []
+      },
+      {
+        "id": 64,
+        "title": "Vectorization strategy and ingestion shaping",
+        "description": "Define which datasets are vectorized vs stored relationally, retention defaults, and city-level overrides.",
+        "details": "See __docs__/plans/vectorization.md for full strategy and rationale.",
+        "testStrategy": "",
+        "status": "pending",
+        "dependencies": [
+          7
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define retention defaults per category",
+            "description": "Set default data retention windows (e.g., 5y for 311, 10y for housing, full for finance) with rationale and override mechanism.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 64
+          },
+          {
+            "id": 2,
+            "title": "Vectorization vs. relational split rules",
+            "description": "Establish rules to decide which datasets feed pgvector (semantic search) vs remain in relational DB (structured queries).",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 64
+          },
+          {
+            "id": 3,
+            "title": "City-level override surface",
+            "description": "Implement configuration layer allowing city admins to override defaults for retention and ingestion strategy.",
+            "details": "",
+            "status": "pending",
+            "dependencies": [],
+            "parentTaskId": 64
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-08T07:39:08.392Z",
+      "updated": "2025-09-08T07:41:17.010Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",

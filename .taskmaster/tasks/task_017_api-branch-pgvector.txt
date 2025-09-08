@@ -1,7 +1,7 @@
 # Task ID: 17
 # Title: Implement plan/fetch/fuse for sf.housing.permits
-# Status: pending
-# Dependencies: None
+# Status: deferred
+# Dependencies: 64
 # Priority: high
 # Description: Implement the core logic for the `sf.housing.permits` branch engine.
 # Details:

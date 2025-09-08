@@ -100,10 +100,12 @@ async function fetchWithRetry(url, options = {}, maxAttempts = 6) {
 }
 
 async function fetchAll(domain, pageSize, { verbose, since, until }) {
-  const baseUrl = 'https://api.us.socrata.com/api/catalog/v1';
+  const baseUrl = `https://${domain}/api/views`;
   const allResults = [];
-  let scrollId = null;
+  const seenIds = new Set(); // Track seen IDs to detect duplicates
+  let offset = 0;
   let pageCount = 0;
+  let duplicateCount = 0;
   
   // Determine retention horizon
   const effectiveSince = since || getDefaultSince();
@@ -116,51 +118,79 @@ async function fetchAll(domain, pageSize, { verbose, since, until }) {
   
   while (true) {
     const url = new URL(baseUrl);
-    
-    // Always include domains parameter on every request
-    url.searchParams.set('domains', domain);
     url.searchParams.set('limit', String(pageSize));
-    
-    if (scrollId) {
-      // Subsequent requests use scroll_id
-      url.searchParams.set('scroll_id', scrollId);
-    } else {
-      // Initial request sets up scroll
-      url.searchParams.set('scroll', 'true');
-    }
+    url.searchParams.set('offset', String(offset));
     
     const response = await fetchWithRetry(url.toString(), { verbose });
-    const data = await response.json();
+    const results = await response.json();
     
-    const results = data.results || [];
-    if (results.length === 0) {
+    if (!Array.isArray(results) || results.length === 0) {
       break; // No more results
     }
     
-    allResults.push(...results);
-    pageCount++;
-    
-    if (verbose) {
-      console.log(`Page ${pageCount}: fetched ${results.length} items (total: ${allResults.length})`);
+    // Filter out duplicates and add new items
+    const newResults = [];
+    for (const item of results) {
+      if (item?.id && !seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        newResults.push(item);
+      } else if (item?.id) {
+        duplicateCount++;
+      }
     }
     
-    // Get scroll_id for next iteration
-    scrollId = data.resultSetSize > allResults.length ? data.scroll_id : null;
-    if (!scrollId) {
-      break; // No more pages
+    // If we got all duplicates, we've reached the end
+    if (newResults.length === 0) {
+      if (verbose) {
+        console.log(`Page ${pageCount + 1}: all ${results.length} items were duplicates, stopping`);
+      }
+      break;
+    }
+    
+    allResults.push(...newResults);
+    pageCount++;
+    offset += results.length; // Still advance by full page size for API offset
+    
+    if (verbose) {
+      console.log(`Page ${pageCount}: fetched ${results.length} items, ${newResults.length} new (total: ${allResults.length})`);
+    }
+    
+    // Stop if we got fewer results than requested (last page)
+    if (results.length < pageSize) {
+      break;
+    }
+    
+    // Safety valve: stop if we've seen too many duplicates (likely at end)
+    if (duplicateCount > pageSize) {
+      if (verbose) {
+        console.log(`Stopping due to excessive duplicates (${duplicateCount})`);
+      }
+      break;
     }
   }
   
   if (verbose) {
-    console.log(`Completed: ${pageCount} pages, ${allResults.length} total items`);
+    console.log(`Completed: ${pageCount} pages, ${allResults.length} total items (${duplicateCount} duplicates filtered)`);
   }
   
   return allResults;
 }
 
 /**
- * Normalize a single Discovery API item to our frozen schema
- * @param {Object} item - Raw Discovery API result item
+ * Convert epoch timestamp to ISO string
+ * @param {number|string|null} timestamp - Epoch seconds or null
+ * @returns {string|null} - ISO string or null
+ */
+function epochToIso(timestamp) {
+  if (!timestamp) return null;
+  const epochMs = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+  if (isNaN(epochMs)) return null;
+  return new Date(epochMs * 1000).toISOString();
+}
+
+/**
+ * Normalize a single Dataset API item to our frozen schema
+ * @param {Object} item - Raw Dataset API result item
  * @param {string} domain - CLI domain argument to use for all items
  * @param {string} effectiveSince - ISO date string for retention filtering
  * @param {string} effectiveUntil - ISO date string for retention filtering  
@@ -168,24 +198,19 @@ async function fetchAll(domain, pageSize, { verbose, since, until }) {
  * @returns {Object|null} - Normalized item or null if filtered out
  */
 function normalize(item, domain, effectiveSince, effectiveUntil, includeStale = false) {
-  if (!item?.resource?.id) {
+  if (!item?.id) {
     return null; // Skip items without valid ID
   }
 
-  const resource = item.resource;
-  const classification = item.classification || {};
-  const owner = item.owner || {};
-  const metadata = item.metadata || {};
-  
   // Date extraction for retention gate (day-level comparison)
-  const raw = resource.updatedAt ?? resource.indexUpdatedAt ?? null;
-  const candidateDay = raw ? String(raw).slice(0, 10) : null; // YYYY-MM-DD
+  const rawUpdated = item.rowsUpdatedAt ?? item.createdAt ?? null;
+  const candidateDay = rawUpdated ? epochToIso(rawUpdated)?.slice(0, 10) : null; // YYYY-MM-DD
   
   // Determine filter field
   let filterField = 'none';
-  if (resource.updatedAt) {
+  if (item.rowsUpdatedAt) {
     filterField = 'updatedAt';
-  } else if (resource.indexUpdatedAt) {
+  } else if (item.indexUpdatedAt) {
     filterField = 'indexUpdatedAt';
   }
   
@@ -197,17 +222,17 @@ function normalize(item, domain, effectiveSince, effectiveUntil, includeStale = 
   // Defensive posture: include datasets with missing metadata
   
   return {
-    id: resource.id,
-    name: resource.name ?? null,
-    type: resource.type ?? null,
+    id: item.id,
+    name: item.name ?? null,
+    type: item.viewType ?? item.type ?? null,
     domain: domain, // Use CLI domain argument
-    permalink: item.permalink ?? null,
-    createdAt: resource.createdAt ?? null,
-    updatedAt: resource.updatedAt ?? resource.indexUpdatedAt ?? null,
-    tags: classification.tags ?? [],
-    categories: classification.categories ?? [],
-    owner: owner.displayName ?? owner.id ?? null,
-    license: metadata.license ?? metadata.dataLicenseName ?? null,
+    permalink: `https://${domain}/d/${item.id}`,
+    createdAt: epochToIso(item.createdAt),
+    updatedAt: epochToIso(item.rowsUpdatedAt ?? item.createdAt),
+    tags: item.tags ?? [],
+    categories: item.category ? [item.category] : [],
+    owner: item.owner?.displayName ?? item.owner?.id ?? null,
+    license: item.metadata?.license ?? item.license ?? null,
     retention: {
       normalizedSince: effectiveSince,
       normalizedUntil: effectiveUntil,
@@ -217,8 +242,8 @@ function normalize(item, domain, effectiveSince, effectiveUntil, includeStale = 
 }
 
 /**
- * Normalize all Discovery API results with retention filtering and deduplication
- * @param {Array} items - Raw Discovery API results
+ * Normalize all Dataset API results with retention filtering and deduplication
+ * @param {Array} items - Raw Dataset API results
  * @param {string} domain - CLI domain argument
  * @param {string} effectiveSince - ISO date for retention start
  * @param {string} effectiveUntil - ISO date for retention end
@@ -263,13 +288,13 @@ function normalizeAll(items, domain, effectiveSince, effectiveUntil, includeStal
         }
         // If existing is newer or equal, keep it (no changes needed)
       }
-    } else if (item?.resource?.id) {
+    } else if (item?.id) {
       // Item was filtered out due to staleness
       stats.excludedStaleCount++;
       // Track which field would have been used for stats
-      if (item.resource?.updatedAt) {
+      if (item.rowsUpdatedAt) {
         stats.filterFieldStats.updatedAt++;
-      } else if (item.resource?.indexUpdatedAt) {
+      } else if (item.indexUpdatedAt) {
         stats.filterFieldStats.indexUpdatedAt++;
       } else {
         stats.filterFieldStats.none++;
@@ -369,13 +394,12 @@ async function main() {
   if (DRY_RUN) {
     console.log(`
 DRY RUN PLAN:
-1. Connect to Socrata Discovery API: https://api.us.socrata.com/api/catalog/v1
-2. Filter by domain: ${DOMAIN}
-3. Scroll pagination enabled (limit=${PAGE_SIZE} per page)
-4. Retention horizon: ${effectiveSince} to ${effectiveUntil}
-5. Transform results to frozen schema: id,name,type,domain,permalink,createdAt,updatedAt,tags[],categories[],owner,license
-6. Sort by name for stable diffs
-7. Write to: ${OUT_PATH}
+1. Connect to Socrata Dataset API: https://${DOMAIN}/api/views
+2. Use offset/limit pagination (limit=${PAGE_SIZE} per page)
+3. Retention horizon: ${effectiveSince} to ${effectiveUntil}
+4. Transform results to frozen schema: id,name,type,domain,permalink,createdAt,updatedAt,tags[],categories[],owner,license
+5. Sort by name for stable diffs
+6. Write to: ${OUT_PATH}
 
 No network calls or file writes performed in this dry-run mode.
 `);
