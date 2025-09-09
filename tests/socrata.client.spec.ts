@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { healthPing, getRows } from '../src/lib/clients/socrata.js';
+import { withCassette } from './helpers/httpCassette.js';
 import { SocrataHttpError } from '../src/lib/http/socrata.js';
 import * as socrataProviders from '../src/lib/env-providers/socrata.js';
 
@@ -131,5 +132,22 @@ describe('Socrata Client', () => {
       await expect(getRows('test.com', 'abc')).rejects.toThrow(SocrataHttpError);
       await expect(getRows('test.com', 'abc')).rejects.toThrow('Socrata 400: https://test.com/resource/abc.json');
     });
+  });
+
+  it('replays a basic v2 GET page via cassette', async () => {
+    const rows = await withCassette('v2-client-basic', async () => {
+      return await getRows('data.cassette.test', 'abcd-123');
+    }, { mode: 'replay' });
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    for (const r of rows as any[]) {
+      expect(r).toHaveProperty('id');
+      expect(r).toHaveProperty('name');
+    }
+    // Stable-field checks
+    const ids = (rows as any[]).map(r => r.id);
+    expect(ids).toEqual(['r1', 'r2']);
+    const names = (rows as any[]).map(r => r.name);
+    expect(names).toEqual(['Alpha', 'Beta']);
   });
 });

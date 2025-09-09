@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Socrata Client > replays a basic v2 GET page via cassette 1`] = `
+[
+  {
+    "active": true,
+    "id": "r1",
+    "name": "Alpha",
+  },
+  {
+    "active": false,
+    "id": "r2",
+    "name": "Beta",
+  },
+]
+`;

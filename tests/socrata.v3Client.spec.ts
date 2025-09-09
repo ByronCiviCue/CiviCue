@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { v3PostQuery, isV3Unavailable } from '../src/adapters/socrata/v3Client.js';
+import { withCassette } from './helpers/httpCassette.js';
 
 vi.mock('../src/lib/env-providers/socrata.js', async () => {
   const actual = await vi.importActual<any>('../src/lib/env-providers/socrata.js');
@@ -134,5 +135,20 @@ describe('v3PostQuery', () => {
     await expect(p).rejects.toMatchObject({ error: { kind: 'HttpError', status: 403 } });
     try { await p; } catch (e) { expect(isV3Unavailable(e)).toBe(true); }
     fetch.mockRestore();
+  });
+
+  it('replays a basic v3 POST page via cassette', async () => {
+    const result = await withCassette('v3-client-basic', async () => {
+      const r = await v3PostQuery({ domain: 'data.cassette.test', datasetId: 'abcd-1234', soql: 'select id' });
+      return r.rows;
+    }, { mode: 'replay' });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThanOrEqual(3);
+    for (const row of result as any[]) {
+      expect(row).toHaveProperty('id');
+    }
+    // Stable-field checks to avoid snapshot brittleness
+    const ids = (result as any[]).map(r => r.id);
+    expect(ids).toEqual([1, 2, 3]);
   });
 });

@@ -1,0 +1,17 @@
+{
+  "mode": "replay",
+  "entries": [
+    {
+      "request": {
+        "url": "https://data.cassette.test/api/v3/views/abcd-1234/query.json",
+        "method": "POST"
+      },
+      "response": {
+        "status": 200,
+        "headers": { "content-type": "application/json" },
+        "body": { "data": [ { "id": 1 }, { "id": 2 }, { "id": 3 } ] }
+      }
+    }
+  ]
+}
+

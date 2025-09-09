@@ -1,0 +1,20 @@
+{
+  "mode": "replay",
+  "entries": [
+    {
+      "request": {
+        "url": "https://data.cassette.test/resource/abcd-123.json",
+        "method": "GET"
+      },
+      "response": {
+        "status": 200,
+        "headers": { "content-type": "application/json" },
+        "body": [
+          { "id": "r1", "name": "Alpha", "active": true },
+          { "id": "r2", "name": "Beta", "active": false }
+        ]
+      }
+    }
+  ]
+}
+

@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`v3PostQuery > replays a basic v3 POST page via cassette 1`] = `
+[
+  {
+    "id": 1,
+  },
+  {
+    "id": 2,
+  },
+  {
+    "id": 3,
+  },
+]
+`;
