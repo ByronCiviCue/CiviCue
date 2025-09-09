@@ -1,0 +1,14 @@
+{
+  "results": [
+    {
+      "domain": "data.cityofchicago.org",
+      "country": "United States",
+      "agencies": [
+        {
+          "name": "Chicago Police Department",
+          "type": "City Agency"
+        }
+      ]
+    }
+  ]
+}

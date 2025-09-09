@@ -1,0 +1,17 @@
+{
+  "results": [
+    {
+      "domain": "data.sfgov.org",
+      "country": "United States",
+      "agencies": [
+        {
+          "name": "San Francisco MTA",
+          "type": "City Agency"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "next_cursor": "page2"
+  }
+}
