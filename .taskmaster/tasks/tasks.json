@@ -3154,7 +3154,7 @@
             "title": "Column metadata & type map",
             "description": "Fetch /api/views/<id>.json and normalize columns (name, fieldName, dataTypeName, description, format). Produce a TypeMap usable by codecs and SoQL builder.",
             "details": "Implementation steps:\n- Create metadata fetcher for Socrata views API endpoint /api/views/<id>.json\n- Parse column definitions: name, fieldName, dataTypeName, description, format, position\n- Normalize Socrata data types to internal type system (text, number, boolean, money, calendar_date, fixed_timestamp, floating_timestamp, point, line, polygon, etc.)\n- Create TypeMap interface that codecs and SoQL builder can consume\n- Handle missing/malformed column metadata gracefully\n- Support column aliasing (technical name vs display name)\n- Cache metadata per dataset to avoid repeated fetches\n- Add validation for required column fields\n- Map geospatial types properly (point, line, polygon, multipoint, multiline, multipolygon)\n- Include column format hints for parsing (date formats, number precision, etc.)\n- Export type definitions for downstream consumers",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "62.1"
             ],
@@ -3165,7 +3165,7 @@
             "title": "SoQL builder (typed DSL)",
             "description": "Provide select/where/order/group/limit/offset with safe quoting and parameterization. Emit $select, $where, $order, $group, $limit, $offset query params.",
             "details": "Implementation steps:\n- Create SoQL query builder with fluent interface (method chaining)\n- Implement SELECT clause builder with column validation against TypeMap\n- Add WHERE clause builder with type-aware parameter binding and SQL injection prevention\n- Support ORDER BY with ASC/DESC and multi-column sorting\n- Add GROUP BY clause with aggregation function support (COUNT, SUM, AVG, etc.)\n- Implement LIMIT and OFFSET for pagination\n- Add HAVING clause for grouped query filtering\n- Safe string escaping and parameter quoting based on column types\n- Support for geospatial functions (within_box, within_circle, intersects)\n- Date/time function support (date_trunc, extract, between)\n- Export to $-prefixed query parameters for v2 API (?$select=..., ?$where=...)\n- Type checking against column metadata to prevent runtime errors\n- Support for complex expressions and nested conditions\n- Query validation and optimization hints",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "62.2"
             ],
@@ -3176,7 +3176,7 @@
             "title": "Type codecs (incl. geo)",
             "description": "Implement parsers/formatters for all Socrata types; geo as WKT or GeoJSON. Unit tests with property checks and snapshots.",
             "details": "Implementation steps:\n- Create codec system for all Socrata data types based on socratadata analysis\n- Basic types: text, number, boolean, money, row_identifier, row_version\n- Temporal types: calendar_date, fixed_timestamp, floating_timestamp with timezone handling\n- Geospatial types: point, line, polygon, multipoint, multiline, multipolygon\n- Complex types: url (with description), photo, document, location (composite)\n- Export geospatial data as both WKT and GeoJSON formats\n- Handle null/undefined values gracefully with Option<T> pattern\n- Add format validation and parsing error handling\n- Support timezone conversion for floating timestamps\n- Document/photo URL construction using metadata base URL\n- Location type parsing (coordinates + address components)\n- Unit tests with property-based testing for edge cases\n- Snapshot testing for complex geospatial structures\n- Performance benchmarks for large dataset parsing\n- Type-safe interfaces with proper TypeScript definitions",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "62.2"
             ],
@@ -3272,7 +3272,7 @@
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-08T21:15:30.433Z",
+      "updated": "2025-09-09T01:20:09.177Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",
