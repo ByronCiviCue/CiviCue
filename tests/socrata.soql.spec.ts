@@ -50,6 +50,16 @@ describe('SoQL builder', () => {
     expect(r2.params.$where).toBe("created_at BETWEEN '2020-01-01T00:00:00.000Z' AND '2020-12-31T00:00:00.000Z'");
   });
 
+  it('LIKE/ILIKE must receive string', () => {
+    expect(() => buildSoql({ fields, where: [{ field: 'name', op: 'LIKE', value: 5 as any }] })).toThrow(/expects a string/);
+    expect(() => buildSoql({ fields, where: [{ field: 'name', op: 'ILIKE', value: false as any }] })).toThrow(/expects a string/);
+  });
+
+  it('rejects empty field allow-list and requires scalar for scalar ops', () => {
+    expect(() => buildSoql({ fields: [], select: ['id'] } as any)).toThrow(/allow-list cannot be empty/);
+    expect(() => buildSoql({ fields, where: [{ field: 'id', op: '=' }] })).toThrow(/requires a scalar/);
+  });
+
   it('null handling with IS NULL / IS NOT NULL', () => {
     const r1 = buildSoql({ fields, where: [{ field: 'amount', op: 'IS NULL' }] });
     expect(r1.params.$where).toBe('amount IS NULL');
@@ -63,4 +73,3 @@ describe('SoQL builder', () => {
     expect(Object.keys(r.params)).not.toContain('q');
   });
 });
-

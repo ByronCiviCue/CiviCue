@@ -53,7 +53,7 @@ export function serializeValue(v: unknown): string {
 
 export function buildSoql(input: SoqlBuildInput): SoqlBuildResult {
   const { fields } = input;
-  if (!fields || fields.length === 0) throw new Error('fields allow-list must be non-empty');
+  if (!fields || fields.length === 0) throw new Error('fields allow-list cannot be empty');
 
   const paramsEntries: [string, string][] = [];
   const echoes: Pick<SoqlBuildResult, 'select' | 'groupBy' | 'order'> = {};
@@ -171,6 +171,8 @@ function buildPredicate(p: SoqlPredicate, fields: readonly string[]): string {
     }
     default: {
       // scalar ops
+      if (p.value === undefined) throw new Error(`${op} requires a scalar value`);
+      if (Array.isArray(p.value)) throw new Error(`${op} requires a scalar value`);
       return `${p.field} ${op} ${serializeValue(p.value)}`;
     }
   }
