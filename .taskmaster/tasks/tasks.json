@@ -3187,7 +3187,7 @@
             "title": "v3 POST query support + Basic auth",
             "description": "Support POST queries for advanced/private datasets with Basic (key_id/secret). Configurable per host/dataset; never log secrets.",
             "details": "Implementation steps:\n- Create v3 API client for POST /api/v3/views/{four_by_four}/query.json\n- Implement Basic authentication using key_id/secret credentials (not Bearer tokens)\n- JSON request body format: { query: 'SoQL string', page: { pageNumber: 1, pageSize: 1000 }, includeSynthetic: true }\n- Pagination using pageNumber increment (different from v2 offset/limit)\n- Host/dataset-specific auth configuration (some datasets require auth, others don't)\n- Environment-based credential resolution (per-host overrides like SOCRATA__data.sfgov.org__API_KEY_ID)\n- Never log or expose credentials in error messages or debug output\n- Graceful fallback to v2 when v3 auth fails or is unavailable\n- Support for synthetic columns (system-generated fields like :id, :created_at, :updated_at)\n- Advanced query capabilities that v2 doesn't support\n- Error handling for auth failures, invalid credentials, and quota limits\n- Integration with SoQL builder for complex query construction\n<info added on 2025-09-08T03:58:59.406Z>\nTag: security-review\nRationale: Handles Basic auth key_id/secret; treat as sensitive and ensure zero logging/exposure.\nSecurity acceptance criteria:\n- Authorization headers and credentials are never logged, stored, or included in errors/metrics.\n- Redaction is applied to any request/response logging and traces.\n- Secrets are read only from environment with per-host scoping; never persisted to disk or sent to analytics.\n- Add tests asserting redaction and absence of secrets in logs and error messages.\n</info added on 2025-09-08T03:58:59.406Z>",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "62.3"
             ],
@@ -3272,7 +3272,7 @@
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-09T01:20:09.177Z",
+      "updated": "2025-09-09T18:36:04.243Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",
