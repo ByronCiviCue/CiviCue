@@ -153,3 +153,24 @@ export function resolveSocrataAppToken(host: string): string | undefined {
   }
   return process.env.SOCRATA_APP_TOKEN;
 }
+
+// Resolve Socrata v3 POST API basic auth keys with precedence:
+// dataset-specific (host + fourbyfour no-dash, lowercase) > host-level > global
+export function resolveSocrataV3Key(
+  host: string,
+  fourByFour?: string
+): { keyId: string; keySecret: string } | undefined {
+  const fbf = fourByFour ? fourByFour.toLowerCase().replace(/-/g, '') : undefined;
+  if (fbf) {
+    const kid = process.env[`SOCRATA__${host}__${fbf}__V3_KEY_ID`];
+    const ksec = process.env[`SOCRATA__${host}__${fbf}__V3_KEY_SECRET`];
+    if (kid && ksec) return { keyId: kid, keySecret: ksec };
+  }
+  const hostId = process.env[`SOCRATA__${host}__V3_KEY_ID`];
+  const hostSec = process.env[`SOCRATA__${host}__V3_KEY_SECRET`];
+  if (hostId && hostSec) return { keyId: hostId, keySecret: hostSec };
+  const globalId = process.env.SOCRATA_V3_KEY_ID;
+  const globalSec = process.env.SOCRATA_V3_KEY_SECRET;
+  if (globalId && globalSec) return { keyId: globalId, keySecret: globalSec };
+  return undefined;
+}
