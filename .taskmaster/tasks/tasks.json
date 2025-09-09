@@ -3136,7 +3136,7 @@
         "description": "Build a reusable dataset layer that all city branches can use for fetching actual data from Socrata APIs, supporting v2/v3 endpoints, SoQL queries, all data types including geospatial, and proper authentication patterns.",
         "details": "This epic provides the foundation for actual data retrieval from Socrata datasets, complementing the Discovery API catalog layer (Task 7). Key components: dataset row client with pagination, column metadata fetching, SoQL query builder, comprehensive type codecs, v3 POST query support, test infrastructure, and regional endpoint routing. All branches (311, housing, traffic, etc.) will depend on this core.",
         "testStrategy": "Each subtask has specific test requirements. Overall integration tests will verify end-to-end data fetching from real Socrata datasets with various data types, authentication methods, and query patterns using record/replay fixtures.",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [],
         "priority": "high",
         "subtasks": [
@@ -3198,7 +3198,7 @@
             "title": "Test rig (record/replay)",
             "description": "Add HTTP cassette recorder; snapshot complex responses; property tests \"≥ N rows\". Replace live tests in CI with replayed fixtures.",
             "details": "Implementation steps:\n- Set up HTTP record/replay system (similar to VCR for Ruby or HTTP cassettes)\n- Integration with existing test framework to record API calls during development\n- Playback recorded responses during CI/testing to avoid live API calls\n- Snapshot testing for complex response structures and data types\n- Property-based testing with assertions like \"at least N rows returned\"\n- Schema invariant tests (all rows have required fields, types are consistent)\n- Response validation against expected data structures\n- Fixture management and organization by test scenario\n- Support for different recording modes (record, replay, pass-through)\n- Anonymization/redaction of sensitive data in fixtures\n- Easy fixture regeneration when API contracts change\n- Performance testing with synthetic large datasets\n- Integration with both v2 and v3 API clients\n- Test coverage for error scenarios (429, 5xx, network failures)",
-            "status": "pending",
+            "status": "done",
             "dependencies": [
               "62.1"
             ],
@@ -3209,9 +3209,88 @@
             "title": "Regional endpoint routing",
             "description": "Config for US/EU; auto-pick per host; override via env.",
             "details": "Implementation steps:\n- Add configuration system for regional Socrata endpoints (US vs EU datacenters)\n- Default routing logic: api.us.socrata.com vs api.eu.socrata.com\n- Host-based auto-detection for regional routing (e.g., EU domains route to EU endpoints)\n- Environment variable overrides for explicit datacenter selection\n- Support for per-domain endpoint configuration (some domains may use different regions)\n- Failover logic: try primary region, fallback to secondary on failure\n- Configuration validation and error handling for invalid regions\n- Documentation for supported regions and routing rules\n- Integration with both Discovery API and Dataset API clients\n- Performance optimization: cache region resolution per domain\n- Support for future region expansion (APAC, etc.)\n- Environment-based overrides: SOCRATA_REGION=EU, SOCRATA__domain.com__REGION=US\n- Default behavior maintains backwards compatibility (US region)\n- Proper URL construction for regional endpoints",
+            "status": "done",
+            "dependencies": [],
+            "parentTaskId": 62
+          },
+          {
+            "id": 8,
+            "title": "Task 62.8 — Purge spammy LLM comments + add JSDoc coverage",
+            "description": "Scope & Rules: Remove obvious “LLM scaffolding” noise comments from Task 62 code only. Keep meaningful dev notes. Add JSDoc to all exported symbols in Task 62 modules. Do not change runtime logic. No config churn, no eslint-disables. Tests must remain green. Target files (code only; tests/docs excluded for JSDoc): src/adapters/socrata/regions.ts, src/adapters/socrata/discoveryClient.ts",
+            "details": "",
+            "status": "in-progress",
+            "dependencies": [],
+            "parentTaskId": 62
+          },
+          {
+            "id": 9,
+            "title": "Task 62.9 — Global Socrata directory (US/EU) + SF smoke verification",
+            "description": "Intent: 1. Full catalog of municipalities/agencies across US/EU via the Discovery API → stored in Postgres (not a mammoth JSON file). 2. Verify SF dataset queries through our client stack (not just curl): a smoke script that hits live in manual mode, while CI remains cassette-only. Design (tight, minimal): DB tables (idempotent migration): socrata_hosts(host text primary key, region text not null, last_seen timestamptz not null default now()), socrata_domains(domain text primary key, country text, region text not null, last_seen timestamptz not null default now()), socrata_agencies(host text not null, name text not null, type text, primary key(host, name)). Ingestion job: services/discovery/socrataCatalogIngest.ts. Paginates Discovery API for US and EU bases using our new regions module + discovery client. Respects rate limits (small concurrency + backoff). Upserts into the above tables. Idempotent by key. Supports resume via --cursor or --since flags (optional now, placeholders allowed). Writes progress logs to stdout (info), no secrets, no noisy dumps. CLI runner: bin/socrata-catalog.ts. Flags: --regions=US,EU (default US,EU), --host=data.sfgov.org (filter to a host) OR full sweep if omitted, --limit=10000 (per-region cap), --dry-run (no DB writes). Requires DATABASE_URL. Uses pg client (which we already depend on). CI safety: Tests use cassette replay only (no network). The CLI script is manual; CI never calls it. SF verification: Add a tiny smoke script bin/socrata-smoke.ts that: Accepts --host and --dataset. Calls our rows client through the regional stack (not curl). Prints row count + first 2 ids to stdout. Guard with --allow-live flag to prevent accidental CI execution.",
+            "details": "",
             "status": "pending",
             "dependencies": [],
             "parentTaskId": 62
+          },
+          {
+            "id": 10,
+            "title": "Remove LLM scaffolding comments from regions.ts",
+            "description": "Clean up src/adapters/socrata/regions.ts by removing obvious AI-generated scaffolding comments while preserving meaningful developer notes and documentation.",
+            "dependencies": [],
+            "details": "Target file: src/adapters/socrata/regions.ts. Remove comments that are clearly LLM-generated boilerplate (e.g., 'This function...', 'Helper method that...', obvious pattern explanations). Keep substantive comments that explain business logic, edge cases, or non-obvious implementation decisions. Do not modify any runtime logic or functionality.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 11,
+            "title": "Remove LLM scaffolding comments from discoveryClient.ts",
+            "description": "Clean up src/adapters/socrata/discoveryClient.ts by removing obvious AI-generated scaffolding comments while preserving meaningful developer notes and documentation.",
+            "dependencies": [],
+            "details": "Target file: src/adapters/socrata/discoveryClient.ts. Remove comments that are clearly LLM-generated boilerplate (e.g., 'This method...', 'Implementation of...', redundant type descriptions). Keep substantive comments that explain API behavior, error handling rationale, or complex business logic. Do not modify any runtime logic or functionality.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 12,
+            "title": "Add comprehensive JSDoc to all exported symbols",
+            "description": "Add proper JSDoc documentation to all exported functions, classes, interfaces, and types in the Task 62 modules, ensuring comprehensive API documentation coverage.",
+            "dependencies": [
+              "62.10",
+              "62.11"
+            ],
+            "details": "Add JSDoc comments to all exported symbols in src/adapters/socrata/regions.ts and src/adapters/socrata/discoveryClient.ts. Include @param, @returns, @throws where applicable. Focus on documenting the public API surface, parameter expectations, return value shapes, and potential error conditions. Ensure JSDoc follows TypeScript conventions and provides meaningful descriptions beyond what the type signatures already convey.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 13,
+            "title": "Socrata global directory database schema and migration",
+            "description": "Create PostgreSQL tables for storing global Socrata directory data including hosts, domains, and agencies with proper indexing and constraints.",
+            "dependencies": [],
+            "details": "Design and implement database migration for socrata_hosts(host text primary key, region text not null, last_seen timestamptz not null default now()), socrata_domains(domain text primary key, country text, region text not null, last_seen timestamptz not null default now()), socrata_agencies(host text not null, name text not null, type text, primary key(host, name)). Include proper indexes for query performance and foreign key relationships where appropriate. Migration must be idempotent and reversible.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 14,
+            "title": "Socrata catalog ingestion service with rate limiting",
+            "description": "Implement the catalog ingestion service that paginates through Discovery API for US/EU regions and upserts data into PostgreSQL tables.",
+            "dependencies": [
+              "62.13"
+            ],
+            "details": "Create services/discovery/socrataCatalogIngest.ts that uses the regions module and discovery client to fetch catalog data. Implement proper rate limiting with small concurrency and exponential backoff. Support resume functionality via cursor/since flags (placeholders allowed). Upsert operations must be idempotent by primary key. Include comprehensive progress logging without exposing secrets or creating noisy output.",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 15,
+            "title": "CLI tools for catalog management and SF verification",
+            "description": "Build CLI runner for catalog ingestion and smoke testing script for SF dataset verification through the client stack.",
+            "dependencies": [
+              "62.14"
+            ],
+            "details": "Create bin/socrata-catalog.ts with flags: --regions=US,EU, --host filter, --limit per-region cap, --dry-run mode. Requires DATABASE_URL and uses existing pg client dependency. Build bin/socrata-smoke.ts that accepts --host, --dataset, and --allow-live flags, calls rows client through regional stack (not curl), and prints row count + first 2 IDs. Both scripts must be manual-only with CI safety guards to prevent accidental network calls in tests.",
+            "status": "pending",
+            "testStrategy": ""
           }
         ]
       },
@@ -3272,7 +3351,7 @@
     ],
     "metadata": {
       "created": "2025-09-07T01:25:21.173Z",
-      "updated": "2025-09-09T18:36:04.243Z",
+      "updated": "2025-09-09T19:55:17.781Z",
       "description": "Copy of \"master\" created on 9/6/2025",
       "copiedFrom": {
         "tag": "master",
