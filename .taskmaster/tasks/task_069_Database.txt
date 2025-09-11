@@ -1,0 +1,24 @@
+# Task ID: 69
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Add down migration and run end-to-end verification
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement rollback steps and validate the schema by running smoke tests end-to-end.
+# Details:
+In the migration DOWN section (reverse order):
+- DROP INDEX IF EXISTS core.item_embeddings_embedding_ivfflat_idx;
+- DROP TABLE IF EXISTS core.item_embeddings;
+- DROP TRIGGER IF EXISTS items_set_updated_at ON core.items;
+- DROP TABLE IF EXISTS core.items;
+- DROP FUNCTION IF EXISTS core.set_updated_at();
+- Optionally DROP SCHEMA core; only if empty and safe in your environment.
+- Optionally DROP EXTENSION vector and pgcrypto if policy allows (they may be shared; usually leave installed).
+Verification steps:
+- Run UP migration on a fresh dev DB; perform the insert/update/select checks described in prior subtasks.
+- Run DOWN migration; verify tables, indexes, and function are removed.
+- Re-run UP to ensure idempotency and no leftover artifacts.
+- Document the embedding dimension and model choice in a README next to the migration.
+
+# Test Strategy:
+

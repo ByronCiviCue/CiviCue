@@ -1,4 +1,5 @@
 # Task ID: 16
+# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Define housing dashboard requirements w/ Byron
 # Status: deferred
 # Dependencies: 64

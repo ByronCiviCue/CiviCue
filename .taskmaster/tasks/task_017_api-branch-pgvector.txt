@@ -1,4 +1,5 @@
 # Task ID: 17
+# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Implement plan/fetch/fuse for sf.housing.permits
 # Status: deferred
 # Dependencies: 64

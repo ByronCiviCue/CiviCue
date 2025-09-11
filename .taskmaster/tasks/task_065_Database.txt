@@ -1,0 +1,12 @@
+# Task ID: 65
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Socrata global directory database schema and migration
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create PostgreSQL tables for storing global Socrata directory data including hosts, domains, and agencies with proper indexing and constraints.
+# Details:
+Design and implement database migration for socrata_hosts(host text primary key, region text not null, last_seen timestamptz not null default now()), socrata_domains(domain text primary key, country text, region text not null, last_seen timestamptz not null default now()), socrata_agencies(host text not null, name text not null, type text, primary key(host, name)). Include proper indexes for query performance and foreign key relationships where appropriate. Migration must be idempotent and reversible.
+
+# Test Strategy:
+

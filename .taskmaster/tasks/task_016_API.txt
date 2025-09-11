@@ -1,0 +1,114 @@
+# Task ID: 16
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Define housing dashboard requirements w/ Byron
+# Status: deferred
+# Dependencies: 64 (Not found)
+# Priority: high
+# Description: Pause until stakeholders specify which housing data/dashboards matter. Ingestion is deferred until clarified. Depends on vectorization/ingestion shaping (64).
+# Details:
+Edit `__docs__/catalogs/branch-sf-housing-permits.md` to specify the source datasets, the fusion logic (how records are merged and deduplicated), and the final schema for the unified housing permits data.
+
+# Test Strategy:
+Peer review of the design document to ensure it is feasible, well-defined, and aligns with the normalization map.
+
+# Subtasks:
+## 1. Create design doc skeleton and capture requirements [pending]
+### Dependencies: None
+### Description: Initialize and structure the branch design document for sf.housing.permits with clear goals and consumers.
+### Details:
+- File: __docs__/catalogs/branch-sf-housing-permits.md
+- Add front-matter: title: "sf.housing.permits", owner, last_updated, status: draft, branch_id: sf.housing.permits, consumers: Task 24 (/v1/reports/permits), Task 28 (ingest job), Task 20 (observability), Task 32 (schedule).
+- Add sections (empty placeholders to be filled in later):
+  1) Overview and Scope (what is included/excluded; definition of "housing permits"; expected update cadence)
+  2) Consumers and Questions Answered (reporting use cases, ingest needs)
+  3) Source Datasets (URLs, auth, keys, update cadence, record counts)
+  4) Canonical Schema (fields, types, constraints, enums)
+  5) Source-to-Canonical Mapping and Normalization Rules
+  6) Fusion and Deduplication Logic (linkage keys, survivorship rules, conflict resolution)
+  7) Data Quality, SLAs, and Observability (metrics to emit: rows_fetched, dedupe_rate, freshness_lag, source_errors)
+  8) Edge Cases and Limitations
+  9) Validation Plan and Acceptance Criteria
+  10) Change Log and Versioning
+- Reference and link the project normalization map document so the schema aligns with established conventions (naming, types, time zone, geospatial CRS).
+- Commit the skeleton so subsequent subtasks can incrementally fill sections.
+
+## 2. Inventory and profile source datasets [pending]
+### Dependencies: 16.1
+### Description: Enumerate and document all upstream datasets that will feed the branch, including access patterns, keys, and quality notes.
+### Details:
+- In the "Source Datasets" section, document each source with: source_name, URL/API base, dataset identifier (to be confirmed), access/auth method, expected update cadence, expected volume, primary key(s), last_modified field, and notable data quality quirks.
+- Candidate sources to include (validate and add links):
+  - SF Department of Building Inspection (DBI) Building Permits (open data API)
+  - SF Planning Department Permit/Case Tracking data
+  - SF Housing Pipeline/Housing Inventory (for units added/removed and status alignment)
+  - Assessor Parcels/APN reference (for parcel normalization and geospatial joins)
+  - Address reference/normalization service (internal or external) for canonical address fields
+- For each source, capture a minimal field dictionary (field name, type, sample values) and the source-level keys (e.g., permit_number, case_id). Note if permit_number is unique and stable, and presence of address, APN, geo.
+- Pull a small sample (1–2k rows per source) into a temporary profiling notebook or CSV snapshots under docs/samples references (or link to profiling results). Summarize duplicate rates, nulls for key fields, and presence/consistency of dates and valuations.
+
+## 3. Define canonical entity and final schema with normalization [pending]
+### Dependencies: 16.2
+### Description: Specify the unified permit entity, field list, data types, constraints, and normalization rules mapped from sources.
+### Details:
+- In the "Canonical Schema" section, define the final fields and types. Required fields (not-null): permit_uid, permit_number (when available), issuing_agency, status, applied_date (nullable if missing), normalized_address, parcel_apn (nullable), lat, lon (nullable), updated_at_source, ingested_at_branch.
+- Proposed key fields:
+  - permit_uid: deterministic UUIDv5 from (issuing_agency, source_record_id)
+  - permit_number: string (trimmed, uppercased), may be null for some Planning records
+  - issuing_agency: enum {DBI, PLANNING, OTHER}
+  - status: enum with controlled vocabulary (APPLIED, ISSUED, FINAL, COMPLETE, CANCELLED, EXPIRED, WITHDRAWN, UNDER_REVIEW)
+  - applied_date, issued_date, completed_date, status_date: date or timestamp (UTC)
+  - permit_type, work_class, category: controlled sets; define mapping tables
+  - description: string
+  - address fields: street_number, street_name, street_suffix, unit, city, state, postal_code; normalized_address (single line)
+  - parcel_apn: standardized format; normalized_parcel
+  - geometry: GeoJSON Point (WGS84), plus lat, lon convenience fields
+  - units_added, units_removed: integers (>=0)
+  - valuation_estimated, fees_total: decimal(12,2) USD
+  - contractor_license, applicant_name, owner_name: strings
+  - neighborhood, supervisor_district, zoning, census_tract: optional enrichment
+  - source: system, record_id, source_url, updated_at_source
+  - audit: ingested_at_branch, record_hash, quality_flags[], dedupe_group_id
+- In the "Source-to-Canonical Mapping" section, draft a mapping table for each source: source_field -> canonical_field with transforms:
+  - Dates: parse to UTC; standardize formats; set timezone assumptions
+  - Address: normalize via shared library/service; split into components; maintain original_address
+  - Categorical: map source codes to canonical enums; store source_code in auxiliary fields if needed
+  - Currency: coerce to decimal; default currency USD
+  - Geo: ensure WGS84; convert X/Y to lon/lat if needed
+- Call out conformance with the normalization map (naming: snake_case; timestamps in UTC; enums in upper snake).
+
+## 4. Specify fusion, deduplication, and survivorship logic [pending]
+### Dependencies: 16.3
+### Description: Detail how records are matched across sources, merged into a single unified permit, and how conflicts are resolved.
+### Details:
+- In the "Fusion and Deduplication" section, define matching keys and scoring:
+  - Primary deterministic key: normalized(permit_number) + issuing_agency
+  - Secondary match (when permit_number missing): normalized_address + permit_type + applied_date within ±14 days
+  - Tertiary match: parcel_apn + applied_date within ±30 days + valuation similarity (±15%)
+  - Address similarity: Jaro-Winkler ≥ 0.92 or Levenshtein distance threshold relative to length
+- Survivorship rules (field-level):
+  - Choose the record with the most recent updated_at_source as base when conflicts arise
+  - Source priority for specific fields: status/status_date (PLANNING > DBI), valuation/fees (DBI > PLANNING), units_added/units_removed (PLANNING/Housing Pipeline > DBI)
+  - Merge arrays (events/status_history) by union on (code, date)
+  - For text fields (description), prefer longer non-empty value; otherwise base
+  - Never drop cancellation/void flags; represent as status=CANCELLED with status_date
+- Versioning and change detection:
+  - Compute record_hash over business fields; emit a new unified version only when the hash changes
+  - Preserve prior status changes in status_history if available
+- Deletions and reopens: model via status transitions; do not hard-delete unified records; mark is_active derived from terminal statuses
+- Observability hooks (to support Task 20): define how to compute rows_fetched per source, dedupe_rate = 1 - (unified_count / raw_count), freshness_lag = now - max(updated_at_source), source_errors from fetch failures
+- Include a pseudocode outline for plan/fetch/fuse ordering so engineers can implement consistently.
+
+## 5. Finalize doc with quality checks, acceptance criteria, and PR [pending]
+### Dependencies: 16.4
+### Description: Complete the document with validation checks, SLAs, and ensure it supports downstream tasks; submit for review and merge.
+### Details:
+- Add "Data Quality and SLAs":
+  - Hourly ingest expectation (aligns with Task 32); target freshness_lag < 2 hours
+  - Required field completeness thresholds (e.g., permit_number present ≥95% for DBI; address ≥98%)
+  - Validation checks: enum conformance, date ordering (applied ≤ issued ≤ completed), lat/lon bounds in SF
+- Add "Reporting readiness" for Task 24: confirm fields needed for aggregations (status, month bucket from applied/issued, neighborhood, units_added/removed, valuation) are present and well-defined (including bucketing guidance)
+- Add "Ingestion contract" for Task 28: define stable keys (permit_uid), mandatory fields for upsert (permit_uid, permit_number or alt key, status, status_date, normalized_address), and soft-delete policy
+- Populate "Edge Cases and Limitations" (e.g., multi-unit permits, address renumbering, missing permit_number, condo permits per unit)
+- Update Change Log with decisions and schema version v1.0. Set status: approved once reviewed.
+- Open a PR referencing Task 16, tag reviewers (data modeling, API), and incorporate feedback until approval.
+

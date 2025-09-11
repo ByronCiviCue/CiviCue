@@ -1,4 +1,5 @@
 # Task ID: 62
+# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Socrata Dataset Core (reusable across cities)
 # Status: pending
 # Dependencies: None

@@ -1,0 +1,59 @@
+# Task ID: 27
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Create core.items and core.item_embeddings DB schema
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Define and create the database tables for storing unified items and their vector embeddings.
+# Details:
+Write a database migration to create the `core.items` table (for fused data from branches) and the `core.item_embeddings` table. The embeddings table should use a vector-supporting data type from a DB extension like `pgvector`.
+
+# Test Strategy:
+The migration script should be testable. After running the migration, verify the schema of the created tables using a database inspection tool or query.
+
+# Subtasks:
+## 3. Implement core.items table, constraints, indexes, and triggers [pending]
+### Dependencies: 27.2
+### Description: Create the core.items table with appropriate columns, indexes, and the updated_at trigger.
+### Details:
+In the migration UP section, execute:
+- CREATE TABLE core.items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_branch TEXT NOT NULL,
+  source_item_id TEXT NOT NULL,
+  canonical_key TEXT NULL,
+  content JSONB NOT NULL,
+  content_hash BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (source_branch, source_item_id)
+);
+- Indexes:
+  - CREATE INDEX items_canonical_key_idx ON core.items (canonical_key);
+  - CREATE INDEX items_content_gin_idx ON core.items USING GIN (content);
+- Trigger:
+  - CREATE TRIGGER items_set_updated_at BEFORE UPDATE ON core.items FOR EACH ROW EXECUTE FUNCTION core.set_updated_at();
+Implementation notes:
+- Compute content_hash in application code during upsert or add a future trigger if desired. Keep it NOT NULL to enforce presence.
+- Consider BTREE index on (source_branch, source_item_id) is covered by UNIQUE, so no extra index needed.
+
+## 4. Implement core.item_embeddings table with pgvector and ANN index [pending]
+### Dependencies: 27.2, 27.3
+### Description: Create the core.item_embeddings table, foreign key to items, uniqueness, and an IVFFLAT index using cosine distance.
+### Details:
+In the migration UP section, execute:
+- CREATE TABLE core.item_embeddings (
+  id BIGSERIAL PRIMARY KEY,
+  item_id UUID NOT NULL REFERENCES core.items(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  embedding VECTOR(1536) NOT NULL,
+  embedding_version INT NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (item_id, model, embedding_version)
+);
+- Create ANN index (requires pgvector):
+  - CREATE INDEX item_embeddings_embedding_ivfflat_idx ON core.item_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+Notes:
+- IVFFLAT performs best after ANALYZE and with sufficient rows; adjust lists per data size. For small datasets, a plain BTREE index is not applicable; sequential scan may be fine until volume grows.
+- If later supporting multiple dimensions, create additional tables like core.item_embeddings_768, each with its own vector(dim) and index.
+

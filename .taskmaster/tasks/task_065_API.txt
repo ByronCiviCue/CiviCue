@@ -1,0 +1,12 @@
+# Task ID: 65
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Vectorization vs. relational split rules
+# Status: pending
+# Dependencies: 64 (Not found)
+# Priority: high
+# Description: Establish rules to decide which datasets feed pgvector (semantic search) vs remain in relational DB (structured queries).
+# Details:
+
+
+# Test Strategy:
+

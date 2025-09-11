@@ -1,0 +1,79 @@
+# Task ID: 36
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Create monitoring dashboards
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Build dashboards to visualize key service health and performance metrics.
+# Details:
+In your monitoring tool (e.g., Grafana, Datadog), create dashboards with widgets for: API latency (p95, p99), ingest job freshness, data deduplication rates, and error budgets.
+
+# Test Strategy:
+Manual review of the dashboards to ensure they are correctly configured, easy to read, and accurately reflect the state of the system under load.
+
+# Subtasks:
+## 1. Configure data sources, metrics mappings, and dashboard skeleton [pending]
+### Dependencies: None
+### Description: Ensure the monitoring tool (Grafana or Datadog) is connected to the correct data sources and that required metrics exist. Establish a dashboard folder, naming conventions, variables, and a base dashboard to host the widgets.
+### Details:
+Implementation steps:
+- Data sources: In Grafana, verify Prometheus/OTLP/CloudWatch/Datadog data source connectivity (Settings -> Data sources). In Datadog, confirm the required metrics arrive (Metrics Summary) and tags include service, env, region, endpoint/job.
+- Metrics inventory: Confirm existence or create emitters for:
+  - API latency histogram or duration metric (e.g., Prometheus: http_server_request_duration_seconds_bucket; Datadog: trace.http.request.duration or api.request.duration).
+  - Ingest job last success timestamp or freshness (e.g., ingest_job_last_success_timestamp or custom gauge; Datadog: ingest.job.last_success).
+  - Dedup counters (e.g., ingest_records_total and ingest_records_deduplicated_total).
+  - Error/availability (e.g., http_requests_total with status labels; Datadog: http.requests.count, http.errors.count, or service checks).
+- Create a dashboard folder “Service Health” and base dashboard “Service Health & Performance”.
+- Add templating variables (Grafana: Dashboard settings -> Variables; Datadog: template variables): service, env, region, endpoint (optional), job (ingest job name/branch).
+- Establish units and conventions:
+  - Latency in milliseconds; freshness in minutes; dedup rate as percent; error budget as percent and burn rate as ratio.
+- Define reference queries (examples):
+  - Latency p95/p99 (Prometheus): histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service="$service",env="$env"}[5m]))); replace 0.95 with 0.99 for p99. Datadog: avg:trace.http.request.duration{service:$service,env:$env}.rollup(p95, 300) and .rollup(p99, 300).
+  - Freshness (Prometheus): (time() - max(ingest_job_last_success_timestamp{job="$job",env="$env"})) / 60. Datadog: (now() - max:ingest.job.last_success{job:$job,env:$env}) / 60.
+  - Dedup rate (Prometheus): rate(ingest_records_deduplicated_total{service="$service",env="$env"}[5m]) / rate(ingest_records_total{service="$service",env="$env"}[5m]). Datadog: (sum:ingest.records.deduplicated{service:$service,env:$env}.rollup(sum,300)) / (sum:ingest.records.total{service:$service,env:$env}.rollup(sum,300)).
+  - Error rate and SLO (Prometheus): sum(rate(http_requests_total{service="$service",env="$env",status=~"5.."}[5m])) / sum(rate(http_requests_total{service="$service",env="$env"}[5m])). If SLO target T=0.999, budget b=(1-T)=0.001, burn_rate = error_rate / b. Datadog equivalent: (sum:http.requests.errors{service:$service,env:$env}.rollup(sum,300)) / (sum:http.requests.total{service:$service,env:$env}.rollup(sum,300)).
+- Save the base dashboard with placeholders for 4 sections: API Latency, Ingest Freshness, Deduplication, Error Budgets.
+
+## 2. Add API latency widgets (p95, p99) with breakdowns and thresholds [pending]
+### Dependencies: 36.1
+### Description: Create time series and summary widgets for API latency p95 and p99, with filtering by service/env and optional endpoint breakdown, including threshold lines reflecting latency objectives.
+### Details:
+Implementation steps:
+- Panels: Add two time series panels: “API Latency p95 (ms)” and “API Latency p99 (ms)”.
+- Queries:
+  - Grafana+Prometheus: histogram_quantile(0.95, sum by (le,endpoint) (rate(http_server_request_duration_seconds_bucket{service="$service",env="$env"}[5m]))) * 1000. Create a copy for 0.99. If endpoint cardinality is high, allow toggle to group by endpoint only when endpoint variable is set.
+  - Datadog: avg:trace.http.request.duration{service:$service,env:$env}.by{endpoint}.rollup(p95,300) and rollup(p99,300) displayed as ms.
+- Visualization: Set unit to milliseconds. Add threshold lines (e.g., p95 objective 300ms, p99 objective 1000ms) and color rules.
+- Add a TopN table: “Slowest Endpoints (p95)” using last 15m window, sorted desc, limited to 10 rows.
+- Add a single-stat: “Current p99 (ms)” showing last 5m value for quick glance.
+- Annotations: Add deployment annotations (e.g., from Grafana annotations or Datadog events) to correlate latency changes with releases.
+- Performance: Use 5m rate windows and 24h dashboard default time range; enable transformations to handle missing series gracefully.
+
+## 4. Add data deduplication rate widgets [pending]
+### Dependencies: 36.1
+### Description: Visualize deduplication effectiveness via ratios and absolute counts, enabling quick detection of anomalies in duplicate rates during ingestion.
+### Details:
+Implementation steps:
+- Time series: “Deduplication Rate (%)” with formula:
+  - Grafana+Prometheus: 100 * ( rate(ingest_records_deduplicated_total{service="$service",env="$env"}[5m]) / rate(ingest_records_total{service="$service",env="$env"}[5m]) ).
+  - Datadog: 100 * ( sum:ingest.records.deduplicated{service:$service,env:$env}.rollup(sum,300) / sum:ingest.records.total{service:$service,env:$env}.rollup(sum,300) ).
+- Stacked bars: Show absolute counts per 5m: deduplicated vs total-ingested-deduplicated to understand volumes.
+- Breakdown: Add table by source/branch/job if tags exist (e.g., source or branch label) to identify sources causing spikes.
+- Thresholds: Alert coloring when rate exceeds expected bounds (e.g., < 1% or > 40% depending on domain norms). Add a moving average overlay to reduce noise.
+- Handling zeros: Add transformations to avoid divide-by-zero spikes when rate(total) is near zero; e.g., clamp denominator with max(x, 1e-6).
+
+## 5. Implement error budget and SLO widgets; finalize layout, docs, and sharing [pending]
+### Dependencies: 36.2, 36.3, 36.4
+### Description: Define SLOs, add error budget and burn-rate widgets with multiple time windows, finalize dashboard layout and permissions, and document usage.
+### Details:
+Implementation steps:
+- Define SLO(s): For API availability, target T = 99.9% (adjust as needed). Error budget b = 1 - T = 0.001.
+- Panels:
+  - Error rate: Prometheus: sum(rate(http_requests_total{service="$service",env="$env",status=~"5.."}[5m])) / sum(rate(http_requests_total{service="$service",env="$env"}[5m])). Datadog: sum:http.requests.errors{service:$service,env:$env}.rollup(sum,300) / sum:http.requests.total{service:$service,env:$env}.rollup(sum,300).
+  - Burn rate (ratio): error_rate / b with multi-window views: fast (5m/1h) and slow (6h/3d). Add threshold lines at 1x and alert heuristics (e.g., burn_rate > 14 over 1h or > 1 over 6h).
+  - Error budget remaining (%): 100 * max(0, 1 - accumulated_error / b_period), using Datadog SLO widgets or Grafana SLO plugin/transformations; if native SLOs exist (Datadog SLO), configure directly with target and time window (7d/30d).
+- Layout: Organize sections top-to-bottom: Overview (single-stats), API Latency, Ingest Freshness, Deduplication, Error Budgets. Set default time range to 24h, with quick links 1h/6h/7d.
+- Variables and links: Ensure service/env/region/job/endpoint variables affect all panels. Add links to related runbooks and logs (e.g., to Kibana/Datadog Logs) for quick triage.
+- Permissions & sharing: Place in “Service Health” folder, grant team read access and on-call edit access. Add description/tooltips explaining each metric and objective.
+- Documentation: Add a README or dashboard panel text describing formulas, SLO targets, and how to interpret burn rate, plus guidance on common failure scenarios.
+

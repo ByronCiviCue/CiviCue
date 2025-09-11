@@ -1,4 +1,5 @@
 # Task ID: 64
+# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Vectorization strategy and ingestion shaping
 # Status: pending
 # Dependencies: 7

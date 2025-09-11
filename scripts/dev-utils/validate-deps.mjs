@@ -40,9 +40,15 @@ class DependencyValidator {
 
   validateDependencies() {
     for (const [taskId, task] of this.allTasks) {
-      if (!task.dependencies || task.dependencies.length === 0) continue;
+      // Check both task.dependencies and task.meta.depends_on
+      const allDeps = [
+        ...(task.dependencies || []),
+        ...(task.meta?.depends_on || [])
+      ];
       
-      for (const depRef of task.dependencies) {
+      if (allDeps.length === 0) continue;
+      
+      for (const depRef of allDeps) {
         this.validateDependency(taskId, depRef, task);
       }
     }

@@ -1,4 +1,5 @@
 # Task ID: 27
+# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Create core.items and core.item_embeddings DB schema
 # Status: pending
 # Dependencies: None

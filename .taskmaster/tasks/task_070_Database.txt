@@ -1,0 +1,20 @@
+# Task ID: 70
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Add ingest job freshness widgets
+# Status: pending
+# Dependencies: None
+# Priority: medium
+# Description: Create visualizations that show how fresh the ingested data is, measuring time since the last successful ingest per job/branch, plus a table of the stalest jobs.
+# Details:
+Implementation steps:
+- SingleStat/Gauge: “Ingest Freshness (min)” per selected job. Query examples:
+  - Grafana+Prometheus: (time() - max(ingest_job_last_success_timestamp{job="$job",env="$env"})) / 60.
+  - Datadog: (now() - max:ingest.job.last_success{job:$job,env:$env}) / 60.
+- Add thresholds: green < 10m, yellow 10–30m, red > 30m (tune to your SLA).
+- Time series: Plot freshness over time using the same expression to visualize trends.
+- Table panel: “Stalest Ingest Jobs (last 1h)” listing job, freshness minutes, last success timestamp; sort desc; limit 20.
+- Optional: Add panel for “Last Ingest Duration (min)” if metric exists (ingest_job_duration_seconds) to correlate long runtimes with staleness.
+- Variables: Ensure job variable is populated from label/tag job; default to “All” and allow per-job drill-down.
+
+# Test Strategy:
+

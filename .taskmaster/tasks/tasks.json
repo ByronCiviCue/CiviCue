@@ -18,7 +18,10 @@
         "priority": "high",
         "dependencies": [],
         "status": "done",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 2,
@@ -84,7 +87,12 @@
             "status": "done",
             "testStrategy": "Automated: unit tests for config error paths and success paths; CI run verifies check:env passes when secrets are present. Manual: run app with and without .env to confirm behavior matches expectations."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.1"
+          ]
+        }
       },
       {
         "id": 3,
@@ -153,7 +161,12 @@
             "status": "done",
             "testStrategy": "Confirm the CI pipeline passes end-to-end on a clean branch. Validate that the smoke test executes successfully and that the typecheck step fails if a new extensionless import is introduced."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.2"
+          ]
+        }
       },
       {
         "id": 4,
@@ -220,7 +233,12 @@
             "status": "done",
             "testStrategy": "- Run pnpm tsd: tests should pass when spec keys exist and incorrect usages are flagged.\n- Break a type usage in code (e.g., mismatched field) and confirm pnpm typecheck fails, ensuring strong typing end-to-end."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3"
+          ]
+        }
       },
       {
         "id": 5,
@@ -286,7 +304,12 @@
             "status": "done",
             "testStrategy": "Have a teammate fresh-clone the repo, run install, and attempt the three manual verification scenarios: missing review files, TODO present, and a clean commit. Confirm documentation is sufficient for them to succeed."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.4"
+          ]
+        }
       },
       {
         "id": 6,
@@ -353,7 +376,12 @@
             "status": "done",
             "testStrategy": "- Run unit tests for logger redaction and ensure all cases pass.\n- Run ESLint in CI; a violation (console.* or process.env outside config) fails the build.\n- Confirm that adding a fake secret literal in a code file is caught by lint or CI secret scan (from subtask 6.4)."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.5"
+          ]
+        }
       },
       {
         "id": 7,
@@ -419,7 +447,12 @@
             "status": "done",
             "testStrategy": "Run build then validate locally; in CI, assert that the validation step passes and that the artifact (sf.json) is produced and under a size threshold."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.6"
+          ]
+        }
       },
       {
         "id": 8,
@@ -486,7 +519,12 @@
             "status": "pending",
             "testStrategy": "Manual review of __docs__/catalogs/sf-socrata-profile.md (as specified by the task). Optionally, run a simple link/format check (markdownlint) and re-run unit/snapshot tests to confirm stability."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.7"
+          ]
+        }
       },
       {
         "id": 9,
@@ -552,7 +590,12 @@
             "status": "pending",
             "testStrategy": "- Run npm run index:detroit and verify the file appears with datasets > 0.\n- In CI/local test, mock network to ensure determinism; assert the script exits 0, writes the file, and schema checks pass."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.8"
+          ]
+        }
       },
       {
         "id": 10,
@@ -620,7 +663,12 @@
             "status": "pending",
             "testStrategy": "Run: python scripts/profile_detroit_catalog.py. Manually review __docs__/catalogs/detroit-socrata-profile.md for completeness, formatting parity with SF, and accuracy of numbers. If SF input provided, verify the comparison section shows expected deltas (e.g., dataset counts difference, overlapping categories)."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.9"
+          ]
+        }
       },
       {
         "id": 11,
@@ -685,7 +733,12 @@
             "status": "pending",
             "testStrategy": "Run all tests via Jest. Include negative tests asserting throws for invalid limit/offset. Ensure CI passes on Node that uses WHATWG URLSearchParams to capture actual encoding behavior."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.10"
+          ]
+        }
       },
       {
         "id": 12,
@@ -753,7 +806,12 @@
             "status": "pending",
             "testStrategy": "Run tests with jest. Use expect(() => call).rejects for async methods. Include snapshots for error.toJSON() to maintain consistent error contract. Achieve high branch coverage across coercers, builder, adapter integration, and error classes."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.11"
+          ]
+        }
       },
       {
         "id": 13,
@@ -820,7 +878,12 @@
             "status": "pending",
             "testStrategy": "Run the msw-backed tests in CI. Use deterministic RNG for jitter (e.g., seedable PRNG) injected into backoff computation so delays are predictable in tests. Validate both behavior (attempts, success/failure) and timing logic with controlled timers."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.12"
+          ]
+        }
       },
       {
         "id": 14,
@@ -885,7 +948,12 @@
             "status": "pending",
             "testStrategy": "Manual and automated: 1) Run with --dry-run to validate parsing and planned changes. 2) Run without dry-run and verify counts match parsed input. 3) Re-run to ensure no changes. 4) Intentionally modify a fixture record and confirm updates are applied. Include a CI job step that runs the script against a small test index to guard regressions."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.13"
+          ]
+        }
       },
       {
         "id": 15,
@@ -951,7 +1019,12 @@
             "status": "pending",
             "testStrategy": "Conduct peer review with at least two reviewers (engineering and data). Use the checklist to verify no required field or key rule is missing. Approve when reviewers confirm they can implement mappers directly from the document."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.14"
+          ]
+        }
       },
       {
         "id": 16,
@@ -1016,7 +1089,12 @@
             "status": "pending",
             "testStrategy": "Peer review: at least two approvals (data and API). Reviewer checklist verifies schema completeness, fusion logic clarity, normalization alignment, and support for Tasks 20/24/28/32. After merge, confirm the doc builds without errors and links resolve."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.15"
+          ]
+        }
       },
       {
         "id": 17,
@@ -1086,7 +1164,12 @@
             "status": "pending",
             "testStrategy": "- End-to-end unit test covering the full pipeline with mocks and asserting sequence (plan→fetch→fuse) and data shape.\n- Contract tests for engine outputs against the PermitCanonical type.\n- Negative tests for invalid inputs and abort handling."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.16"
+          ]
+        }
       },
       {
         "id": 18,
@@ -1152,7 +1235,12 @@
             "status": "pending",
             "testStrategy": "Open a draft PR that intentionally tweaks a fixture or code to change output and verify CI fails on golden mismatch. Then update the golden and confirm CI passes."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.17"
+          ]
+        }
       },
       {
         "id": 19,
@@ -1218,7 +1306,12 @@
             "status": "pending",
             "testStrategy": "Run the e2e test locally and in CI. Verify exit codes and snapshot generated content where stable (excluding dates/authors) using regex redaction."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.18"
+          ]
+        }
       },
       {
         "id": 20,
@@ -1288,7 +1381,12 @@
             "status": "pending",
             "testStrategy": "Run tests with coverage collection focused on fetch and fuse paths. Validate numeric tolerances for freshness within ±1s if necessary. Ensure failure path test asserts both error propagation (if expected) and metric emission."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.19"
+          ]
+        }
       },
       {
         "id": 21,
@@ -1353,7 +1451,12 @@
             "status": "pending",
             "testStrategy": "Run the CI pipeline on a branch to verify the smoke test executes and passes consistently. Monitor a few subsequent runs to ensure there is no flakiness and adjust timing thresholds if necessary."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.20"
+          ]
+        }
       },
       {
         "id": 22,
@@ -1418,7 +1521,12 @@
             "status": "pending",
             "testStrategy": "Run `npm run test:contract`. The test should fail if the response shape or status code deviates from the OpenAPI schema."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.21"
+          ]
+        }
       },
       {
         "id": 23,
@@ -1491,6 +1599,7 @@
         ],
         "meta": {
           "depends_on": [
+            "API.22",
             "Database.69"
           ]
         }
@@ -1561,7 +1670,12 @@
             "status": "pending",
             "testStrategy": "Execute unit tests in isolated process. Run integration and contract tests via Supertest (or equivalent) against the in-memory server. Ensure CI enforces these tests and reports coverage for route and service layers."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.23"
+          ]
+        }
       },
       {
         "id": 25,
@@ -1628,7 +1742,12 @@
             "status": "pending",
             "testStrategy": "Open a PR that intentionally violates the contract (e.g., change a response field name in the API). Confirm the CI job fails with jest-openapi mismatch details. Revert and confirm green."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.24"
+          ]
+        }
       },
       {
         "id": 27,
@@ -1660,7 +1779,10 @@
             "status": "pending",
             "testStrategy": "Verify FK and index: \n- Insert an item in core.items, capture its id. \n- Insert an embedding: INSERT INTO core.item_embeddings (item_id, model, embedding) VALUES ($item_id, 'test-model', (SELECT (ARRAY(SELECT (random()::real) FROM generate_series(1,1536)))::vector(1536)));\n- Run a nearest-neighbor query with a random query vector: SELECT id FROM core.item_embeddings ORDER BY embedding <=> (SELECT (ARRAY(SELECT (random()::real) FROM generate_series(1,1536)))::vector(1536)) LIMIT 5; \n- Optionally SET enable_seqscan = off; ANALYZE core.item_embeddings; then EXPLAIN the query to see index usage."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 29,
@@ -1726,7 +1848,10 @@
             "status": "pending",
             "testStrategy": "Run unit tests in CI with coverage thresholds for the module. If available, include a thin integration test against a local Postgres with pgvector to validate real upsert semantics; guard behind an env flag so CI can skip if DB not available."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 31,
@@ -1791,7 +1916,10 @@
             "status": "pending",
             "testStrategy": "Run a dry-run dispatch to confirm no PR is created and that the diff artifact and job summary are produced. Then run a real dispatch with a mocked change to confirm PR flow still works. Finally, wait for the scheduled run to ensure it triggers at the expected time."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 32,
@@ -1856,7 +1984,12 @@
             "status": "pending",
             "testStrategy": "Observe scheduler dashboard (Heroku) or system logs (cron) for on-time invocations; tail application logs to validate start/end markers; confirm no overlapping runs; verify failure alert triggers by simulating a failure."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.31"
+          ]
+        }
       },
       {
         "id": 33,
@@ -1921,7 +2054,12 @@
             "status": "pending",
             "testStrategy": "Intentionally change a response schema or status code in a test or adjust openapi.yaml to create a mismatch and confirm the CI fails at the Contract tests step. Revert changes and verify green run."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.32"
+          ]
+        }
       },
       {
         "id": 34,
@@ -1988,7 +2126,12 @@
             "status": "pending",
             "testStrategy": "Run scripts/hit-api.sh and scripts/run-ingest-sample.sh with METRICS_BACKEND set to prometheus and datadog in separate runs. For Prometheus, validate via curl /metrics and Pushgateway. For Datadog, confirm metrics reception via agent status or a temporary dashboard. Ensure CI job fails if expected metric names are missing."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.33"
+          ]
+        }
       },
       {
         "id": 35,
@@ -2053,7 +2196,12 @@
             "status": "pending",
             "testStrategy": "E2E: Use a mock Socrata endpoint to capture headers and a test logger to capture logs; assert correlation across layers. Load/concurrency test to ensure isolation. Documentation review checklist to confirm all operational guidance is present."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.34"
+          ]
+        }
       },
       {
         "id": 36,
@@ -2108,7 +2256,12 @@
             "status": "pending",
             "testStrategy": "Inject controlled failures (e.g., return 5xx for a subset of requests) to raise error rate; verify burn-rate panels react across both short and long windows and that SLO widgets display budget consumption. Perform a peer review walkthrough to confirm layout clarity and documentation completeness."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.35"
+          ]
+        }
       },
       {
         "id": 37,
@@ -2121,7 +2274,12 @@
           2
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": [
+            "API.2"
+          ]
+        }
       },
       {
         "id": 38,
@@ -2134,7 +2292,12 @@
           2
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": [
+            "API.2"
+          ]
+        }
       },
       {
         "id": 39,
@@ -2147,7 +2310,12 @@
           12
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": [
+            "API.12"
+          ]
+        }
       },
       {
         "id": 40,
@@ -2160,7 +2328,12 @@
           12
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": [
+            "API.12"
+          ]
+        }
       },
       {
         "id": 41,
@@ -2175,7 +2348,14 @@
           40
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": [
+            "API.38",
+            "API.39",
+            "API.40"
+          ]
+        }
       },
       {
         "id": 42,
@@ -2278,7 +2458,13 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.38",
+            "API.41"
+          ]
+        }
       },
       {
         "id": 43,
@@ -2366,7 +2552,13 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.39",
+            "API.41"
+          ]
+        }
       },
       {
         "id": 44,
@@ -2457,7 +2649,13 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.40",
+            "API.41"
+          ]
+        }
       },
       {
         "id": 45,
@@ -2582,7 +2780,15 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.41",
+            "API.42",
+            "API.43",
+            "API.44"
+          ]
+        }
       },
       {
         "id": 46,
@@ -2652,7 +2858,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.5"
+          ]
+        }
       },
       {
         "id": 47,
@@ -2765,7 +2976,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.2"
+          ]
+        }
       },
       {
         "id": 48,
@@ -2846,7 +3062,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.47"
+          ]
+        }
       },
       {
         "id": 49,
@@ -2983,7 +3204,13 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.47",
+            "API.48"
+          ]
+        }
       },
       {
         "id": 50,
@@ -3103,7 +3330,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.49"
+          ]
+        }
       },
       {
         "id": 51,
@@ -3185,7 +3417,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.50"
+          ]
+        }
       },
       {
         "id": 52,
@@ -3242,7 +3479,13 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.46",
+            "API.5"
+          ]
+        }
       },
       {
         "id": 53,
@@ -3312,7 +3555,14 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.50",
+            "API.51",
+            "API.52"
+          ]
+        }
       },
       {
         "id": 54,
@@ -3381,7 +3631,13 @@
             "details": "",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3",
+            "API.3.1"
+          ]
+        }
       },
       {
         "id": 55,
@@ -3441,7 +3697,13 @@
             "details": "If the repo lacks TS ESM files, create a temporary pair under src/tmp: a.ts exporting a value and b.ts importing it using an ESM path (e.g., './a.js'). Lint the folder and ensure no unresolved import errors. Delete the tmp files afterward.\n<info added on 2025-09-07T05:48:18.477Z>\nVerification complete. The `import/no-unresolved` rule passes for TypeScript ESM files, confirming that `eslint-import-resolver-typescript` is configured and working correctly.\n</info added on 2025-09-07T05:48:18.477Z>",
             "testStrategy": "Run: `npx eslint src/tmp --rule 'import/no-unresolved:error'` (or target existing TS ESM files). Expect zero import/no-unresolved errors."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3.1",
+            "API.54"
+          ]
+        }
       },
       {
         "id": 56,
@@ -3502,7 +3764,14 @@
             "details": "Enable both rules as \"error\" in the repo ESLint config (or extend the plugin's recommended config). Add a CI check that runs a small test harness which invokes ESLint against representative failing samples (without committing violating code to src/) to demonstrate that violations result in errors.",
             "testStrategy": "Create a jest (or equivalent) test that instantiates ESLint with the plugin and config enabling both rules, runs it against in-memory code strings with filenames simulating disallowed cases, and asserts results.errorCount > 0. This test runs in CI and fulfills the exit criteria that failing examples trigger errors."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3.1",
+            "API.54",
+            "API.55"
+          ]
+        }
       },
       {
         "id": 57,
@@ -3572,7 +3841,14 @@
             "details": "Perform a final cross-check:\n- Compare documented rules and settings against .eslintrc.* (or eslint.config.*) and any rule directories.\n- Verify documented npm scripts (lint, lint:fix) match package.json exactly.\n- Verify CI command and step/job names match the current pipeline configuration.\n<info added on 2025-09-07T06:06:21.721Z>\nCross-check complete. The documentation at `__docs__/linting.md` is confirmed to be accurate. It correctly reflects the ESLint flat config (`eslint.config.mjs`), including all plugins, custom rules (`no-process-env-outside-env`, `no-generated-edits`), and the `--max-warnings=0` setting. The documented npm scripts (`lint`, `lint:fix`) match `package.json` exactly, and the CI integration details align with the current GitHub Actions workflow. Commands were verified locally. A comprehensive troubleshooting section has also been added.\n</info added on 2025-09-07T06:06:21.721Z>",
             "testStrategy": "Manually diff the documentation against .eslintrc.* and package.json, and open the CI config to confirm parity. Run npm run lint and npm run lint:fix to ensure behavior matches what is documented. Update the doc until all items match. This fulfills the exit criteria (rules list + commands)."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3.1",
+            "API.55",
+            "API.56"
+          ]
+        }
       },
       {
         "id": 58,
@@ -3659,7 +3935,13 @@
             "details": "Exit criteria:\n- .env.local generation: A documented, idempotent pnpm env:local:init exists; it never runs in CI; it does not overwrite without --force; it mirrors keys from .env.example with empty values and comments.\n- Injection-first policy: CI is configured to run with injected environment variables; .env.ci (if used) loads with override=false and contains no secrets.\n- Ephemeral generation in CI (exception): Example job demonstrates generating, using, and deleting an ephemeral dotenv file; validation fails if the file persists.\n- Guardrails: pnpm env:validate and secret scanning are wired into CI to enforce the above.",
             "testStrategy": "- Demonstrate all exit criteria in PR checks: env:local:init behavior, successful CI via injection-only, and optional ephemeral file job with cleanup.\n- Reviewers can follow docs to reproduce local generation and CI behaviors exactly as described."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3",
+            "API.3.1"
+          ]
+        }
       },
       {
         "id": 59,
@@ -3701,7 +3983,13 @@
             "details": "",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3.1",
+            "API.58"
+          ]
+        }
       },
       {
         "id": 60,
@@ -3752,7 +4040,13 @@
             "details": "",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3.1",
+            "API.58"
+          ]
+        }
       },
       {
         "id": 61,
@@ -3850,7 +4144,15 @@
             "details": "",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.3.1",
+            "API.58",
+            "API.59",
+            "API.60"
+          ]
+        }
       },
       {
         "id": 62,
@@ -4023,7 +4325,10 @@
             "status": "done",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 63,
@@ -4036,7 +4341,12 @@
           7
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": [
+            "API.7"
+          ]
+        }
       },
       {
         "id": 65,
@@ -4045,7 +4355,10 @@
         "details": "",
         "status": "cancelled",
         "dependencies": [],
-        "priority": "high"
+        "priority": "high",
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 66,
@@ -4192,7 +4505,10 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 67,
@@ -4373,7 +4689,10 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       }
     ],
     "metadata": {
@@ -4454,7 +4773,10 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 66,
@@ -4540,7 +4862,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Database.65"
+          ]
+        }
       },
       {
         "id": 67,
@@ -4673,7 +5000,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Database.67"
+          ]
+        }
       },
       {
         "id": 69,
@@ -4741,7 +5073,8 @@
         ],
         "meta": {
           "depends_on": [
-            "Database.67"
+            "Database.67",
+            "Database.68"
           ]
         }
       },
@@ -4818,6 +5151,9 @@
               "timestamp": "2025-09-10T21:15:38.120Z"
             }
           ]
+        },
+        "meta": {
+          "depends_on": []
         }
       },
       {
@@ -4895,6 +5231,9 @@
               "timestamp": "2025-09-10T21:15:38.915Z"
             }
           ]
+        },
+        "meta": {
+          "depends_on": []
         }
       },
       {
@@ -4959,7 +5298,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Database.69"
+          ]
+        }
       },
       {
         "id": 26,
@@ -5034,6 +5378,9 @@
               "timestamp": "2025-09-10T21:15:40.529Z"
             }
           ]
+        },
+        "meta": {
+          "depends_on": []
         }
       },
       {
@@ -5099,6 +5446,9 @@
               "timestamp": "2025-09-10T21:16:01.582Z"
             }
           ]
+        },
+        "meta": {
+          "depends_on": []
         }
       },
       {
@@ -5242,7 +5592,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Database.70"
+          ]
+        }
       },
       {
         "id": 72,
@@ -5414,7 +5769,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Database.71"
+          ]
+        }
       }
     ],
     "metadata": {
@@ -5511,7 +5871,10 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 2,
@@ -5588,7 +5951,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Vector.1"
+          ]
+        }
       },
       {
         "id": 3,
@@ -5654,7 +6022,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Vector.2"
+          ]
+        }
       }
     ],
     "metadata": {
@@ -5814,7 +6187,10 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 2,
@@ -5934,7 +6310,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Scrapers.1"
+          ]
+        }
       },
       {
         "id": 3,
@@ -6030,7 +6411,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Scrapers.2"
+          ]
+        }
       },
       {
         "id": 4,
@@ -6122,7 +6508,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Scrapers.3"
+          ]
+        }
       },
       {
         "id": 5,
@@ -6200,7 +6591,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Scrapers.4"
+          ]
+        }
       }
     ],
     "metadata": {
@@ -6348,7 +6744,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Admin.1"
+          ]
+        }
       },
       {
         "id": 3,
@@ -6439,7 +6840,10 @@
         "status": "deferred",
         "dependencies": [],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [],
+        "meta": {
+          "depends_on": []
+        }
       }
     ],
     "metadata": {
@@ -6513,7 +6917,10 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": []
+        }
       },
       {
         "id": 2,
@@ -6591,7 +6998,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Infra.1"
+          ]
+        }
       },
       {
         "id": 3,

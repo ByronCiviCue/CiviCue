@@ -1,4 +1,5 @@
 # Task ID: 36
+# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Create monitoring dashboards
 # Status: pending
 # Dependencies: None

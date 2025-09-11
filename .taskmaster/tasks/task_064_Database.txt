@@ -1,0 +1,26 @@
+# Task ID: 64
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Vectorization strategy and ingestion shaping
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Define which datasets are vectorized vs stored relationally, retention defaults, and city-level overrides.
+# Details:
+See __docs__/plans/vectorization.md for full strategy and rationale.
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Define retention defaults per category [pending]
+### Dependencies: None
+### Description: Set default data retention windows (e.g., 5y for 311, 10y for housing, full for finance) with rationale and override mechanism.
+### Details:
+
+
+## 3. City-level override surface [pending]
+### Dependencies: None
+### Description: Implement configuration layer allowing city admins to override defaults for retention and ingestion strategy.
+### Details:
+
+

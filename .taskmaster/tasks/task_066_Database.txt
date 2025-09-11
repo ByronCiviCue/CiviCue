@@ -1,0 +1,12 @@
+# Task ID: 66
+# Cross-tag dependencies: see .taskmaster/dependencies.md
+# Title: Socrata catalog ingestion service with rate limiting
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Implement the catalog ingestion service that paginates through Discovery API for US/EU regions and upserts data into PostgreSQL tables.
+# Details:
+Create services/discovery/socrataCatalogIngest.ts that uses the regions module and discovery client to fetch catalog data. Implement proper rate limiting with small concurrency and exponential backoff. Support resume functionality via cursor/since flags (placeholders allowed). Upsert operations must be idempotent by primary key. Include comprehensive progress logging without exposing secrets or creating noisy output.
+
+# Test Strategy:
+
