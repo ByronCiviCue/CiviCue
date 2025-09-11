@@ -1,5 +1,7 @@
 # Task Master AI - Agent Integration Guide
 
+> **Cross-tag dependencies:** see `.taskmaster/dependencies.md`.
+
 ## Essential Commands
 
 ### Core Workflow Commands
