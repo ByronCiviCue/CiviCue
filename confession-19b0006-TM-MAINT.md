@@ -13,3 +13,11 @@ No behavior changes elsewhere; dataset_count remains placeholder=0.
 Fix: replace invalid eb.sql with Kysely sql helper in municipality upsert.
 Typecheck now passes; no behavioral changes.
 2025-09-11T07:05:42.000Z
+Materialized cross-tag dependencies from ledger into tasks.json (meta.depends_on).
+Ran validate-deps; wrote audit with counts and missing refs.
+Idempotent merge; no non-Taskmaster files touched.
+2025-09-11T19:26:34.000Z
+Normalized cross-tag depends_on to canonical tags; de-duplicated case variants.
+Applied alias mapping (ADP→App, ADM→Admin, DB→Database, VEC→Vector, INFRA→Infra).
+Refreshed dependency audit with alias resolution and missing refs.
+2025-09-11T19:31:12.000Z

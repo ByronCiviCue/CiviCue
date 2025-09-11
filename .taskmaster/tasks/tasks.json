@@ -1488,7 +1488,12 @@
             "status": "pending",
             "testStrategy": "End-to-end tests via supertest against an in-memory server; contract validation against openapi.yaml; mocks for timeouts and errors; snapshot tests for response shapes where appropriate."
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Database.69"
+          ]
+        }
       },
       {
         "id": 24,
@@ -4611,7 +4616,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.62"
+          ]
+        }
       },
       {
         "id": 68,
@@ -4728,7 +4738,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "Database.67"
+          ]
+        }
       },
       {
         "id": 28,
@@ -6271,7 +6286,14 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.62",
+            "Database.67",
+            "Database.69"
+          ]
+        }
       },
       {
         "id": 2,
@@ -6392,7 +6414,12 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.62"
+          ]
+        }
       }
     ],
     "metadata": {
@@ -6639,7 +6666,13 @@
             "status": "pending",
             "testStrategy": ""
           }
-        ]
+        ],
+        "meta": {
+          "depends_on": [
+            "API.62",
+            "App.1"
+          ]
+        }
       }
     ],
     "metadata": {
