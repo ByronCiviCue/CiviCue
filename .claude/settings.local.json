@@ -41,7 +41,15 @@
       "Bash(cat:*)",
       "mcp__task-master-ai__add_subtask",
       "mcp__task-master-ai__expand_task",
-      "Bash(jq:*)"
+      "Bash(jq:*)",
+      "mcp__task-master-ai__list_tags",
+      "Bash(pnpm:*)",
+      "Bash(git reset:*)",
+      "Bash(task-master use-tag:*)",
+      "Bash(task-master list:*)",
+      "Bash(task-master add-dependency:*)",
+      "Bash(task-master remove-dependency:*)",
+      "Bash(task-master help:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
