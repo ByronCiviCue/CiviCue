@@ -1,0 +1,37 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T22:07:30.862Z",
+		"tasksAnalyzed": 3,
+		"totalTasks": 3,
+		"analysisCount": 3,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "VEC.1 – Pilot embeddings on catalog metadata",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Break down this task into implementation phases: 1) Design vector table schema with pgvector integration, 2) Create batch embedding job with OpenAI text-embedding-3-large, 3) Implement idempotent storage with content hashing, 4) Add ivfflat/hnsw indexing strategy, 5) Build internal /vec/catalog API endpoint, 6) Create evaluation framework for precision@k measurement, 7) Add comprehensive testing and documentation. Consider existing Kysely DB patterns, Socrata catalog structure, and current environment configuration.",
+			"reasoning": "High complexity due to: pgvector extension setup, embedding API integration, vector indexing optimization, evaluation framework creation, and multiple storage/retrieval patterns. Existing embeddings schema (50_embeddings.sql) provides foundation but needs catalog-specific adaptation. Heavy integration with existing catalog discovery system."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "VEC.2 – Hybrid query strategy (SQL filters + vector search)",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Structure implementation around: 1) Design filter grammar for provider/domain/tag/freshness queries, 2) Implement SQL prefilter logic using existing Kysely patterns, 3) Create ANN search interface with configurable k values, 4) Develop weighted scoring and re-ranking algorithms, 5) Build /search/hybrid API with request/response validation, 6) Add comprehensive observability with timing metrics. Leverage existing Socrata adapter patterns and OpenAPI type generation.",
+			"reasoning": "Moderate-high complexity involving: hybrid search algorithm design, performance optimization for SQL+vector combination, scoring system implementation, and API surface design. Depends on VEC.1 completion but has well-defined scope. Existing API patterns and type generation reduce implementation overhead."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "VEC.3 – Flashpoint prototype (promises ↔ votes linkage)",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Organize into phases: 1) Design data ingestion pipeline for catalog + meeting metadata, 2) Implement TF-IDF feature extraction with conservative thresholds, 3) Create embedding-based similarity matching, 4) Build evidence citation and scoring system, 5) Generate reproducible JSONL pipeline with evaluation documentation. Focus on metadata-only approach with stable serialization for future DB materialization.",
+			"reasoning": "Moderate complexity as a prototype with constrained scope (metadata-only, no bulk content). Requires NLP/ML techniques (TF-IDF, embeddings) but benefits from being exploratory. Limited by hand-labeled seed data and conservative thresholds. Lower than VEC.1/2 due to prototype nature and simpler data requirements."
+		}
+	]
+}

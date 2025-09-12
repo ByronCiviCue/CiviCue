@@ -1,0 +1,109 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-11T21:11:33.022Z",
+		"tasksAnalyzed": 12,
+		"totalTasks": 12,
+		"analysisCount": 12,
+		"thresholdScore": 7,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 65,
+			"taskTitle": "Socrata global directory database schema and migration",
+			"complexityScore": 3,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand this task into subtasks for creating a new SQL database migration. The subtasks should cover schema definition for the three specified tables, the indexing strategy for performance, implementing the 'up' migration with foreign keys, and creating the corresponding 'down' migration for rollback and verification.",
+			"reasoning": "This is a straightforward database migration task. The project already has an established migration system, as indicated by the mention of an 'existing migration naming convention'. The task provides explicit DDL requirements for tables, columns, and keys. The work is confined to creating a single, well-defined SQL file, making the complexity low. It's a standard implementation task, not a design or architectural one."
+		},
+		{
+			"taskId": 66,
+			"taskTitle": "Socrata catalog ingestion service with rate limiting",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Expand this task into subtasks for creating a new data ingestion service. The subtasks should cover the core service structure and configuration, API pagination logic with resume capabilities, rate limiting and concurrency control, idempotent database upsert operations, comprehensive logging, and integration testing using the existing cassette-based framework.",
+			"reasoning": "This is a greenfield service implementation requiring complex orchestration of external API calls, database writes, and error handling. While the project provides building blocks like a 'discovery client' and a 'cassette-based test framework', the core service logic for stateful pagination, resilient rate-limiting with exponential backoff, and idempotent batch upserts is new and non-trivial. This combination of features places it at a moderately high complexity."
+		},
+		{
+			"taskId": 67,
+			"taskTitle": "Finalize schema design and decisions",
+			"complexityScore": 4,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand this task into subtasks for creating a database migration for core item and embedding tables. The subtasks should separately address the `core.items` table with its JSONB and trigger, the `core.item_embeddings` table using the `pgvector` extension, the specialized `IVFFLAT` index configuration, and the final migration file structure with up/down scripts.",
+			"reasoning": "While this is a well-specified DDL task that fits into the existing migration framework, its complexity is elevated by the use of specialized PostgreSQL extensions like `pgvector` and `pgcrypto`. Defining and configuring the `IVFFLAT` index for vector search requires more specialized knowledge than standard B-tree or GIN indexes. The schema itself is also more complex, involving UUIDs, JSONB, and vector types."
+		},
+		{
+			"taskId": 68,
+			"taskTitle": "Create schema and required extensions",
+			"complexityScore": 2,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Expand this task into subtasks for creating a preparatory database migration. The subtasks should cover creating the `core` schema, enabling the `pgvector` and `pgcrypto` extensions using idempotent `CREATE EXTENSION IF NOT EXISTS` commands, and implementing a reusable `updated_at` trigger function within the new schema.",
+			"reasoning": "This is a simple, foundational migration task. It involves a few standard, idempotent DDL commands (`CREATE SCHEMA`, `CREATE EXTENSION`, `CREATE FUNCTION`) that fit within the existing migration framework. The complexity is very low as it's boilerplate setup for subsequent, more complex migrations and does not involve any application logic."
+		},
+		{
+			"taskId": 69,
+			"taskTitle": "Add down migration and run end-to-end verification",
+			"complexityScore": 3,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand this task to cover the finalization and verification of a database migration. Subtasks should include implementing the 'down' migration script with correct dependency ordering, creating end-to-end verification tests that include data insertion and queries, testing for idempotency by running migrations multiple times, and documenting the verification process.",
+			"reasoning": "The core of this task is not complex problem-solving but procedural diligence. Writing the `DOWN` migration involves reversing the `UP` steps, which is straightforward. The complexity, while low, comes from the need for a systematic and thorough verification process (running migrations, checking DB state, re-running) to ensure the database schema is robust and maintainable. It's more about process than code complexity."
+		},
+		{
+			"taskId": 28,
+			"taskTitle": "Implement ingest job (jobs/ingest-branch.ts)",
+			"complexityScore": 8,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand this task to create a robust data ingestion job. Subtasks should cover the job's CLI and advisory locking infrastructure, a paginated data reader with resume capability, a batched and idempotent upsert system using the existing Kysely instance, a mechanism to trigger downstream embedding jobs, and the final orchestration with comprehensive integration testing.",
+			"reasoning": "This task involves creating a complex, stateful ETL job. Although it leverages existing patterns like a 'Kysely instance' and 'Zod' validation, the orchestration logic is entirely new and significant. The requirements for advisory locking, paginated reading with checkpointing for resumes, efficient batch upserts with change detection, and triggering a downstream process make this a high-complexity task. It's a core piece of the internal data pipeline that must be resilient and performant."
+		},
+		{
+			"taskId": 30,
+			"taskTitle": "Enforce embedding model and dimension guard",
+			"complexityScore": 2,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Expand this task to add embedding consistency guards. Subtasks should cover creating a centralized configuration file for the embedding model and dimension, implementing a database `CHECK` constraint via a new migration, and adding a runtime assertion in the embedding generation code with a corresponding unit test.",
+			"reasoning": "This is a simple hardening task with a very small and targeted implementation. The codebase analysis indicates a clear migration system is in place, making the addition of a `CHECK` constraint (`ALTER TABLE ... ADD CONSTRAINT`) trivial. The runtime `assert` is a one-line change in the application code. The complexity is very low as it's a small, preventative measure, not a new feature."
+		},
+		{
+			"taskId": 70,
+			"taskTitle": "Add ingest job freshness widgets",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand this task to create monitoring for ingest job freshness. Subtasks should cover instrumenting the application's ingest jobs to emit success timestamps and duration metrics, creating dashboard gauge and table widgets in the monitoring tool (e.g., Grafana/Datadog) to visualize data freshness, and configuring alerts for stale jobs based on defined thresholds.",
+			"reasoning": "This task bridges application code and observability infrastructure. The complexity is moderate because it requires work in two different domains. First, the application's ingest jobs must be instrumented to emit the necessary metrics (e.g., `ingest_job_last_success_timestamp`), which is a code change. Second, the monitoring platform must be configured to consume these metrics and display them, which is an operations/configuration task. It requires understanding the end-to-end monitoring pipeline."
+		},
+		{
+			"taskId": 26,
+			"taskTitle": "Vector strategy decision document",
+			"complexityScore": 5,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand this architectural decision task into subtasks. The process should include researching the core requirements for search, analyzing the trade-offs between a global vs. per-city vector space, evaluating and selecting a specific embedding model and dimension, defining a preliminary storage schema, and finally, writing the complete decision document in `__docs__/architecture/`.",
+			"reasoning": "This is a critical architectural decision task. While it doesn't involve writing production code, the analytical effort required is significant and has long-term consequences for the project. The complexity lies in evaluating complex trade-offs (performance, cost, scalability, multi-tenancy) and producing a clear, well-reasoned document that will guide future development. The existence of a `__docs__/architecture/` directory suggests this is a standard practice for the project."
+		},
+		{
+			"taskId": 64,
+			"taskTitle": "Vectorization strategy and ingestion shaping",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Expand this policy definition task into subtasks. The breakdown should cover establishing data retention policies based on data category and compliance, designing a configuration system for city-level overrides, creating a decision framework for choosing between vector and relational storage, and documenting the complete strategy in `__docs__/plans/vectorization.md`.",
+			"reasoning": "This task defines a high-level policy and configuration framework that governs the entire data platform. Its complexity is higher than a single architectural decision because it involves designing a flexible system with defaults and overrides. It requires balancing business needs, potential legal requirements (retention), and technical implementation trade-offs, making the analytical and design effort substantial."
+		},
+		{
+			"taskId": 71,
+			"taskTitle": "DB.5 – JSONL Materializer: artifacts → staging tables",
+			"complexityScore": 9,
+			"recommendedSubtasks": 12,
+			"expansionPrompt": "Expand this task to create a JSONL ingestion tool. The subtasks must be comprehensive, covering database migration for staging tables, Kysely model definition, Zod validation schemas, the streaming JSONL parser, the idempotent upsert logic with SHA256-based conflict handling, transaction and deadlock retry management, the full CLI interface, and separate unit and integration tests.",
+			"reasoning": "This task is to build a complete, production-grade ETL tool from scratch. It has high complexity due to the number of integrated components: file system I/O (glob, streaming), data validation (Zod), performant database batch-upsert logic (Kysely), and a full-featured CLI. The detailed requirements for idempotency, provenance, and robust error handling make this a significant greenfield development effort within the existing project structure."
+		},
+		{
+			"taskId": 72,
+			"taskTitle": "DB.6 – Materialize staging → normalized civic.* tables",
+			"complexityScore": 10,
+			"recommendedSubtasks": 14,
+			"expansionPrompt": "Expand this complex data normalization task into subtasks. The plan must cover the schema design for each of the normalized tables (`meetings`, `documents`, `items`), the implementation of deterministic ID generation, creating Kysely repositories for each table, the core logic for transforming and associating the data, per-meeting transaction management to ensure referential integrity, the CLI tool, and comprehensive integration testing.",
+			"reasoning": "This task represents peak complexity in this project. It's a highly intricate data transformation job that sits at the core of the data pipeline. The logical complexity of reading from a staging table, generating deterministic keys, and writing to three separate but related tables *atomically* is extremely high. Ensuring referential integrity, handling data dependencies, and managing per-meeting transactions requires careful design and implementation, making this a 10/10 task."
+		}
+	]
+}

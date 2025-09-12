@@ -1,0 +1,37 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-11T01:08:49.755Z",
+		"tasksAnalyzed": 3,
+		"totalTasks": 3,
+		"analysisCount": 3,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "VEC.1 – Pilot embeddings on catalog metadata",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Break down vector embedding implementation into subtasks covering: pgvector schema design with proper indexing, OpenAI embedding batch job with deterministic hashing for idempotency, vector index configuration (ivfflat vs hnsw analysis), internal search API endpoint with request validation, hybrid SQL+vector search capabilities, evaluation framework for precision@k measurement, and comprehensive testing with performance documentation. Consider existing Kysely patterns and secrets management infrastructure.",
+			"reasoning": "High complexity due to multiple integration points: pgvector extension setup, OpenAI API integration, new database schema design, vector indexing optimization, API development, and evaluation framework. The existing codebase has Kysely DB setup and secrets management, but no vector-specific infrastructure yet. Requires careful performance analysis and testing strategy."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "VEC.2 – Hybrid query strategy (SQL filters + vector search)",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Implement hybrid search system with subtasks for: filter grammar design and validation using Zod schemas, SQL prefiltering logic with Kysely query builder, configurable ANN search interface integrating with VEC.1 vector table, weighted scoring algorithms for combining SQL and vector relevance, /search/hybrid API endpoint with proper OpenAPI types, and comprehensive observability with performance metrics and tuning documentation.",
+			"reasoning": "Moderately high complexity requiring coordination between SQL and vector search systems. Builds on VEC.1 infrastructure but adds significant algorithmic complexity for scoring and ranking. The existing codebase has good Zod validation patterns and API structure, which will help, but the hybrid scoring and performance optimization add complexity."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "VEC.3 – Flashpoint prototype (promises ↔ votes linkage)",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Build promise-vote linkage prototype with subtasks for: metadata ingestion pipeline architecture for catalog and meeting data, TF-IDF feature extraction system with conservative thresholds and highlight generation, embedding-based similarity matching using configured models, comprehensive evidence citation and scoring system combining TF-IDF and embeddings, and reproducible JSONL output pipeline with evaluation documentation and manual spot-checks.",
+			"reasoning": "Medium-high complexity involving natural language processing and similarity matching. While conceptually complex, it's primarily a research prototype with metadata-only scope, limiting the technical infrastructure requirements. The existing embedding infrastructure from VEC.1 can be leveraged, but the TF-IDF implementation and evaluation framework are new components requiring careful design."
+		}
+	]
+}

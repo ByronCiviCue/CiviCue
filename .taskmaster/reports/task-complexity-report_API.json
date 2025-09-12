@@ -1,0 +1,85 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-11T21:13:19.448Z",
+		"tasksAnalyzed": 9,
+		"totalTasks": 63,
+		"analysisCount": 9,
+		"thresholdScore": 7,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 42,
+			"taskTitle": "Adopt Socrata type-extraction outputs (publish to src/generated/socrata; export index)",
+			"complexityScore": 7,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Based on the detailed requirements in the task description and the existing spike for Socrata codegen, expand the 8 subtasks. For the CLI subtask, detail the argument parsing and how it orchestrates the file and index generation. For the index generation subtask, provide a pseudocode implementation for scanning the directory and building the registry string deterministically. For the CI subtask, provide the exact `package.json` scripts and the YAML snippet for the GitHub Actions workflow.",
+			"reasoning": "This is a foundational task for Socrata type safety. It's not just about generating code, but about creating a robust system for generation, including a runtime registry, a deterministic index file, a CLI interface, and CI checks. Grep analysis indicates this is greenfield development, as no `SocrataTypeRegistry` or integrated codegen script exists. The detailed requirements for the index file (deterministic ordering, re-exports, registry map) add significant complexity over just emitting individual files, requiring careful file I/O and code generation logic."
+		},
+		{
+			"taskId": 43,
+			"taskTitle": "Adopt CKAN type-extraction outputs (publish to src/generated/ckan; export index)",
+			"complexityScore": 6,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Following the pattern established in Task 42, expand the 7 subtasks for CKAN type generation. Detail the implementation of the `makeCkanKey` function, including baseUrl normalization. Specify the exact structure of the `CKANTypeRegistry` and the barrel exports in `index.ts`. Provide the `package.json` scripts and CI verification step.",
+			"reasoning": "This task mirrors Task 42's structure, establishing a consistent pattern for generated types. While it benefits from the patterns set by the Socrata task, it still requires provider-specific implementation for keying (`makeCkanKey`), file naming, and the generator itself. Grep analysis confirms no existing `CKANTypeRegistry` or generator exists. The complexity is slightly lower than the first implementation of this pattern (Task 42), but it's still a significant piece of greenfield work."
+		},
+		{
+			"taskId": 44,
+			"taskTitle": "Adopt ArcGIS type-extraction outputs (publish to src/generated/arcgis; export index)",
+			"complexityScore": 7,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Expand the 7 subtasks for ArcGIS type generation, paying close attention to the unique requirements. Detail the implementation for the dual-key registry, including the normalization logic for `layerUrl`. Provide a robust implementation plan for the file slug generation. For the Zod schema generation subtask, outline the mapping from `esriFieldType` and geometry types to Zod types.",
+			"reasoning": "This task continues the established codegen pattern but introduces more complexity specific to ArcGIS. The requirements for a dual-key registry (`getByLayerUrl`, `getByServiceAndLayer`) and more sophisticated file-naming logic (slugifying paths, hashing for uniqueness) make it more involved than the CKAN equivalent. Additionally, as noted in subtask 6, handling ArcGIS-specific data types like geometry and coded domains in the Zod schema generation is a non-trivial effort not present in the other providers."
+		},
+		{
+			"taskId": 45,
+			"taskTitle": "Wire typegen pipeline: scripts/typegen.mjs, npm run typegen:*, CI check",
+			"complexityScore": 8,
+			"recommendedSubtasks": 10,
+			"expansionPrompt": "Expand the 10 subtasks to create a master plan for the `typegen.mjs` orchestration script. For the core script subtask, recommend a CLI parsing library (e.g., `yargs`, `commander`). For the concurrency subtask, provide a code snippet using `p-limit`. For the `--check` mode subtask, provide the exact shell commands to be executed. For the CI subtask, write the complete `.github/workflows/typegen.yml` file.",
+			"reasoning": "This task is the capstone for the individual generator tasks, creating a unified and robust pipeline. Its complexity is high because it's a full-fledged CLI tool with configuration management, concurrency, error handling (including retries), and multiple operational modes (`--check`, `--dry-run`). It must correctly orchestrate the underlying generator scripts (Tasks 42-44) and integrate tightly with Git for the `--check` mode. Grep analysis shows this is entirely greenfield development."
+		},
+		{
+			"taskId": 46,
+			"taskTitle": "Pre-commit: Block direct edits under src/generated/** and add Do-Not-Edit README",
+			"complexityScore": 5,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Expand the 5 subtasks for implementing the pre-commit hook. Provide the full source code for the `scripts/hooks/block-generated-edits.mjs` script, including the logic for parsing `git diff` output and handling both bypass mechanisms. Show the exact modification needed for the `.husky/pre-commit` file to chain this new hook with the existing ones from Task 5. Draft the content for `src/generated/README.md`.",
+			"reasoning": "This is a crucial developer experience and repository hygiene task. Codebase analysis shows a `.husky/pre-commit` file already exists from Task 5, so this task involves modification, not creation, of the hook configuration. The complexity is moderate; while the core script is small, it involves interacting with Git state (`--cached`), the file system (for the one-time bypass token), and environment variables. It must be robust and fast to not hinder developer workflow."
+		},
+		{
+			"taskId": 47,
+			"taskTitle": "Typegen: Fetch provider schemas into tmp/schema/<provider>/*.json",
+			"complexityScore": 9,
+			"recommendedSubtasks": 9,
+			"expansionPrompt": "Create a detailed implementation plan based on the 9 subtasks for the `typegen-fetch.mjs` script. For each provider, specify the exact API endpoints and parameters to be used for fetching metadata and samples. Provide a detailed schema for the `*.meta.json` files. Write a reusable `fetchWithRetry` helper function in pseudocode that incorporates exponential backoff and ETag/caching logic. Define the structure of the final `manifest.json`.",
+			"reasoning": "This is a highly complex, foundational task for the entire type generation pipeline. It's a specialized, multi-provider ETL script for schemas. The complexity comes from implementing three distinct API clients, each with robust networking (retries, backoff, caching), plus the cross-cutting concerns of concurrency, idempotency (via content hashing and `.meta.json` files), and canonical output formatting. Grep analysis confirms this is entirely greenfield development with no existing shared fetching logic for this purpose."
+		},
+		{
+			"taskId": 48,
+			"taskTitle": "Typegen: compute fingerprints (sha256) and compare with fingerprints/<provider>/*.sha256",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Expand the 6 subtasks for the `typegen-fingerprint.mjs` script. Provide a robust implementation for the `stableStringify` function for JSON canonicalization. Detail the logic for the `check` and `write` modes, including how stale fingerprints are detected and handled with the `--prune` flag. Define the schema for the JSON report written to `--outReport`.",
+			"reasoning": "This task is a critical gate in the typegen pipeline, ensuring that code generation only runs when necessary. Its complexity is moderate, centered on the need for deterministic hashing via JSON canonicalization, which is a non-trivial requirement. The script needs to manage different modes (`check`, `write`), handle file system I/O across two directories (`tmp/schema` and `fingerprints`), and implement logic for detecting new, changed, and stale artifacts. This is a new capability for the codebase."
+		},
+		{
+			"taskId": 49,
+			"taskTitle": "Typegen: Generate TS types + Zod schemas into src/generated/<provider>/next",
+			"complexityScore": 9,
+			"recommendedSubtasks": 11,
+			"expansionPrompt": "Create a master plan for the `typegen-generate.mjs` script based on the 11 subtasks. For the provider-specific mapping, detail the mapping rules for each provider's common data types to Zod types. For the AST generation subtask, propose a library (e.g., `ts-morph`) and outline how a Zod schema would be constructed programmatically. Provide the full template for the `AUTO-GENERATED` header. Detail the structure of the `index.ts` and its registry for one provider as an example.",
+			"reasoning": "This is the most complex task in the generation pipeline, as it involves the actual 'code writing code' logic. The complexity is high due to the need to implement three distinct provider-to-Zod mapping layers, a robust code generation engine (either template- or AST-based), and the logic for generating a runtime registry and index file for each provider. Integrating fingerprint checks to make the process incremental adds another layer. This is a significant piece of greenfield software engineering."
+		},
+		{
+			"taskId": 50,
+			"taskTitle": "Typegen: compatibility check (current vs next) and adoption gate",
+			"complexityScore": 10,
+			"recommendedSubtasks": 9,
+			"expansionPrompt": "Expand the 9 subtasks for the `typegen-compat.mjs` script. For the schema normalization subtask, confirm the use of `zod-to-json-schema` and outline the options to ensure deterministic output. For the compatibility engine subtask, provide a comprehensive list of breaking vs. non-breaking change rules for the JSON Schema diff. Detail the file system operations for the `adopt` mode, including a safe strategy for the `--prune` option. Define the schema for `adoption.json`.",
+			"reasoning": "This task introduces a sophisticated semantic versioning and promotion gate for schemas, which is a highly complex problem. The core challenge is programmatically diffing two Zod schemas and classifying the changes as breaking or non-breaking. This requires deep structural analysis, likely by converting schemas to an intermediate representation like JSON Schema and then applying a set of custom compatibility rules. The state management involved in the `adopt` mode (copying files, pruning old ones, and writing to an audit log) adds significant operational complexity, making this the most conceptually difficult task."
+		}
+	]
+}

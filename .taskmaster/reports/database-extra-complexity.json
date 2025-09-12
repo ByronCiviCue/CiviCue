@@ -1,0 +1,29 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T22:45:47.030Z",
+		"tasksAnalyzed": 2,
+		"totalTasks": 12,
+		"analysisCount": 2,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 71,
+			"taskTitle": "DB.5 – JSONL Materializer: artifacts → staging tables",
+			"complexityScore": 8,
+			"recommendedSubtasks": 12,
+			"expansionPrompt": "Break down the JSONL materializer into specific implementation phases: database schema creation (civic.stage_documents and civic.stage_errors with proper indexes), Kysely model definitions with TypeScript interfaces, Zod validation schemas for JSONL input format, streaming JSONL parser with batched database writes, upsert logic with SHA256-based idempotency, transaction management with deadlock retry, CLI implementation with comprehensive options (glob input, run-id, portal, dry-run), error handling and structured logging, unit tests for upsert logic, integration tests against test database, performance optimization for 500-record batches, and documentation with usage examples.",
+			"reasoning": "High complexity due to multiple interconnected components: new database schemas, Kysely ORM integration, streaming file processing, transaction management, error handling, CLI interface, and comprehensive testing. Requires deep understanding of PostgreSQL upsert semantics, Node.js streams, and batch processing patterns. The codebase shows existing Kysely usage but no civic schema exists yet."
+		},
+		{
+			"taskId": 72,
+			"taskTitle": "DB.6 – Materialize staging → normalized civic.* tables",
+			"complexityScore": 9,
+			"recommendedSubtasks": 14,
+			"expansionPrompt": "Decompose the staging-to-normalized materialization into discrete tasks: design normalized schema for civic.meetings/documents/items with proper referential integrity and indexes, implement deterministic ID generation algorithms based on composite keys, create Kysely repositories with typed accessors for each table, build meeting extraction logic from JSONL metadata, implement document-to-meeting association logic, develop items parsing and validation with position tracking, design and implement deduplication strategies, create transaction management for per-meeting consistency, implement first_seen_at/last_seen_at timestamp tracking, build error taxonomy and civic.normalize_errors handling, CLI implementation with run-id filtering and dry-run support, comprehensive unit tests for each normalization step, integration tests with fixture data and snapshot testing, performance optimization for bulk operations.",
+			"reasoning": "Very high complexity involving complex data modeling, referential integrity management, deterministic key generation, and sophisticated business logic for document normalization. Requires deep understanding of the JSONL schema from task 71, advanced PostgreSQL features, and complex transaction management. The existing codebase shows basic schemas but nothing approaching this level of normalization complexity."
+		}
+	]
+}

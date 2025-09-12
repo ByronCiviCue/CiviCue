@@ -48,7 +48,6 @@ Removed all security/detect-object-injection warnings without suppressions.
 
 No behavioral changes beyond validated arg parsing.
 
-Filename normalized to convention: confession-19b0006-62.8.md
 2025-01-10T20:14:45.000Z
 
 Taskmaster planning pass finalized:

@@ -1,0 +1,53 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T22:18:56.208Z",
+		"tasksAnalyzed": 5,
+		"totalTasks": 5,
+		"analysisCount": 5,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "SCR.0 – Migrate civicinsight Python ingestion into monorepo (quarantined)",
+			"complexityScore": 8,
+			"recommendedSubtasks": 12,
+			"expansionPrompt": "Break down the migration of civicinsight Python modules into: 1) Setting up Python project structure (/ingestion/python with pyproject.toml, uv/poetry setup), 2) Selective import and quarantine of scrapers/extractors (excluding Google Sheets dependencies), 3) CLI interface development (civic-ingest commands), 4) JSONL schema design and provenance contracts, 5) Storage layer implementation with configurable paths, 6) Unit tests with fixtures, 7) Integration with existing Node.js artifacts consumption, 8) Documentation and runbooks. Consider the complexity of cross-language integration and the need to maintain strict boundaries.",
+			"reasoning": "High complexity due to introducing Python into a TypeScript monorepo, requiring new build tooling, dependency management, and cross-language integration patterns. The quarantine requirement adds architectural constraints, and selective migration requires careful analysis of existing civicinsight codebase."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "SCR.1 – SF BOS PDFs JSONL ingestion package",
+			"complexityScore": 7,
+			"recommendedSubtasks": 10,
+			"expansionPrompt": "Structure the SF BOS PDF ingestion into: 1) Meeting page parsing logic with robust date handling, 2) PDF content extraction and hashing (SHA256), 3) JSONL schema implementation matching provenance requirements, 4) CLI commands for dry-run and resume functionality, 5) Test fixtures with sample PDFs and golden JSONL outputs, 6) Error handling and taxonomy development, 7) Idempotent and retriable operation design, 8) Integration with existing hash utilities from services/ingest/lib/hash.ts, 9) Logging and monitoring setup, 10) Documentation and operational runbooks.",
+			"reasoning": "Moderate-high complexity involving PDF processing, web scraping, deterministic parsing, and integration with existing TypeScript patterns. Benefits from existing hash utilities but requires new Python PDF processing capabilities and robust error handling for municipal website variations."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "SCR.2 – Committee meetings (Legistar + site pages)",
+			"complexityScore": 6,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Organize committee meeting scraping into: 1) Official committee page scraping with site-specific adapters, 2) Legistar endpoint integration and API handling, 3) JSONL normalization for meeting metadata (committee, date, URLs, items), 4) Deduplication logic by (committee, date) pairs, 5) Rate limiting and backoff mechanisms following existing Socrata patterns, 6) CLI interface consistent with other scrapers, 7) Test coverage for multiple committee types, 8) Error handling and provenance tracking integration.",
+			"reasoning": "Medium complexity benefiting from existing adapter patterns in src/adapters/socrata. Can leverage existing HTTP client patterns, rate limiting, and JSONL processing. The deduplication and normalization requirements are well-understood patterns in the codebase."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "SCR.3 – Archival layer (dedup storage)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Design the archival layer with: 1) Content-hash addressing system design, 2) S3/filesystem abstraction layer, 3) Index.json maintenance and referencing, 4) Deduplication logic leveraging existing hash utilities, 5) Lifecycle and retention policy configuration, 6) CLI garbage collection for orphaned blobs, 7) Test coverage for hash collisions and index integrity validation.",
+			"reasoning": "Medium complexity with significant leverage from existing hash utilities (services/ingest/lib/hash.ts). The codebase already has patterns for deterministic hashing and file processing. Storage abstraction is straightforward, and the dedup logic can build on existing patterns."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "SCR.4 – Multi-city expansion (CKAN/ArcGIS pilots)",
+			"complexityScore": 4,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Expand multi-city support through: 1) Config-driven city adapter framework design, 2) CKAN platform adapter implementation following existing Socrata patterns, 3) ArcGIS platform adapter implementation with similar interface contracts, 4) Shared JSONL output contract standardization, 5) Per-city configuration management and validation, 6) Smoke tests and fixture development for new platforms, extending existing test patterns.",
+			"reasoning": "Lower complexity due to strong existing adapter patterns in src/adapters/socrata that can be templated for CKAN/ArcGIS. The codebase already has discovery clients, HTTP patterns, and JSONL contracts. This is primarily extending proven patterns to new platforms rather than creating new architectural components."
+		}
+	]
+}

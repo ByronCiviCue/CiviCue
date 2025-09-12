@@ -1,0 +1,29 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T23:01:44.100Z",
+		"tasksAnalyzed": 2,
+		"totalTasks": 63,
+		"analysisCount": 2,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 66,
+			"taskTitle": "API.20 – Cross-provider schema drift survey (Socrata • CKAN • ArcGIS; SF • NYC • Austin)",
+			"complexityScore": 8,
+			"recommendedSubtasks": 12,
+			"expansionPrompt": "Break down this schema drift survey into systematic data collection and analysis tasks: 1) Create survey infrastructure with rate-limiting and authentication for each provider (Socrata/CKAN/ArcGIS), 2) Implement dataset selection algorithms for each city/provider combination targeting 3-5 datasets per domain, 3) Build metadata extraction adapters that handle provider-specific schemas, 4) Create shape analysis tools to detect column types, nullability, enums, geo types, 5) Develop diff generation algorithms to compare schemas across providers/cities, 6) Build conformance analysis against existing branched client interfaces, 7) Create markdown and JSON report generators, 8) Add snapshot testing for JSON outputs, 9) Implement schema validation against JSON Schema, 10) Create rate limit handling and retry logic per provider requirements.",
+			"reasoning": "High complexity (8/10) due to multi-provider integration complexity, existing Socrata infrastructure that can be leveraged, need for systematic data collection across 9 provider/city combinations, complex schema analysis and diff generation, multiple output formats, and integration with existing branched client patterns. The codebase already has solid Socrata adapters, discovery clients, and type generation infrastructure which reduces implementation complexity significantly."
+		},
+		{
+			"taskId": 67,
+			"taskTitle": "API.21 – Branched client consolidation and interfaces",
+			"complexityScore": 9,
+			"recommendedSubtasks": 15,
+			"expansionPrompt": "Structure this branched client consolidation as a comprehensive refactoring: 1) Design domain branch interfaces with semantic methods (searchDatasets, getDatasetMeta, sampleRows) based on existing API architecture guide, 2) Create abstract base branch class with common caching/validation patterns, 3) Implement cache tag registry following existing patterns in lib/cache, 4) Build correlation ID propagation system across all branches, 5) Refactor existing Socrata adapters to use generated types from src/generated/socrata, 6) Create CKAN and ArcGIS branch implementations with consistent interfaces, 7) Implement shared validation schemas using Zod for boundary validation, 8) Build SWR caching with TTL policies per data type, 9) Create cross-branch invalidation system, 10) Implement standardized error handling with correlation IDs, 11) Add contract tests for branch interfaces, 12) Build integration tests with record/replay for all providers, 13) Create observability layer with structured logging and metrics, 14) Implement timeout/retry policies with exponential backoff, 15) Add comprehensive JSDoc documentation for all branch methods.",
+			"reasoning": "Very high complexity (9/10) requiring extensive refactoring of existing adapters, implementing new branch pattern architecture, creating consistent interfaces across multiple providers, building comprehensive caching/invalidation system, and ensuring backward compatibility. The codebase has good foundation with existing Socrata adapters, type generation, and architecture guidance, but this task requires significant architectural changes and careful coordination across multiple domains."
+		}
+	]
+}

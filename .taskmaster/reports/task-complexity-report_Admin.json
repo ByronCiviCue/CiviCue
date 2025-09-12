@@ -1,0 +1,37 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-11T01:12:20.456Z",
+		"tasksAnalyzed": 3,
+		"totalTasks": 3,
+		"analysisCount": 3,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "ADM.1 – Catalog dashboard",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Create an admin dashboard for catalog management using existing Kysely database client, Socrata adapters, and pino logging infrastructure. Build vanilla HTML/JS frontend with admin API endpoints for portal status, discovery triggers, and CSV exports. Implement proper authentication middleware and audit logging using existing patterns from the codebase.",
+			"reasoning": "Medium-high complexity due to multiple components: backend API creation, authentication middleware, frontend dashboard, and integration with existing Socrata adapters and database. The codebase already has solid foundations (Kysely DB client, pino logger, Socrata adapters) that can be leveraged, but requires coordinating multiple moving parts including real-time data display, admin actions, and audit logging."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "ADM.2 – Runbook docs",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Extend and create comprehensive operational runbooks building on the existing discovery.md runbook. Document troubleshooting procedures for all major components including Socrata discovery, ingestion pipeline, vector operations, and operational procedures like rate limit management and secrets rotation. Include specific CLI examples using existing tooling and infrastructure.",
+			"reasoning": "Low-medium complexity as this is primarily documentation work. The project already has a solid foundation with an existing discovery runbook and well-structured CLI tools (socrata-discover, sf-refresh, tm commands). The task involves extending existing documentation patterns rather than creating new systems, but requires deep understanding of all operational aspects."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "ADM.3 – Metrics + alerts",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Enhance the existing pino logging infrastructure with structured metrics fields and instrument the Socrata adapters and ingestion pipeline with comprehensive observability. Add timing measurements, error classification, and alerting rules while maintaining OTLP readiness. Build upon the existing logger patterns and adapter structure to create a cohesive metrics collection system.",
+			"reasoning": "Medium complexity requiring instrumentation across multiple existing systems. The project has a well-structured pino logger and comprehensive Socrata adapters that provide good hooks for instrumentation. However, adding comprehensive metrics across the ingestion pipeline, vector operations, and creating alerting rules requires careful integration with existing patterns and consideration of performance impact."
+		}
+	]
+}

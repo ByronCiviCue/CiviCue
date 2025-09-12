@@ -1,0 +1,53 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-11T00:39:41.421Z",
+		"tasksAnalyzed": 5,
+		"totalTasks": 5,
+		"analysisCount": 5,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "SCR.0 – Migrate civicinsight Python ingestion into monorepo (quarantined)",
+			"complexityScore": 8,
+			"recommendedSubtasks": 12,
+			"expansionPrompt": "Break down the selective migration from civicinsight Python codebase into the existing /ingestion/python structure. Focus on establishing quarantine boundaries, removing Google Sheets dependencies, implementing CLI commands with proper provenance tracking, and ensuring compatibility with existing TypeScript hash utilities. Consider the existing Pydantic models structure and build on the current pyproject.toml foundation.",
+			"reasoning": "High complexity due to selective codebase migration requiring careful dependency analysis, quarantine implementation, cross-language integration with existing TypeScript patterns, and establishing new CLI contracts while maintaining existing functionality. The existing Python structure provides a foundation but significant refactoring is needed."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "SCR.1 – SF BOS PDFs JSONL ingestion package",
+			"complexityScore": 7,
+			"recommendedSubtasks": 10,
+			"expansionPrompt": "Implement a deterministic PDF ingestion system that integrates with existing hash utilities and follows established patterns from Socrata adapters for HTTP handling and error management. Build on the existing Pydantic models in ingestion/python/ and ensure compatibility with the current testing infrastructure. Focus on robust date parsing, hash-based resumption, and comprehensive error taxonomy following the codebase's existing patterns.",
+			"reasoning": "Medium-high complexity involving PDF processing, web scraping, and integration with existing patterns. Benefits from established hash utilities and HTTP patterns but requires new PDF extraction capabilities and deterministic output generation. The existing Python foundation and testing patterns reduce complexity."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "SCR.2 – Committee meetings (Legistar + site pages)",
+			"complexityScore": 6,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Extend the existing Socrata adapter patterns to support committee meeting scraping across multiple platforms (Legistar API + site pages). Leverage the established HTTP client patterns with retry/backoff from src/adapters/socrata/http.ts, implement JSONL normalization following existing codecs patterns, and add comprehensive deduplication logic. Build testing using the existing Vitest infrastructure with cassette-based mocking.",
+			"reasoning": "Medium complexity that can heavily leverage existing adapter patterns, HTTP infrastructure, and testing frameworks. The Socrata adapter provides excellent blueprints for API handling, retry logic, and data normalization. Deduplication and multi-source handling add moderate complexity."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "SCR.3 – Archival layer (dedup storage)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Design a content-addressed storage system leveraging the existing hash utilities from services/ingest/lib/hash.ts. Implement S3/filesystem abstraction following TypeScript patterns, build index.json maintenance with atomic operations, and create CLI tools for garbage collection. Focus on integration with existing hash functions and storage patterns while maintaining idempotent operations.",
+			"reasoning": "Medium complexity reduced by existing robust hash utilities and TypeScript infrastructure. The codebase already has solid foundations for hashing, file operations, and CLI patterns. Main complexity lies in storage abstraction design and index management, but established patterns significantly reduce implementation overhead."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "SCR.4 – Multi-city expansion (CKAN/ArcGIS pilots)",
+			"complexityScore": 4,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Extend the proven Socrata adapter architecture to support CKAN and ArcGIS platforms. Leverage existing patterns from src/adapters/socrata/ for HTTP handling, Zod validation, and error management. Implement config-driven city adapters following the established secrets management patterns and testing infrastructure with cassette-based tests. Focus on adapter consistency and shared JSONL contracts.",
+			"reasoning": "Lower complexity due to extensive existing adapter patterns that can be directly applied to new platforms. The Socrata adapter provides excellent blueprints for API integration, authentication, data validation, and testing. Configuration management and secrets handling patterns are already established, making platform expansion more straightforward."
+		}
+	]
+}

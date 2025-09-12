@@ -1,0 +1,37 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T22:22:47.933Z",
+		"tasksAnalyzed": 3,
+		"totalTasks": 3,
+		"analysisCount": 3,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "ADM.1 – Catalog dashboard",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down the internal admin dashboard into: 1) Backend API endpoints for catalog data (using existing Kysely DB setup), 2) Authentication middleware (admin-only), 3) Static HTML dashboard with vanilla JS, 4) Real-time status views (portal list, rate limits), 5) Action handlers (dry-run discovery, resync, CSV export), 6) Integration with existing pino logger for audit trails",
+			"reasoning": "High complexity due to requiring both backend API development and frontend dashboard creation. The project has solid infrastructure with Kysely DB, pino logging, and TypeScript, but currently has no web UI framework. Will need to implement HTML/CSS/JS from scratch or introduce a lightweight framework. Authentication, real-time data display, and CSV export add significant complexity. However, existing database schema and logging infrastructure reduce some complexity."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "ADM.2 – Runbook docs",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Create comprehensive operator documentation covering: 1) Discovery and ingestion troubleshooting guide (extending existing runbook), 2) Rate-limit tuning and secrets rotation procedures, 3) CLI examples and common failure scenarios, 4) Vector jobs and scrapers operational procedures. Build upon existing discovery.md runbook and maintain consistency with established documentation patterns.",
+			"reasoning": "Medium complexity as this is primarily documentation work. The project already has good documentation structure (__docs__/runbooks/) and an existing discovery runbook to build upon. The codebase shows extensive CLI tooling and well-documented processes. Main complexity comes from ensuring completeness and accuracy across multiple operational areas, but no code implementation is required."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "ADM.3 – Metrics + alerts",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Implement observability infrastructure: 1) Extend existing pino logger with structured metrics fields, 2) Add timing and error metrics to Socrata adapters and discovery processes, 3) Implement metrics collection middleware for ingestion pipeline, 4) Create alerting rules configuration for stuck workers and rate limit bursts, 5) Design dashboard-ready metrics format with OTLP preparation for future integration",
+			"reasoning": "High complexity due to comprehensive instrumentation requirements across multiple services. The project already has excellent pino logging infrastructure and well-structured adapters that can be instrumented. However, adding metrics collection, alert configuration, and ensuring proper structured logging across ingestion, discovery, and vector processes requires significant architectural work. The mention of OTLP readiness adds future-proofing complexity."
+		}
+	]
+}

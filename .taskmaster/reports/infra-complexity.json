@@ -1,0 +1,37 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T22:24:42.844Z",
+		"tasksAnalyzed": 3,
+		"totalTasks": 3,
+		"analysisCount": 3,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "INFRA.1 – Lint/ESLint v9 adoption",
+			"complexityScore": 4,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down ESLint v9 migration into: 1) Update dependencies and config file format, 2) Resolve rule deprecations and breaking changes, 3) Update existing custom rules (civicue plugin), 4) Fix any linting errors from stricter rules, 5) Update CI pipeline and pre-commit hooks integration",
+			"reasoning": "ESLint v9 is already mostly adopted (package.json shows v9.35.0, flat config in use). The project has custom ESLint plugin with civicue rules that may need updates. Breaking changes from v8->v9 are moderate. Existing CI and husky integration needs verification but infrastructure is in place."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "INFRA.2 – Env standards",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Implement env standards by: 1) Audit all direct process.env usage across codebase (59+ files found), 2) Extend secrets facade with missing getters, 3) Update CLI scripts and tools to use facade, 4) Strengthen ESLint rules to block violations, 5) Update environment documentation, 6) Test and validate all environment access patterns",
+			"reasoning": "High complexity due to 59+ files using process.env directly. Secrets facade exists but needs expansion. Custom ESLint rules already partially implemented. Large refactoring effort across scripts, tests, and application code. Complex rule configurations needed for different file types."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "INFRA.3 – CI/CD setup",
+			"complexityScore": 5,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Enhance CI/CD with: 1) Add matrix testing for multiple Node.js versions, 2) Implement network isolation controls for tests, 3) Configure branch-based secret exposure controls, 4) Add deployment gates and environment promotion, 5) Set up staging/production pipeline controls, 6) Update documentation and monitoring",
+			"reasoning": "CI infrastructure exists (.github/workflows/ci.yml) with basic pipeline. Current setup runs typecheck, lint, tests, build. Missing matrix testing, network controls, and deploy gates. Moderate complexity to extend existing foundation with advanced features like secret management and deployment controls."
+		}
+	]
+}

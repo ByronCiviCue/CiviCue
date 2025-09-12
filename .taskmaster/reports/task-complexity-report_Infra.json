@@ -1,0 +1,37 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-11T01:19:11.044Z",
+		"tasksAnalyzed": 3,
+		"totalTasks": 3,
+		"analysisCount": 3,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "INFRA.1 – Lint/ESLint v9 adoption",
+			"complexityScore": 4,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down ESLint v9 migration into: dependency updates and flat config verification, rule deprecation handling, custom plugin compatibility updates, linting error resolution, and CI/pre-commit integration testing. Focus on the existing custom civicue plugin and comprehensive rule enforcement across the 77-file codebase.",
+			"reasoning": "ESLint v9 is already installed (9.35.0) and flat config is implemented. The custom civicue plugin exists and appears functional. Main work involves updating deprecated rules, ensuring plugin compatibility, and fixing any new linting violations. The codebase is moderately sized (77 source files) with existing CI integration."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "INFRA.2 – Env standards",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Systematically migrate from direct process.env usage to centralized secrets facade: audit the 1705 process.env occurrences across 597 files, extend the existing secrets facade with missing getters (getAppToken, getDbUrl, isCI already exist), update CLI scripts and application code, strengthen ESLint rules for enforcement, and validate the migration. Focus on the large scope of environment variable usage requiring careful systematic migration.",
+			"reasoning": "High complexity due to massive scope - 1705 process.env occurrences across 597 files (mostly node_modules but still significant). The secrets facade already exists with some methods implemented. The custom ESLint rule is in place but needs strengthening. This requires systematic migration across many files while maintaining functionality."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "INFRA.3 – CI/CD setup",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Enhance the existing CI/CD pipeline: implement Node.js matrix testing (currently only 20.x), add network isolation controls for tests, configure branch-based secret exposure policies, implement deployment gates with security scanning, set up staging/production promotion pipeline, and create comprehensive documentation. Build upon the existing GitHub Actions workflow with pnpm, ESLint, tests, and build steps.",
+			"reasoning": "Moderate-high complexity building on existing CI infrastructure. Current CI runs on single Node version with basic verification. Needs significant enhancements for production-ready deployment pipeline including matrix testing, security controls, deployment automation, and monitoring. The foundation exists but requires substantial extension."
+		}
+	]
+}

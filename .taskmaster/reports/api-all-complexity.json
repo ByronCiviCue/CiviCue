@@ -1,0 +1,357 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T22:50:59.434Z",
+		"tasksAnalyzed": 43,
+		"totalTasks": 61,
+		"analysisCount": 43,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 8,
+			"taskTitle": "Profile SF datasets",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down into schema validation, data normalization, statistics computation, and markdown rendering with fixtures",
+			"reasoning": "Medium complexity due to data processing and statistical analysis. Current subtasks are well-structured but could be consolidated. Requires working with JSON data structures and generating formatted output."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Profile Detroit datasets and compare with SF",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Separate data loading, profiling logic, comparison algorithms, report generation, and validation into distinct implementation phases",
+			"reasoning": "Higher complexity due to comparative analysis between two datasets, requiring sophisticated diff algorithms and cross-dataset statistics. Current subtask structure is appropriate for the complexity level."
+		},
+		{
+			"taskId": 19,
+			"taskTitle": "Generator script: pnpm gen:branch",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Focus on template system, CLI argument parsing, file generation logic, and integration testing as core components",
+			"reasoning": "Moderate complexity involving CLI tooling, template processing, and file system operations. Current subtasks could be optimized by combining related functionality like validation and formatting."
+		},
+		{
+			"taskId": 11,
+			"taskTitle": "SocrataAdapter: SoQL translation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Structure around query parsing, clause serialization, URL encoding, and comprehensive testing with edge cases",
+			"reasoning": "Moderate-to-high complexity due to query language translation and URL parameter handling. Current subtasks are well-detailed but could be streamlined by combining serialization and encoding logic."
+		},
+		{
+			"taskId": 13,
+			"taskTitle": "SocrataAdapter: I/O policy (timeouts, retries, backoff)",
+			"complexityScore": 7,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break into configuration management, retry logic implementation, timeout handling, and integration with adapter methods",
+			"reasoning": "High complexity due to network resilience patterns, exponential backoff algorithms, and integration with existing adapter architecture. Current subtasks are appropriate for the technical depth required."
+		},
+		{
+			"taskId": 12,
+			"taskTitle": "SocrataAdapter: Zod schemas and runtime validation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Organize around schema definition, validation pipeline integration, error handling, and comprehensive test coverage",
+			"reasoning": "Moderate-to-high complexity involving runtime type validation and error handling. Current subtasks are well-structured but could benefit from consolidating schema-related functionality."
+		},
+		{
+			"taskId": 42,
+			"taskTitle": "Adopt Socrata type-extraction outputs (publish to src/generated/socrata; export index)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Focus on code generation pipeline, index creation, and build system integration as primary phases",
+			"reasoning": "Moderate complexity involving build tooling and code generation. The task is well-defined but could be simplified by combining related generation and publishing steps."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Build Detroit Socrata index (optional)",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Structure similar to SF index builder: configuration setup, API client, data processing, and output generation",
+			"reasoning": "Medium complexity similar to Task 7 (SF index builder) with established patterns to follow. Current subtasks are appropriately detailed for the scope."
+		},
+		{
+			"taskId": 14,
+			"taskTitle": "Seed registry DB (registry.sources, registry.assets)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on seed registry db (registry.sources, registry.assets).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 15,
+			"taskTitle": "Fill normalization-map.md",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on fill normalization-map.md.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 18,
+			"taskTitle": "Golden tests for fuse() (dedupe/scoring)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on golden tests for fuse() (dedupe/scoring).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 20,
+			"taskTitle": "Branch engine observability hooks",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on branch engine observability hooks.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 21,
+			"taskTitle": "Rate-limit smoke tests (Socrata)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on rate-limit smoke tests (socrata).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 22,
+			"taskTitle": "Implement /v1/health route",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on implement /v1/health route.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 23,
+			"taskTitle": "Implement /v1/search/hybrid",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on implement /v1/search/hybrid.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 24,
+			"taskTitle": "Implement /v1/reports/permits",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on implement /v1/reports/permits.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 25,
+			"taskTitle": "Contract tests vs openapi.yaml",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on contract tests vs openapi.yaml.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 27,
+			"taskTitle": "Create core.items and core.item_embeddings DB schema",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on create core.items and core.item_embeddings db schema.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 29,
+			"taskTitle": "Implement embedding computation and upsert",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on implement embedding computation and upsert.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 31,
+			"taskTitle": "Nightly registry rebuild job",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on nightly registry rebuild job.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 32,
+			"taskTitle": "Hourly branch ingest schedule",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on hourly branch ingest schedule.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 33,
+			"taskTitle": "CI tests: typecheck, lint, unit, golden, contract",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on ci tests: typecheck, lint, unit, golden, contract.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 34,
+			"taskTitle": "Collect and expose key metrics",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on collect and expose key metrics.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 35,
+			"taskTitle": "Implement CorrelationId in logs",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on implement correlationid in logs.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 36,
+			"taskTitle": "Create monitoring dashboards",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on create monitoring dashboards.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 37,
+			"taskTitle": "Establish openapi.yaml and integrate Spectral linting into CI",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on establish openapi.yaml and integrate spectral linting into ci.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 38,
+			"taskTitle": "Spike: type-extraction scaffold for Socrata adapter (generate TS + Zod from sample payloads)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on spike: type-extraction scaffold for socrata adapter (generate ts + zod from sample payloads).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 39,
+			"taskTitle": "Spike: type-extraction scaffold for CKAN adapter (generate TS + Zod from datastore_search)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on spike: type-extraction scaffold for ckan adapter (generate ts + zod from datastore_search).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 40,
+			"taskTitle": "Spike: type-extraction scaffold for ArcGIS adapter (FeatureServer query → TS + Zod)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on spike: type-extraction scaffold for arcgis adapter (featureserver query → ts + zod).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 41,
+			"taskTitle": "RFC: Type-extraction workflow across adapters (inputs, codegen targets, review gates, integration)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on rfc: type-extraction workflow across adapters (inputs, codegen targets, review gates, integration).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 43,
+			"taskTitle": "Adopt CKAN type-extraction outputs (publish to src/generated/ckan; export index)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on adopt ckan type-extraction outputs (publish to src/generated/ckan; export index).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 44,
+			"taskTitle": "Adopt ArcGIS type-extraction outputs (publish to src/generated/arcgis; export index)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on adopt arcgis type-extraction outputs (publish to src/generated/arcgis; export index).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 45,
+			"taskTitle": "Wire typegen pipeline: scripts/typegen.mjs, npm run typegen:*, CI check",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on wire typegen pipeline: scripts/typegen.mjs, npm run typegen:*, ci check.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 46,
+			"taskTitle": "Pre-commit: Block direct edits under src/generated/** and add Do-Not-Edit README",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on pre-commit: block direct edits under src/generated/** and add do-not-edit readme.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 47,
+			"taskTitle": "Typegen: Fetch provider schemas into tmp/schema/<provider>/*.json",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on typegen: fetch provider schemas into tmp/schema/<provider>/*.json.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 48,
+			"taskTitle": "Typegen: compute fingerprints (sha256) and compare with fingerprints/<provider>/*.sha256",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on typegen: compute fingerprints (sha256) and compare with fingerprints/<provider>/*.sha256.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 49,
+			"taskTitle": "Typegen: Generate TS types + Zod schemas into src/generated/<provider>/next",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on typegen: generate ts types + zod schemas into src/generated/<provider>/next.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 50,
+			"taskTitle": "Typegen: compatibility check (current vs next) and adoption gate",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on typegen: compatibility check (current vs next) and adoption gate.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 51,
+			"taskTitle": "CI: Add typegen check job with breaking-change override",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on ci: add typegen check job with breaking-change override.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 52,
+			"taskTitle": "Pre-commit: Block edits to src/generated/** with TYPEGEN_ALLOW override",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on pre-commit: block edits to src/generated/** with typegen_allow override.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 53,
+			"taskTitle": "Docs: Approving Type Drift (compatible vs breaking, env flags, adoption workflow)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on docs: approving type drift (compatible vs breaking, env flags, adoption workflow).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 62,
+			"taskTitle": "Socrata Dataset Core (reusable across cities)",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on socrata dataset core (reusable across cities).",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		},
+		{
+			"taskId": 65,
+			"taskTitle": "Vectorization vs. relational split rules",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Break down this task with a focus on vectorization vs. relational split rules.",
+			"reasoning": "Automatically added due to missing analysis in AI response."
+		}
+	]
+}

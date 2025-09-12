@@ -1,0 +1,94 @@
+{
+	"meta": {
+		"generatedAt": "2025-09-10T22:37:48.810Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": true
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 65,
+			"taskTitle": "Socrata global directory database schema and migration",
+			"complexityScore": 3,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down the database schema design and migration creation into: 1) Define and validate table schemas with proper column types and constraints, 2) Create comprehensive indexing strategy for query performance, 3) Implement idempotent migration with proper foreign key relationships, 4) Add rollback capability and validation tests for the migration",
+			"reasoning": "Low complexity - straightforward database migration task. The existing codebase shows established patterns for migrations (0001_init.sql, 0010_catalog_municipality_index.sql). The task has clear requirements for three simple tables with well-defined columns. PostgreSQL migration patterns are standard, and the project already has migration infrastructure."
+		},
+		{
+			"taskId": 66,
+			"taskTitle": "Socrata catalog ingestion service with rate limiting",
+			"complexityScore": 5,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Implement the ingestion service by: 1) Creating the main service interface with configuration and error handling, 2) Implementing pagination logic with cursor support and resume functionality, 3) Adding rate limiting with exponential backoff and concurrency controls, 4) Building idempotent upsert operations for database writes, 5) Implementing comprehensive logging without exposing secrets, 6) Adding integration tests and dry-run capabilities",
+			"reasoning": "Medium complexity - requires integration of existing discovery client patterns with new database operations. The codebase already has socrataCatalogIngest.ts with basic structure, discoveryClient.ts, and regions.ts. However, the task requires adding sophisticated rate limiting, cursor-based pagination, and idempotent operations. Existing patterns reduce complexity but coordination between components adds moderate difficulty."
+		},
+		{
+			"taskId": 67,
+			"taskTitle": "Finalize schema design and decisions",
+			"complexityScore": 4,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Complete the schema design through: 1) Design and validate core.items table structure with proper constraints and indexes, 2) Design core.item_embeddings table with pgvector integration and IVFFLAT indexing, 3) Define embedding configuration constants (dimension=1536, cosine distance), 4) Create migration structure with proper schema namespacing and extensions, 5) Document design decisions and create validation procedures",
+			"reasoning": "Medium-low complexity - primarily design and documentation work with some technical implementation. The codebase shows existing vector embedding infrastructure (db/schema/50_embeddings.sql with pgvector). The task has detailed specifications already provided. Main work involves formalizing decisions into migration files and ensuring consistency with existing patterns."
+		},
+		{
+			"taskId": 68,
+			"taskTitle": "Create schema and required extensions",
+			"complexityScore": 2,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Implement the schema setup through: 1) Create migration file with proper transaction handling and schema creation, 2) Enable required PostgreSQL extensions (pgvector, pgcrypto) with compatibility checks, 3) Implement utility functions like updated_at trigger with proper error handling and rollback procedures",
+			"reasoning": "Low complexity - straightforward PostgreSQL setup task. The codebase already has pgvector enabled in 50_embeddings.sql and migration infrastructure. Task is well-specified with clear requirements. The main work involves creating a standard PostgreSQL migration following existing patterns."
+		},
+		{
+			"taskId": 69,
+			"taskTitle": "Add down migration and run end-to-end verification",
+			"complexityScore": 3,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Complete migration verification through: 1) Implement comprehensive down migration with proper reverse order operations, 2) Create end-to-end verification tests with sample data insertion and retrieval, 3) Add idempotency tests to ensure migrations can be run multiple times safely, 4) Document verification procedures and create smoke test suite",
+			"reasoning": "Low-medium complexity - primarily testing and verification work. The task involves creating rollback procedures and test suites. The codebase has existing migration patterns and test infrastructure with vitest. Most work involves systematic testing rather than complex implementation."
+		},
+		{
+			"taskId": 28,
+			"taskTitle": "Implement ingest job (jobs/ingest-branch.ts)",
+			"complexityScore": 8,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Build the comprehensive ingest job system through: 1) Create robust job infrastructure with CLI, configuration, database connections, and advisory locking, 2) Implement paginated data reader with cursor-based resume capability and validation, 3) Build batched upsert system with change detection and idempotent operations, 4) Create embedding trigger system with queue integration and status tracking, 5) Orchestrate the complete workflow with checkpointing, metrics, error handling, and comprehensive testing",
+			"reasoning": "High complexity - this is a comprehensive ETL job requiring multiple coordinated systems. Based on existing codebase analysis: no jobs/ directory exists yet, requiring greenfield development. Task involves complex data flow coordination, transaction management, cursor-based pagination, embedding integration, checkpoint persistence, and robust error handling. The subtasks show significant architectural complexity with multiple integration points."
+		},
+		{
+			"taskId": 30,
+			"taskTitle": "Enforce embedding model and dimension guard",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Implement embedding consistency enforcement through: 1) Create centralized embedding configuration with model ID and dimension constants, 2) Build data audit system to check existing embeddings for dimension compliance, 3) Add database-level constraints to enforce vector dimensions, 4) Implement runtime guards in embedding computation services, 5) Create comprehensive test suite and CI integration for all guards",
+			"reasoning": "Medium-high complexity - requires coordination between database schema, application code, and CI systems. The codebase shows existing vector infrastructure (50_embeddings.sql with vector(768) dimension) that needs updating. Task involves both database migrations and application-level validation, requiring careful coordination to avoid breaking existing functionality."
+		},
+		{
+			"taskId": 70,
+			"taskTitle": "Add ingest job freshness widgets",
+			"description": "Create visualizations that show how fresh the ingested data is, measuring time since the last successful ingest per job/branch, plus a table of the stalest jobs.",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Build monitoring dashboard widgets by: 1) Design metrics collection for ingest job timestamps and success tracking, 2) Create dashboard panels for freshness gauges with appropriate thresholds (green <10m, yellow 10-30m, red >30m), 3) Implement time series visualizations and stalest jobs table, 4) Add configurable alerting and integrate with existing monitoring infrastructure",
+			"reasoning": "Medium-low complexity - primarily frontend/visualization work with some metrics integration. The task has clear specifications for dashboard widgets. Complexity depends on existing monitoring infrastructure and whether this integrates with systems like Grafana/Datadog or requires custom implementation."
+		},
+		{
+			"taskId": 26,
+			"taskTitle": "Vector strategy decision document",
+			"complexityScore": 4,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Create comprehensive vector strategy documentation through: 1) Research and document requirements for global vs per-city vector spaces, 2) Analyze both approaches against decision criteria with trade-off analysis, 3) Select embedding model, dimensionality, and similarity metrics with rationale, 4) Define storage schema, indexing strategy, and metadata conventions, 5) Finalize decision document with implementation guidance and cross-references to related tasks",
+			"reasoning": "Medium-low complexity - primarily research and documentation work requiring architectural analysis. The task involves evaluating technical options and documenting decisions. Some complexity in understanding vector database performance characteristics and embedding model trade-offs, but mostly analytical work rather than implementation."
+		},
+		{
+			"taskId": 64,
+			"taskTitle": "Vectorization strategy and ingestion shaping",
+			"complexityScore": 5,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Define comprehensive vectorization strategy through: 1) Research and establish data retention policies per category (311, housing, finance) with business rationale, 2) Design city-level configuration override system for retention and ingestion policies, 3) Create implementation framework for vectorization vs relational storage decisions, 4) Document strategy with operational procedures and policy enforcement mechanisms",
+			"reasoning": "Medium complexity - requires both policy definition and technical implementation design. The task involves understanding different data categories and their retention requirements, plus building configuration systems. Complexity comes from needing to balance business requirements with technical implementation across multiple municipalities."
+		}
+	]
+}
