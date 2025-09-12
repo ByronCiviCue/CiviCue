@@ -1,7 +1,7 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { getDatabaseUrl } from '../lib/secrets/secrets.js';
-import type { SocrataHosts, SocrataDomains, SocrataAgencies } from './catalog/types.js';
+import type { SocrataHosts, SocrataDomains, SocrataAgencies, ResumeState } from './catalog/types.js';
 
 export interface CatalogDB {
   'catalog.socrata_municipality_index': {
@@ -19,6 +19,7 @@ export interface CatalogDB {
   'catalog.socrata_hosts': SocrataHosts;
   'catalog.socrata_domains': SocrataDomains;
   'catalog.socrata_agencies': SocrataAgencies;
+  'catalog.resume_state': ResumeState;
 }
 
 let _db: Kysely<CatalogDB> | undefined;

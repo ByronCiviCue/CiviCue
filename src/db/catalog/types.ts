@@ -17,3 +17,10 @@ export interface SocrataAgencies {
   type: string | null;
   created_at: Date;
 }
+
+export interface ResumeState {
+  pipeline: string;
+  resume_token: string | null;
+  last_processed_at: Date | null;
+  updated_at: Date;
+}

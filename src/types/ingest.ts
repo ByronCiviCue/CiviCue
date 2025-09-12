@@ -1,11 +1,23 @@
 export type IngestRegion = 'US' | 'EU';
 
+export type ErrorClassification = 'TRANSIENT' | 'FATAL';
+
+export interface RetryConfig {
+  max_attempts: number;      // Default: 3
+  base_delay_ms: number;     // Default: 1000  
+  max_delay_ms: number;      // Default: 30000
+  enable_jitter: boolean;    // Default: true
+}
+
 export interface SocrataCatalogIngestOptions {
   regions: IngestRegion[];
   pageSize: number;
   limit: number;
   dryRun: boolean;
   resumeFrom?: string | null;
+  retryConfig?: Partial<RetryConfig>;
+  batchSize?: number;        // Default: 100
+  resumeEnabled?: boolean;   // Default: true
   logger?: {
     info(...args: unknown[]): void;
     warn(...args: unknown[]): void;
