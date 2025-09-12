@@ -300,13 +300,13 @@ export async function processItemBatch(
 export async function upsertDatasets(
   host: string, 
   datasets: UpsertDatasetInput[]
-): Promise<{ upserted: number; updated: number }> {
+): Promise<{ inserted: number; updated: number }> {
   if (isDatabaseDryRun()) {
-    return { upserted: datasets.length, updated: 0 };
+    return { inserted: datasets.length, updated: 0 };
   }
 
   if (datasets.length === 0) {
-    return { upserted: 0, updated: 0 };
+    return { inserted: 0, updated: 0 };
   }
 
   const db = getDb();
@@ -330,7 +330,7 @@ export async function upsertDatasets(
     last_seen: now,
   }));
 
-  await db
+  const results = await db
     .insertInto('catalog.socrata_datasets')
     .values(values)
     .onConflict((oc) =>
@@ -348,10 +348,24 @@ export async function upsertDatasets(
         last_seen: now,
       })
     )
+    .returning(['dataset_id', 'first_seen'])
     .execute();
 
-  // For simplicity, return total count as upserted (Kysely doesn't easily distinguish insert vs update)
-  return { upserted: datasets.length, updated: 0 };
+  // Count new vs updated based on first_seen timestamp
+  let inserted = 0;
+  let updated = 0;
+  
+  for (const row of results) {
+    // If first_seen equals now (within a second), it's a new insert
+    const timeDiff = Math.abs(now.getTime() - new Date(row.first_seen).getTime());
+    if (timeDiff < 1000) {
+      inserted++;
+    } else {
+      updated++;
+    }
+  }
+
+  return { inserted, updated };
 }
 
 /**

@@ -250,6 +250,24 @@ SELECT category, COUNT(*) FROM catalog.socrata_datasets WHERE active = TRUE GROU
 - **Rate Limiting**: Socrata API limits are handled gracefully with error logging
 - **Memory Issues**: Batch size can be reduced via code modification if needed
 
+## Verification Results
+
+### Top Hosts by Dataset Count
+*(To be populated after first discovery run)*
+
+### Recent High-Value Datasets (>100k rows, last 3 years)
+*(To be populated after first discovery run)*
+
+### SF Category Distribution
+*(To be populated after first discovery run)*
+
+### Summary Statistics
+- Total active datasets: 0
+- Total unique hosts: 0
+- Timestamp: 2025-01-16T19:30:00Z
+
+*Note: Run `npx tsx scripts/run-verification-queries.ts` after dataset discovery to populate these results.*
+
 ## Next Steps
 
 1. **Production Deployment**: Schedule daily runs via cron/scheduler

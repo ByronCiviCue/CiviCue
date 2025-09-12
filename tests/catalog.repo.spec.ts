@@ -30,6 +30,7 @@ const mockDb = {
     callback(mockConflictBuilder);
     return mockDb;
   }),
+  returning: vi.fn().mockReturnThis(),
   execute: vi.fn().mockResolvedValue([]),
   updateTable: vi.fn().mockReturnThis(),
   set: vi.fn().mockReturnThis(),
@@ -44,7 +45,8 @@ describe('Catalog Repository - Datasets', () => {
     mockConflictBuilder.doUpdateSet.mockClear();
   });
 
-  it('should upsert datasets with first_seen on insert', async () => {
+  it('should upsert datasets and return actual counts for new inserts', async () => {
+    const now = new Date();
     const testDatasets: UpsertDatasetInput[] = [
       {
         datasetId: 'test-123',
@@ -54,15 +56,23 @@ describe('Catalog Repository - Datasets', () => {
       },
     ];
 
+    // Mock execute to return a new dataset (first_seen = now)
+    mockDb.execute.mockResolvedValue([
+      { dataset_id: 'test-123', first_seen: now }
+    ]);
+
     const result = await upsertDatasets('data.example.gov', testDatasets);
 
     expect(mockDb.insertInto).toHaveBeenCalledWith('catalog.socrata_datasets');
     expect(mockDb.values).toHaveBeenCalled();
     expect(mockDb.onConflict).toHaveBeenCalled();
-    expect(result).toEqual({ upserted: 1, updated: 0 });
+    expect(mockDb.returning).toHaveBeenCalledWith(['dataset_id', 'first_seen']);
+    expect(result).toEqual({ inserted: 1, updated: 0 });
   });
 
-  it('should update last_seen on subsequent upsert', async () => {
+  it('should return actual counts for updated datasets', async () => {
+    const now = new Date();
+    const oldDate = new Date(now.getTime() - 86400000); // 1 day ago
     const testDatasets: UpsertDatasetInput[] = [
       {
         datasetId: 'test-456',
@@ -71,7 +81,12 @@ describe('Catalog Repository - Datasets', () => {
       },
     ];
 
-    await upsertDatasets('data.example.gov', testDatasets);
+    // Mock execute to return an updated dataset (first_seen = old date)
+    mockDb.execute.mockResolvedValue([
+      { dataset_id: 'test-456', first_seen: oldDate }
+    ]);
+
+    const result = await upsertDatasets('data.example.gov', testDatasets);
 
     expect(mockConflictBuilder.doUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -80,6 +95,29 @@ describe('Catalog Repository - Datasets', () => {
         last_seen: expect.any(Date),
       })
     );
+    expect(mockDb.returning).toHaveBeenCalledWith(['dataset_id', 'first_seen']);
+    expect(result).toEqual({ inserted: 0, updated: 1 });
+  });
+
+  it('should handle mixed new and updated datasets', async () => {
+    const now = new Date();
+    const oldDate = new Date(now.getTime() - 86400000); // 1 day ago
+    const testDatasets: UpsertDatasetInput[] = [
+      { datasetId: 'new-1', host: 'data.example.gov', title: 'New Dataset 1' },
+      { datasetId: 'old-1', host: 'data.example.gov', title: 'Old Dataset 1' },
+      { datasetId: 'new-2', host: 'data.example.gov', title: 'New Dataset 2' },
+    ];
+
+    // Mock execute to return mixed results
+    mockDb.execute.mockResolvedValue([
+      { dataset_id: 'new-1', first_seen: now },
+      { dataset_id: 'old-1', first_seen: oldDate },
+      { dataset_id: 'new-2', first_seen: now },
+    ]);
+
+    const result = await upsertDatasets('data.example.gov', testDatasets);
+
+    expect(result).toEqual({ inserted: 2, updated: 1 });
   });
 
   it('should retire stale datasets when cutoff provided', async () => {
@@ -98,7 +136,7 @@ describe('Catalog Repository - Datasets', () => {
 
   it('should handle empty dataset arrays', async () => {
     const result = await upsertDatasets('data.example.gov', []);
-    expect(result).toEqual({ upserted: 0, updated: 0 });
+    expect(result).toEqual({ inserted: 0, updated: 0 });
     expect(mockDb.insertInto).not.toHaveBeenCalled();
   });
 });
