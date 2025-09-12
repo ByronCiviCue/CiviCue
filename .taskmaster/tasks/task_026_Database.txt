@@ -1,5 +1,4 @@
 # Task ID: 26
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Vector strategy decision document
 # Status: pending
 # Dependencies: None
@@ -12,55 +11,33 @@ Analyze whether to use a single global vector space or a separate one for each c
 Peer review of the architecture document for soundness and clarity.
 
 # Subtasks:
-## 1. Draft document skeleton and gather requirements [pending]
+## 1. Research vector space architecture requirements [pending]
 ### Dependencies: None
-### Description: Create the initial vector strategy document structure and collect concrete requirements that influence the decision between a single global vector space vs. per-city spaces.
+### Description: Research and document requirements for global vs per-city vector spaces, including performance, scalability, and query patterns.
 ### Details:
-1) Create the file __docs__/architecture/vector-strategy.md with a structured outline: Title, Summary Decision (TBD), Context & Goals, Decision Criteria, Options Considered (Global vs Per-City), Analysis, Embedding Model Choice, Storage & Indexing Plan, Enforcement & Ops (tie-in to Task 30), Risks & Mitigations, Decision Record, Follow-ups.
-2) Populate Context & Goals with project scope and expected query patterns (e.g., typical queries are city-scoped; any cross-city discovery needed?).
-3) Populate Decision Criteria with measurable factors: retrieval quality/recall, cross-city relevance needs, data volume growth per city, performance and index maintenance cost, multi-tenancy/data isolation, operational simplicity, and compatibility with the existing core.item_embeddings table.
-4) Gather inputs by reviewing current data usage, tickets, and team notes; list assumptions explicitly (e.g., near-term queries are scoped to a single city unless otherwise stated).
+Analyze the trade-offs between a single global vector space versus separate vector spaces per city. Research considerations include: query performance across cities vs within cities, memory usage, index size, cross-city search capabilities, data isolation, and maintenance complexity. Document findings in preparation for decision analysis.
 
-## 2. Analyze vector space options and recommend strategy [pending]
+## 2. Analyze vector space approaches with trade-offs [pending]
 ### Dependencies: 26.1
-### Description: Evaluate single global vector space vs per-city vector spaces using the documented criteria and produce a recommendation with pros/cons and trade-offs.
+### Description: Conduct detailed analysis of both global and per-city vector space approaches against decision criteria.
 ### Details:
-1) Under Options Considered, document both approaches:
-   - Global space: one index across all cities; simpler to run cross-city search but larger index; potential cross-city noise; operationally one index.
-   - Per-city spaces: one shard/index per city; smaller indexes; clearer tenancy and performance boundaries; cross-city search requires fan-out and merge.
-2) Fill the Analysis section with a side-by-side comparison against Decision Criteria (precision/recall, latency, ops cost, sharding, scale-out, privacy/tenancy), referencing expected data sizes (rough estimates are fine).
-3) Draft a recommendation. Default recommendation: use per-city vector spaces (one space per city) because queries are primarily city-scoped, enabling smaller indexes, predictable recall, and simpler data governance. Note cross-city search can be implemented via querying multiple city spaces and merging top-k.
-4) Capture Risks & Mitigations, e.g., if later global discovery is required, add an optional global aggregate index; document this as a follow-up possibility.
+Create a comparative analysis of global vs per-city vector spaces using criteria such as: query performance, memory efficiency, cross-city search capabilities, data isolation, operational complexity, and future scalability. Include quantitative estimates where possible (e.g., index sizes, query latency). Document pros/cons matrix and preliminary recommendations.
 
-## 3. Select embedding model, dimension, and similarity metric [pending]
-### Dependencies: 26.1
-### Description: Choose the embedding model provider, model identifier, vector dimensionality, and similarity metric, and document rationale and operational implications.
+## 3. Select embedding model and configuration [pending]
+### Dependencies: 26.2
+### Description: Choose embedding model, dimensionality, and similarity metrics with detailed rationale.
 ### Details:
-1) Evaluate available embedding models considering quality, cost, latency, and availability in environments (based on .env provider keys): candidates include OpenAI text-embedding-3-small (1536 dims), text-embedding-3-large (3072 dims), and open-source alternatives like bge-large or e5-large-v2 if self-hosting is needed.
-2) Choose a default model for production: recommendation: openai/text-embedding-3-small with 1536 dimensions (good price/performance) and cosine similarity with L2-normalized vectors.
-3) Define canonical strings and constants to be used across code and DB (to align with Task 30): MODEL_ID="openai/text-embedding-3-small", MODEL_DIM=1536, METRIC="cosine", NORMALIZE_L2=true, MODEL_VERSION="v1" (bump when retraining or switching models). Document these values clearly.
-4) Note fallbacks/alternatives for environments without OpenAI access (e.g., use bge-small-en-v1.5 with ~384 dims) and the implications (new MODEL_ID/MODEL_DIM and a migration plan).
+Research and select the appropriate embedding model (e.g., OpenAI text-embedding-3-small/large, sentence-transformers models), determine optimal dimensionality (512, 1024, 1536, etc.), and choose similarity metric (cosine, euclidean, dot product). Consider factors: model performance on municipal data, cost, latency, dimension efficiency, and compatibility with pgvector. Document the selection rationale and configuration parameters.
 
-## 4. Define storage, indexing, and metadata schema conventions [pending]
-### Dependencies: 26.2, 26.3
-### Description: Specify how embeddings are stored, indexed, partitioned, and versioned in the database, including how per-city spaces are represented and how to enforce consistency.
+## 4. Define storage schema and indexing strategy [pending]
+### Dependencies: 26.3
+### Description: Design the database schema, indexing strategy, and metadata conventions for vector storage.
 ### Details:
-1) Storage: Use core.item_embeddings with columns: item_id (PK or FK), city_code, embedding (pgvector(1536)), model_id (text), model_dim (int), model_version (text), space_id (text; equals city_code for per-city; 'global' if ever used), created_at. Clarify that embedding is L2-normalized at write-time.
-2) Indexing: For per-city strategy, either:
-   - Partial HNSW index per city: CREATE INDEX CONCURRENTLY idx_item_emb_hnsw_sf ON core.item_embeddings USING hnsw (embedding vector_cosine_ops) WHERE city_code='sf'; or
-   - Composite index approach where supported. Document default as partial-per-city for clearer isolation and tunable parameters.
-3) Similarity metric: cosine via vector_cosine_ops. Note HNSW parameters (e.g., m=16, ef_construction=200) can be tuned per city.
-4) Versioning and compatibility: Require (model_id, model_dim, model_version) to be stored with each row. Define space_id naming convention: <city_code>. If model changes, write to new model_version and plan backfill strategy.
-5) Enforcement hooks (for Task 30): Document that DB should have a CHECK to ensure vector dimension=1536 and a runtime assert ensuring MODEL_ID matches 'openai/text-embedding-3-small'.
+Define the complete storage schema for core.item_embeddings including: table structure, vector column configuration, metadata fields (model version, created_at, etc.), indexing strategy (IVFFlat vs HNSW), index parameters (lists, ef_construction), and naming conventions. Consider alignment with Task 67 schema decisions and Task 30 dimension constraints.
 
-## 5. Finalize decision and publish vector-strategy document [pending]
-### Dependencies: 26.2, 26.3, 26.4
-### Description: Complete the document with the final decision, rationale, and all chosen parameters; ensure clarity and cross-link to related tasks; submit for review.
+## 5. Finalize vector strategy decision document [pending]
+### Dependencies: 26.4
+### Description: Create the complete vector strategy document with final decisions and implementation guidance.
 ### Details:
-1) Update __docs__/architecture/vector-strategy.md with the final Decision section: Adopt per-city vector spaces (one explicit vector space per city via space_id=city_code), with optional future global index if needed.
-2) Summarize rationale referencing the Analysis: smaller indexes, better recall predictability, clearer multi-tenancy, acceptable complexity for cross-city via fan-out and merge.
-3) Document the selected embedding configuration: MODEL_ID='openai/text-embedding-3-small', MODEL_DIM=1536, METRIC='cosine', NORMALIZE_L2=true, MODEL_VERSION='v1'. Include notes on fallbacks and migration considerations.
-4) Add Storage & Indexing details: pgvector(1536), HNSW indexes per city (partial indexes), tuning guidance, metadata fields, and versioning policy.
-5) Add Enforcement & Ops: call out Task 30 follow-ups (DB CHECK constraint on dimension, runtime assert on MODEL_ID), monitoring, and backfill procedures if model/version changes.
-6) Open a PR titled "Architecture: Vector strategy (per-city) and embedding model selection"; request peer review.
+Compile all research and analysis into the final `__docs__/architecture/vector-strategy.md` document. Include: executive summary of decisions, detailed rationale for each choice, implementation guidance, integration points with existing tasks (26, 30, 64, 67), migration considerations, and operational recommendations. Ensure document is ready for peer review and provides clear guidance for implementation tasks.
 

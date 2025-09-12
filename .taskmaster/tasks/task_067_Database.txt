@@ -1,5 +1,4 @@
 # Task ID: 67
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Finalize schema design and decisions
 # Status: pending
 # Dependencies: None
@@ -31,4 +30,36 @@ Decisions and spec:
 - Migration approach: one migration file implementing both tables (up/down). Name suggestion: 027_core_items_and_embeddings.sql (or equivalent for your migration tool).
 
 # Test Strategy:
+
+
+# Subtasks:
+## 1. Design and validate core.items table structure [pending]
+### Dependencies: None
+### Description: Create the complete DDL for core.items table with all columns, constraints, and indexes as specified in the design decisions
+### Details:
+Define the core.items table structure with: id UUID PRIMARY KEY DEFAULT gen_random_uuid(), source_branch TEXT NOT NULL, source_item_id TEXT NOT NULL, canonical_key TEXT NULL, content JSONB NOT NULL, content_hash BYTEA NOT NULL, created_at/updated_at TIMESTAMPTZ fields. Add UNIQUE constraint on (source_branch, source_item_id), BTREE index on canonical_key, GIN index on content JSONB, and updated_at trigger.
+
+## 2. Design core.item_embeddings table with pgvector integration [pending]
+### Dependencies: 67.1
+### Description: Create the complete DDL for core.item_embeddings table with proper foreign key references and vector column configuration
+### Details:
+Define core.item_embeddings table with: id BIGSERIAL PRIMARY KEY, item_id UUID NOT NULL REFERENCES core.items(id) ON DELETE CASCADE, model TEXT NOT NULL, embedding VECTOR(1536) NOT NULL, embedding_version INT NOT NULL DEFAULT 1, created_at TIMESTAMPTZ NOT NULL DEFAULT now(). Add UNIQUE constraint on (item_id, model, embedding_version).
+
+## 3. Configure IVFFLAT indexing for vector search [pending]
+### Dependencies: 67.2
+### Description: Define the IVFFLAT index configuration for efficient approximate nearest neighbor search on embeddings
+### Details:
+Create IVFFLAT index on embedding column using vector_cosine_ops operator class with lists=100 configuration for optimal ANN search performance. Document the index creation strategy and tune parameters based on expected data volume.
+
+## 4. Create migration file structure with proper naming [pending]
+### Dependencies: 67.1, 67.2, 67.3
+### Description: Structure the complete migration file with proper up/down sections and transaction handling
+### Details:
+Create migration file following naming convention (027_core_items_and_embeddings.sql or equivalent). Include proper transaction boundaries, error handling, and rollback procedures. Ensure migration is idempotent and can be safely re-run.
+
+## 5. Document design decisions and create validation procedures [pending]
+### Dependencies: 67.4
+### Description: Create comprehensive documentation of schema design choices and validation scripts to verify implementation
+### Details:
+Document embedding dimension choice (1536), distance metric (cosine), indexing strategy, and future extensibility considerations. Create validation queries to verify table structure, constraints, and index configuration. Include performance testing guidelines for vector operations.
 

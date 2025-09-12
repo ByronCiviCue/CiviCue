@@ -1,8 +1,7 @@
 # Task ID: 69
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Add down migration and run end-to-end verification
 # Status: pending
-# Dependencies: None
+# Dependencies: 68
 # Priority: high
 # Description: Implement rollback steps and validate the schema by running smoke tests end-to-end.
 # Details:
@@ -21,4 +20,30 @@ Verification steps:
 - Document the embedding dimension and model choice in a README next to the migration.
 
 # Test Strategy:
+
+
+# Subtasks:
+## 1. Implement comprehensive down migration with proper reverse order operations [pending]
+### Dependencies: None
+### Description: Create the DOWN migration section that safely removes all database objects in reverse dependency order
+### Details:
+Add DOWN migration steps to remove: ivfflat index, item_embeddings table, trigger, items table, set_updated_at function. Include conditional drops for schema and extensions with safety checks. Ensure proper transaction handling and error recovery.
+
+## 2. Create end-to-end verification tests with sample data insertion and retrieval [pending]
+### Dependencies: 69.1
+### Description: Build comprehensive test suite that validates complete migration functionality with real data scenarios
+### Details:
+Create test cases that: run UP migration on fresh DB, insert sample items and embeddings, verify constraints and triggers work, test vector similarity queries, validate all indexes are created correctly. Include edge cases and error conditions.
+
+## 3. Add idempotency tests to ensure migrations can be run multiple times safely [pending]
+### Dependencies: 69.1, 69.2
+### Description: Implement tests that verify UP and DOWN migrations can be executed repeatedly without errors or data corruption
+### Details:
+Create test scenarios: run UP migration twice, run DOWN then UP again, verify no artifacts remain after DOWN, test partial failure recovery. Validate IF NOT EXISTS and IF EXISTS clauses work correctly across multiple runs.
+
+## 4. Document verification procedures and create smoke test suite [pending]
+### Dependencies: 69.2, 69.3
+### Description: Create documentation and automated smoke tests for migration verification workflows
+### Details:
+Document: embedding dimension and model choice, migration rollback procedures, verification steps. Create smoke test suite with CLI commands for: fresh DB setup, migration validation, performance checks. Include troubleshooting guide for common issues.
 

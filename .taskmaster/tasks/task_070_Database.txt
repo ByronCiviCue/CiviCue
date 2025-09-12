@@ -1,8 +1,7 @@
 # Task ID: 70
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Add ingest job freshness widgets
 # Status: pending
-# Dependencies: None
+# Dependencies: 28
 # Priority: medium
 # Description: Create visualizations that show how fresh the ingested data is, measuring time since the last successful ingest per job/branch, plus a table of the stalest jobs.
 # Details:
@@ -17,4 +16,48 @@ Implementation steps:
 - Variables: Ensure job variable is populated from label/tag job; default to “All” and allow per-job drill-down.
 
 # Test Strategy:
+
+
+# Subtasks:
+## 1. Design metrics collection for ingest job tracking [pending]
+### Dependencies: None
+### Description: Define and implement metrics collection system to track ingest job timestamps, success/failure status, and duration for monitoring dashboard consumption
+### Details:
+Create metrics infrastructure to capture:
+- ingest_job_last_success_timestamp: timestamp of last successful ingest per job/branch
+- ingest_job_duration_seconds: duration of ingest operations
+- ingest_job_status: success/failure tracking
+Ensure metrics are properly labeled with job name, environment, and branch identifiers for dashboard filtering
+
+## 2. Create freshness gauge panels with thresholds [pending]
+### Dependencies: 70.1
+### Description: Implement SingleStat/Gauge dashboard panels showing ingest freshness in minutes with color-coded thresholds
+### Details:
+Build dashboard panels:
+- SingleStat/Gauge showing "Ingest Freshness (min)" per selected job
+- Query: (time() - max(ingest_job_last_success_timestamp{job="$job",env="$env"})) / 60
+- Configure thresholds: green < 10m, yellow 10-30m, red > 30m
+- Add job variable for filtering and drill-down capability
+- Default to "All" jobs with option to select specific jobs
+
+## 3. Implement time series and stalest jobs table [pending]
+### Dependencies: 70.1
+### Description: Create time series visualization for freshness trends and table panel showing stalest ingest jobs
+### Details:
+Build visualization components:
+- Time series panel: Plot freshness over time using same freshness expression to show trends
+- Table panel: "Stalest Ingest Jobs (last 1h)" with columns: job name, freshness minutes, last success timestamp
+- Sort table by freshness descending, limit to top 20 entries
+- Optional: Add "Last Ingest Duration (min)" panel if ingest_job_duration_seconds metric available
+
+## 4. Configure alerting and monitoring integration [pending]
+### Dependencies: 70.2, 70.3
+### Description: Set up alerting rules for stale ingest jobs and integrate widgets with existing monitoring infrastructure
+### Details:
+Complete monitoring setup:
+- Configure alerting rules for jobs exceeding freshness thresholds (>30m critical, >10m warning)
+- Integrate with existing monitoring infrastructure (Grafana/Datadog/custom)
+- Test alert delivery and dashboard functionality
+- Document SLA thresholds and adjustment procedures
+- Verify proper variable population from job labels/tags
 

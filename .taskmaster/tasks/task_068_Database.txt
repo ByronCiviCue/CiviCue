@@ -1,8 +1,7 @@
 # Task ID: 68
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Create schema and required extensions
 # Status: pending
-# Dependencies: None
+# Dependencies: 67
 # Priority: high
 # Description: Add migration steps to create the core schema, enable pgvector and pgcrypto extensions, and prepare utility functions.
 # Details:
@@ -17,4 +16,24 @@ Notes:
 - Parameterize the search_path or schema qualifiers to avoid ambiguity.
 
 # Test Strategy:
+
+
+# Subtasks:
+## 1. Create migration file with transaction handling and schema creation [pending]
+### Dependencies: None
+### Description: Create the SQL migration file with proper transaction boundaries and create the core schema
+### Details:
+Create a new migration file following existing patterns in db/migrations/. Include transaction handling (BEGIN/COMMIT) and CREATE SCHEMA IF NOT EXISTS core statement with proper error handling.
+
+## 2. Enable PostgreSQL extensions with compatibility checks [pending]
+### Dependencies: 68.1
+### Description: Add pgvector and pgcrypto extensions to the migration with version compatibility verification
+### Details:
+Add CREATE EXTENSION IF NOT EXISTS vector and CREATE EXTENSION IF NOT EXISTS pgcrypto statements. Include version checks and error handling for cases where extensions are not available in the PostgreSQL installation.
+
+## 3. Implement updated_at trigger function with rollback procedures [pending]
+### Dependencies: 68.2
+### Description: Create the reusable updated_at trigger function in the core schema with proper error handling
+### Details:
+Implement CREATE FUNCTION core.set_updated_at() RETURNS trigger with proper PL/pgSQL error handling. Include DROP statements in the DOWN migration section for proper rollback capability.
 

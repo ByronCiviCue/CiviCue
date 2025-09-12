@@ -1,0 +1,97 @@
+# Task ID: 72
+# Title: DB.6 – Materialize staging → normalized civic.* tables
+# Status: pending
+# Dependencies: 71
+# Priority: medium
+# Description: Normalize staging documents into civic.meetings, civic.documents, civic.items with referential integrity and deduplication.
+# Details:
+Scope:\n- Tables: civic.meetings (meeting_id, committee, meeting_date, source), civic.documents (doc_id, meeting_id, doc_type, sha256, source_url, mime, file_size), civic.items (item_id, meeting_id, position, title, refs).\n- Keys: deterministic ids based on (portal, committee, meeting_date, doc_type, sha256).\n- Mapping: derive meeting from JSONL, attach document and items; tolerate partial items (allow nulls with validation warnings).\n- Idempotency: upsert by keys; maintain first_seen_at/last_seen_at.\n- Transactions: per-meeting transaction to ensure consistency.\n- CLI: bin/materialize-stage --from-run <run_id>|--since <ts> --dry-run.\n- Backfill mode configurable (last 2 years).\n- Error taxonomy: write rejects to civic.normalize_errors with references to stage row.\nAcceptance Criteria:\n- Migrations create civic.meetings/documents/items/normalize_errors with indexes.\n- Kysely repositories implement typed accessors and insert/upsert helpers.\n- Integration test: import fixture JSONL → populated normalized tables matching snapshot expectations.\nConstraints:\n- No content text; only metadata.\n- Minimal coupling to Scrapers; contract via JSONL schema only.
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Design normalized schema for civic.meetings table [pending]
+### Dependencies: None
+### Description: Create migration defining civic.meetings table with meeting_id (PK), committee, meeting_date, source, first_seen_at, last_seen_at, and appropriate indexes
+### Details:
+Define schema with deterministic meeting_id based on (portal, committee, meeting_date). Include proper indexes for query patterns and foreign key constraints.
+
+## 2. Design normalized schema for civic.documents table [pending]
+### Dependencies: 72.1
+### Description: Create migration defining civic.documents table with doc_id (PK), meeting_id (FK), doc_type, sha256, source_url, mime, file_size, timestamps
+### Details:
+Define schema with deterministic doc_id based on (portal, committee, meeting_date, doc_type, sha256). Include foreign key to civic.meetings and appropriate indexes.
+
+## 3. Design normalized schema for civic.items table [pending]
+### Dependencies: 72.1
+### Description: Create migration defining civic.items table with item_id (PK), meeting_id (FK), position, title, refs, timestamps
+### Details:
+Define schema allowing nullable fields for partial items with validation warnings. Include foreign key to civic.meetings and position ordering.
+
+## 4. Design civic.normalize_errors table schema [pending]
+### Dependencies: None
+### Description: Create migration for error taxonomy table to track normalization failures with references to stage data
+### Details:
+Schema to capture error_code, error_detail, stage_row_reference, meeting_context, timestamp for debugging normalization issues.
+
+## 5. Implement deterministic ID generation algorithms [pending]
+### Dependencies: 72.1, 72.2, 72.3
+### Description: Create utility functions for generating consistent IDs based on composite keys (portal, committee, meeting_date, etc.)
+### Details:
+Hash-based ID generation ensuring idempotency across runs. Handle edge cases like missing committee or date information.
+
+## 6. Create Kysely repositories for civic.meetings [pending]
+### Dependencies: 72.1, 72.5
+### Description: Implement typed repository with insert, upsert, and query methods for civic.meetings table
+### Details:
+Typed accessors using Kysely, upsert logic maintaining first_seen_at/last_seen_at, batch operations support.
+
+## 7. Create Kysely repositories for civic.documents [pending]
+### Dependencies: 72.2, 72.5
+### Description: Implement typed repository with insert, upsert, and query methods for civic.documents table
+### Details:
+Typed accessors with foreign key validation, batch upsert operations, relationship queries to meetings.
+
+## 8. Create Kysely repositories for civic.items [pending]
+### Dependencies: 72.3, 72.5
+### Description: Implement typed repository with insert, upsert, and query methods for civic.items table
+### Details:
+Handle nullable fields gracefully, position-based ordering, validation warnings for partial items.
+
+## 9. Implement meeting extraction logic from JSONL [pending]
+### Dependencies: 72.6
+### Description: Build logic to parse JSONL records and extract meeting metadata (committee, date, source)
+### Details:
+Parse JSONL schema from staging, handle missing or malformed meeting data, create meeting records with proper validation.
+
+## 10. Implement document-to-meeting association logic [pending]
+### Dependencies: 72.7, 72.9
+### Description: Build logic to associate documents with meetings using deterministic keys and foreign key relationships
+### Details:
+Match documents to meetings, handle orphaned documents, maintain referential integrity during bulk operations.
+
+## 11. Develop items parsing and validation with position tracking [pending]
+### Dependencies: 72.8, 72.9
+### Description: Implement logic to extract agenda/minute items from JSONL with position ordering and validation
+### Details:
+Parse items array from JSONL, maintain position order, handle partial/missing items with warnings, validate required fields.
+
+## 12. Implement transaction management and deduplication [pending]
+### Dependencies: 72.9, 72.10, 72.11
+### Description: Build per-meeting transaction logic ensuring consistency and implementing deduplication strategies
+### Details:
+Atomic per-meeting transactions, rollback on errors, deduplication by composite keys, maintain data consistency.
+
+## 13. Build CLI tool with run-id filtering and dry-run support [pending]
+### Dependencies: 72.12, 72.4
+### Description: Implement bin/materialize-stage CLI with --from-run, --since, --dry-run options
+### Details:
+CLI interface supporting various filtering options, dry-run mode showing what would be processed, error handling and reporting.
+
+## 14. Create comprehensive tests and integration validation [pending]
+### Dependencies: 72.13
+### Description: Build unit tests for each component and integration tests with fixture JSONL data and snapshot expectations
+### Details:
+Unit tests for repositories, ID generation, parsing logic. Integration tests with sample JSONL → normalized table validation against expected snapshots.
+

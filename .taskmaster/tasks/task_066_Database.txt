@@ -1,12 +1,55 @@
 # Task ID: 66
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Socrata catalog ingestion service with rate limiting
-# Status: pending
-# Dependencies: None
+# Status: done
+# Dependencies: 65
 # Priority: high
 # Description: Implement the catalog ingestion service that paginates through Discovery API for US/EU regions and upserts data into PostgreSQL tables.
 # Details:
 Create services/discovery/socrataCatalogIngest.ts that uses the regions module and discovery client to fetch catalog data. Implement proper rate limiting with small concurrency and exponential backoff. Support resume functionality via cursor/since flags (placeholders allowed). Upsert operations must be idempotent by primary key. Include comprehensive progress logging without exposing secrets or creating noisy output.
 
 # Test Strategy:
+
+
+# Subtasks:
+## 1. Create main service interface with configuration and error handling [done]
+### Dependencies: None
+### Description: Implement the core service class structure with configuration options, initialization, and centralized error handling for the Socrata catalog ingestion service.
+### Details:
+Create the main SocrataCatalogIngestService class in services/discovery/socrataCatalogIngest.ts with configuration interface for rate limiting, database connection, and regional settings. Implement proper error handling patterns and service initialization methods.
+
+## 2. Implement pagination logic with cursor support and resume functionality [done]
+### Dependencies: 66.1
+### Description: Build the pagination mechanism that can traverse the Discovery API with cursor-based navigation and support resuming from specific points.
+### Details:
+Implement cursor-based pagination logic using the Discovery API's pagination parameters. Add support for resume functionality via cursor/since flags, allowing ingestion to continue from a previous state. Handle edge cases like API response changes.
+
+## 3. Add rate limiting with exponential backoff and concurrency controls [done]
+### Dependencies: 66.1
+### Description: Implement sophisticated rate limiting mechanisms with exponential backoff for 429 responses and configurable concurrency limits.
+### Details:
+Create rate limiting logic with exponential backoff for handling API rate limits. Implement concurrency controls to limit parallel requests. Add retry mechanisms for transient failures with proper backoff strategies.
+
+## 4. Build idempotent upsert operations for database writes [done]
+### Dependencies: 66.2
+### Description: Implement database upsert operations that are idempotent by primary key and can safely handle duplicate ingestion attempts.
+### Details:
+Create database upsert methods for socrata_hosts, socrata_domains, and socrata_agencies tables. Ensure operations are idempotent using ON CONFLICT clauses. Implement proper transaction handling and batch operations for performance.
+
+## 5. Implement comprehensive logging without exposing secrets [done]
+### Dependencies: 66.3, 66.4
+### Description: Add detailed progress logging that provides visibility into ingestion status while protecting sensitive information like API keys.
+### Details:
+Implement structured logging with progress indicators, error reporting, and performance metrics. Ensure no secrets or sensitive data are logged. Add correlation IDs for request tracking and debug information for troubleshooting.
+
+## 6. Add integration tests and dry-run capabilities [done]
+### Dependencies: 66.5
+### Description: Create integration tests and dry-run functionality to validate the ingestion service without making actual database changes.
+### Details:
+Implement comprehensive integration tests using the cassette-based test framework. Add dry-run mode that logs operations without executing database writes. Include tests for rate limiting, pagination, error handling, and resume functionality.
+
+## 7. Dataset-level discovery and registry population [pending]
+### Dependencies: None
+### Description: Implement Socrata dataset discovery with Kysely-based upserts and verification queries. Extend CLI with --datasets flag, add catalog.socrata_datasets schema, and provide verification query infrastructure.
+### Details:
+Created database migration for catalog.socrata_datasets table with proper indexes. Added upsertDatasets() and retireStaleDatasets() functions to repo layer using Kysely patterns. Extended CLI with --datasets flag and dataset processing phase. Implemented comprehensive testing and technical documentation.
 

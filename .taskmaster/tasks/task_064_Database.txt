@@ -1,8 +1,7 @@
 # Task ID: 64
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Vectorization strategy and ingestion shaping
 # Status: pending
-# Dependencies: None
+# Dependencies: 26
 # Priority: high
 # Description: Define which datasets are vectorized vs stored relationally, retention defaults, and city-level overrides.
 # Details:
@@ -12,15 +11,27 @@ See __docs__/plans/vectorization.md for full strategy and rationale.
 
 
 # Subtasks:
-## 1. Define retention defaults per category [pending]
+## 1. Research and establish data retention policies by category [pending]
 ### Dependencies: None
-### Description: Set default data retention windows (e.g., 5y for 311, 10y for housing, full for finance) with rationale and override mechanism.
+### Description: Define retention policies for different data categories (311, housing, finance) with business rationale and compliance considerations.
 ### Details:
+Research municipal data lifecycle requirements for each category. Define default retention periods based on legal requirements, operational needs, and storage costs. Document business rationale for each policy decision. Consider FOIA requirements, audit trails, and compliance obligations. Output comprehensive retention matrix in __docs__/policies/data-retention.md.
 
-
-## 3. City-level override surface [pending]
-### Dependencies: None
-### Description: Implement configuration layer allowing city admins to override defaults for retention and ingestion strategy.
+## 2. Design city-level configuration override system [pending]
+### Dependencies: 64.1
+### Description: Create framework for municipalities to override default retention and ingestion policies based on local requirements.
 ### Details:
+Design configuration schema for city-specific overrides of retention policies and vectorization settings. Define precedence rules for default vs city-specific policies. Create validation rules to prevent invalid configurations. Design API for policy queries and updates. Document configuration management procedures and governance model.
 
+## 3. Define vectorization vs relational storage decision framework [pending]
+### Dependencies: 64.1
+### Description: Establish criteria and implementation patterns for determining when data should be vectorized versus stored relationally.
+### Details:
+Define decision matrix based on data characteristics (text content, search patterns, analytical needs). Create implementation patterns for hybrid storage (relational + vector). Design data flow patterns for ingestion routing. Define performance thresholds and cost considerations. Document technical architecture for storage type selection automation.
+
+## 4. Document operational procedures and policy enforcement [pending]
+### Dependencies: 64.2, 64.3
+### Description: Create comprehensive documentation for strategy implementation with operational procedures and enforcement mechanisms.
+### Details:
+Document complete vectorization strategy in __docs__/plans/vectorization.md. Create operational runbooks for policy enforcement, configuration management, and data lifecycle operations. Define monitoring and alerting for policy compliance. Create procedures for policy updates and rollouts. Include troubleshooting guides and emergency procedures.
 

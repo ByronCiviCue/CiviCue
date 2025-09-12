@@ -1,7 +1,6 @@
 # Task ID: 65
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Socrata global directory database schema and migration
-# Status: pending
+# Status: done
 # Dependencies: None
 # Priority: high
 # Description: Create PostgreSQL tables for storing global Socrata directory data including hosts, domains, and agencies with proper indexing and constraints.
@@ -9,4 +8,30 @@
 Design and implement database migration for socrata_hosts(host text primary key, region text not null, last_seen timestamptz not null default now()), socrata_domains(domain text primary key, country text, region text not null, last_seen timestamptz not null default now()), socrata_agencies(host text not null, name text not null, type text, primary key(host, name)). Include proper indexes for query performance and foreign key relationships where appropriate. Migration must be idempotent and reversible.
 
 # Test Strategy:
+
+
+# Subtasks:
+## 1. Define and validate table schemas with proper column types and constraints [done]
+### Dependencies: None
+### Description: Create the three table definitions (socrata_hosts, socrata_domains, socrata_agencies) with proper PostgreSQL column types, primary keys, and NOT NULL constraints as specified in the requirements.
+### Details:
+Define socrata_hosts table with host (text primary key), region (text not null), last_seen (timestamptz not null default now()). Define socrata_domains table with domain (text primary key), country (text), region (text not null), last_seen (timestamptz not null default now()). Define socrata_agencies table with host (text not null), name (text not null), type (text), and composite primary key (host, name). Validate all column types and constraints match the specification.
+
+## 2. Create comprehensive indexing strategy for query performance [done]
+### Dependencies: 65.1
+### Description: Design and implement database indexes to optimize common query patterns for the Socrata directory tables, including region-based lookups and last_seen filtering.
+### Details:
+Create indexes on socrata_hosts.region, socrata_domains.region, socrata_domains.country, and last_seen columns where appropriate. Consider composite indexes for common query patterns. Ensure indexes support efficient lookups for directory discovery operations and maintenance queries.
+
+## 3. Implement idempotent migration with proper foreign key relationships [done]
+### Dependencies: 65.1, 65.2
+### Description: Create the database migration file with proper foreign key constraints linking the tables and ensure the migration can be run multiple times safely.
+### Details:
+Implement foreign key constraint from socrata_agencies.host to socrata_hosts.host to maintain referential integrity. Use CREATE TABLE IF NOT EXISTS and other idempotent patterns. Follow existing migration naming convention (e.g., 0011_socrata_directory.sql). Ensure transaction safety and proper error handling.
+
+## 4. Add rollback capability and validation tests for the migration [done]
+### Dependencies: 65.3
+### Description: Implement DOWN migration script and create tests to validate the migration works correctly and can be safely rolled back.
+### Details:
+Create DROP statements in proper dependency order (drop foreign keys first, then tables). Add validation tests to ensure tables are created with correct structure, constraints are enforced, and indexes exist. Test both UP and DOWN migration paths. Verify idempotent behavior by running migration multiple times.
 

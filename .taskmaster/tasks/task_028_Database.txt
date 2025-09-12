@@ -1,8 +1,7 @@
 # Task ID: 28
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Implement ingest job (jobs/ingest-branch.ts)
 # Status: pending
-# Dependencies: None
+# Dependencies: 69
 # Priority: high
 # Description: Create a job to ingest data from a branch into the core items tables.
 # Details:
@@ -12,111 +11,33 @@ Create the `jobs/ingest-branch.ts` script. It should read activated data from a 
 Integration test that runs the job against a small, known dataset from a branch. Verify that the `core.items` table is correctly populated and that the embedding generation process is triggered.
 
 # Subtasks:
-## 1. Scaffold jobs/ingest-branch.ts with config, DB, and CLI [pending]
+## 1. Create job infrastructure and CLI interface [pending]
 ### Dependencies: None
-### Description: Create the ingest job entrypoint with robust configuration, environment loading, database connection, and CLI argument parsing. Establish logging, error handling, and a per-branch concurrency guard.
+### Description: Establish the foundational job infrastructure with CLI interface, configuration management, database connections, and advisory locking to prevent concurrent job execution.
 ### Details:
-Implementation guidance:
-- File: jobs/ingest-branch.ts. Export an async function runIngest(opts) and a CLI main() that parses args and invokes runIngest.
-- Config: support flags/env vars
-  - --branch (required)
-  - --batch-size (default 500, min 1, max 5000)
-  - --from-cursor (optional; base64-encoded cursor {updatedAt, id})
-  - --dry-run (boolean)
-  - --max-pages (optional limit for safety)
-  - ENV: DATABASE_URL, EMBEDDINGS_QUEUE_URL (or service base URL), LOG_LEVEL
-- Initialize a PG pool (pg or equivalent). Ensure SSL based on env if needed.
-- Structured logger with redaction (respect the Secrets Policy): redact tokens and URLs with creds.
-- Implement an advisory lock per branch to prevent concurrent runs: e.g., SELECT pg_try_advisory_lock(hashtext('ingest_branch:' || $branch)); on success continue; otherwise exit gracefully.
-- Define TypeScript interfaces
-  - IngestConfig { branch: string; batchSize: number; fromCursor?: string; dryRun: boolean; maxPages?: number }
-  - ActivatedItem shape (id: string, payload: jsonb, updated_at: string|Date, content_hash: string, source: string, etc.)
-- Define top-level orchestration skeleton with try/finally to always release locks, end DB pool, and proper exit codes.
-- Add package.json script: "ingest:branch": "ts-node jobs/ingest-branch.ts --branch=<name>".
+Create jobs/ directory structure, implement CLI argument parsing for branch selection and options (dry-run, batch-size), establish database connection using existing Kysely instance, implement advisory locking mechanism to prevent concurrent job runs, add logging infrastructure with correlation IDs, and create basic job configuration schema.
 
-## 2. Implement BranchActivatedReader to page activated items deterministically [pending]
+## 2. Implement paginated data reader with resume capability [pending]
 ### Dependencies: 28.1
-### Description: Create a reader component that pulls activated data for a given branch in stable, resumable pages using a cursor composed of (updated_at, id). Validate and normalize records.
+### Description: Build a robust data reader that can paginate through branch data with cursor-based resume capability and comprehensive validation.
 ### Details:
-Implementation guidance:
-- Create src/ingest/BranchActivatedReader.ts with a class BranchActivatedReader that takes (pool, branch, batchSize).
-- Assume activated data is exposed via a schema or view per branch. Prefer a stable, server-side ordered query. Example (adjust to your schema):
-  SELECT id, payload, updated_at, content_hash
-  FROM "branches"."activated_items"
-  WHERE branch = $1
-    AND (updated_at, id) > ($2::timestamptz, $3::text)
-  ORDER BY updated_at ASC, id ASC
-  LIMIT $4;
-- If each branch has its own schema, parameterize schema name and construct a safe, whitelisted identifier mapping; do NOT string-concatenate untrusted input.
-- Cursor model: { updatedAt: string (ISO), id: string }. Encode/decode as base64(JSON.stringify(cursor)). For first page, use minimal cursor (epoch, empty id).
-- Validate rows with a schema validator (e.g., zod): ensure id is string, updated_at is ISO date, content_hash is non-empty, payload is object. Normalize dates to ISO strings.
-- Return shape for nextPage(afterCursor?): { rows: ActivatedItem[]; nextCursor?: string; hasMore: boolean }.
-- Add a guard for empty pages and for maxPages (from config) to prevent infinite loops.
-- Log batch boundaries with counts and cursor positions. In --dry-run, do not query DB; simulate with zero rows.
+Implement cursor-based pagination to read from activated branch data, add checkpoint persistence to allow job resume on failure, validate data structure against expected schemas using Zod, implement configurable batch sizing for memory management, add data freshness checks and source validation, and create metrics tracking for read operations.
 
-## 3. Upsert activated items into core.items with change detection [pending]
-### Dependencies: 28.1, 28.2
-### Description: Map activated items into core.items schema and perform batched, idempotent upserts that only update when content_hash changed. Return the set of newly inserted or updated item_ids.
+## 3. Build batched upsert system with change detection [pending]
+### Dependencies: 28.2
+### Description: Create an efficient batched upsert system that can detect changes and perform idempotent operations on the core.items table.
 ### Details:
-Implementation guidance:
-- Create src/ingest/CoreItemsRepository.ts with a class CoreItemsRepository(pool).
-- Define mapping: item_id derived from branch-scoped identity (e.g., item_id = hash(branch + ':' + id)) or use a natural composite key if core.items has one. Persist source_branch and source_id columns for traceability.
-- core.items expected columns (adapt to actual schema): item_id (PK), source_branch, source_id, payload jsonb, content_hash text, updated_at timestamptz, created_at timestamptz default now(), embedding_status text (e.g., 'ready'|'pending'|'n/a'), embedding_version int.
-- Use a staging temp table for batch performance to avoid large VALUES lists:
-  1) CREATE TEMP TABLE tmp_ingest (item_id text, source_branch text, source_id text, payload jsonb, content_hash text, updated_at timestamptz) ON COMMIT DROP;
-  2) COPY or INSERT INTO temp in a single batch.
-- Upsert with change detection:
-  INSERT INTO core.items (item_id, source_branch, source_id, payload, content_hash, updated_at)
-  SELECT item_id, source_branch, source_id, payload, content_hash, updated_at FROM tmp_ingest
-  ON CONFLICT (item_id) DO UPDATE
-    SET payload = EXCLUDED.payload,
-        content_hash = EXCLUDED.content_hash,
-        updated_at = EXCLUDED.updated_at
-  WHERE core.items.content_hash IS DISTINCT FROM EXCLUDED.content_hash
-  RETURNING item_id;
-- The RETURNING set represents items newly inserted or actually updated (unchanged rows are filtered by the WHERE clause and won't be returned).
-- Wrap per-batch in a transaction; drop temp table at end (or use ON COMMIT DROP).
-- Return { changedItemIds: string[] } to the caller.
-- Optional: in this step or in the next, set embedding_status = 'pending' for returned rows in a separate update to avoid touching unchanged rows.
-- Enforce constraints/indexes: unique (item_id), and optionally btree on (source_branch, source_id) for lineage.
-- Handle --dry-run by logging intended counts and skipping writes.
+Implement batched upsert operations using Kysely's onConflict functionality, add change detection to avoid unnecessary updates, ensure idempotent operations with proper conflict resolution, implement transaction management for batch integrity, add data normalization for address/geo fields, and create provenance stamping with source tracking.
 
-## 4. Trigger embedding generation for new/updated items [pending]
+## 4. Create embedding trigger system with queue integration [pending]
 ### Dependencies: 28.3
-### Description: For the set of changed item_ids from each batch, enqueue embedding generation using the designated job or function. Chunk requests, ensure idempotency, and optionally mark embedding_status.
+### Description: Build the embedding trigger system that queues new/updated items for vector embedding generation with proper status tracking.
 ### Details:
-Implementation guidance:
-- Create src/ingest/EmbeddingTrigger.ts with a function triggerEmbeddings({ itemIds, modelVersion?, dryRun }, deps).
-- Obtain dependencies via DI: queue client or embeddings service SDK. Fallback to calling an internal function if job runner is in-process.
-- Chunk itemIds (e.g., 100 per message) to respect queue/message limits. Dedupe within batch.
-- Enqueue messages with payload { itemIds, reason: 'ingest', branch, requestedAt, modelVersion }.
-- Optionally, pre-mark embedding_status = 'pending' for those itemIds in core.items to reflect work enqueued (single UPDATE ... WHERE item_id = ANY($1)).
-- Respect --dry-run by logging intended enqueues without sending.
-- Add basic retry with exponential backoff on transient errors.
-- Return the number of enqueued items/messages for logging.
+Implement embedding queue integration for new/updated items, add status tracking for embedding generation pipeline, create batch queueing for efficiency, implement retry logic for failed embedding requests, add embedding model version tracking, and ensure proper cleanup of stale embedding requests.
 
-## 5. Orchestrate ingest loop with checkpoints, metrics, and integration test [pending]
-### Dependencies: 28.1, 28.2, 28.3, 28.4
-### Description: Wire the reader, upsert, and embedding trigger into a resilient loop that processes all pages. Persist per-branch checkpoints, expose metrics/logs, and implement the end-to-end integration test.
+## 5. Orchestrate workflow with comprehensive testing and monitoring [pending]
+### Dependencies: 28.4
+### Description: Complete the job orchestration with checkpointing, comprehensive error handling, metrics collection, and full integration testing.
 ### Details:
-Implementation guidance:
-- Create a small table for checkpoints: core.ingest_cursors(branch text primary key, cursor text not null, updated_at timestamptz not null default now()). Read initial cursor from --from-cursor or table; at the end of each successful page, upsert the new cursor for the branch in the same transaction or immediately after upsert.
-- In jobs/ingest-branch.ts runIngest():
-  - Acquire advisory lock (from subtask 28.1).
-  - Initialize BranchActivatedReader, CoreItemsRepository, and EmbeddingTrigger.
-  - Loop pages: read next page; if empty, break. Start a transaction:
-    1) Upsert batch -> changedItemIds.
-    2) Update checkpoint with page's last (updated_at, id) cursor.
-    Commit.
-    3) Call EmbeddingTrigger for changedItemIds (outside the DB txn). Handle errors with retries; on failure, log and continue or fail based on a --fail-on-embed-error flag.
-  - Stop when no more rows or when --max-pages reached.
-- Metrics/logging: totals for read, upserted, unchanged, enqueued, pages, elapsed time; log structured context (branch, cursor, batchSize). Add process exit code 0/1 based on success.
-- Idempotency: rerunning from the same or older cursor should not modify unchanged rows and should not duplicate embedding triggers due to dedupe and status checks.
-- Error handling: on DB error in a page, rollback and stop; leave checkpoint at previous value to allow safe retry.
-- Add a dry-run pathway that performs reads and logs computed effects without writes or enqueues.
-- Integration test harness:
-  - Seed a test branch with a small known dataset (3–10 rows) and create the activated view/table.
-  - Ensure core.items is empty; run job; assert rows inserted and embeddings triggered.
-  - Modify one record's payload/content_hash; rerun; assert only 1 row updated and only that ID enqueued.
-  - Verify checkpoint advances and job resumes from last cursor when rerun without --from-cursor.
+Implement complete workflow orchestration with proper error handling and rollback capabilities, add comprehensive metrics collection (items processed, errors, timing), create checkpoint management for job resume, implement graceful shutdown handling, add comprehensive integration tests with known datasets, verify core.items population and embedding trigger functionality, and add monitoring hooks for operational observability.
 

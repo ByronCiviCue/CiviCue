@@ -1,8 +1,7 @@
 # Task ID: 30
-# Cross-tag dependencies: see .taskmaster/dependencies.md
 # Title: Enforce embedding model and dimension guard
 # Status: pending
-# Dependencies: None
+# Dependencies: 26
 # Priority: high
 # Description: Add database and runtime checks to ensure embedding consistency.
 # Details:
@@ -12,33 +11,33 @@ Add a `CHECK` constraint to the `core.item_embeddings` table to enforce a specif
 Database: Test the migration by trying to insert a vector with the wrong dimension and confirming it fails. Runtime: Unit test the assertion logic to ensure it throws an error if the model identifier is incorrect.
 
 # Subtasks:
-## 1. Centralize embedding configuration (model ID and vector dimension) [pending]
+## 1. Create centralized embedding configuration constants [pending]
 ### Dependencies: None
-### Description: Introduce a single source of truth for the embedding model identifier and vector dimension used across the app and migrations.
+### Description: Define model ID and dimension constants in a centralized configuration module
 ### Details:
-1) Create src/config/embedding.ts exporting constants: EMBEDDING_MODEL_ID (string), EMBEDDING_DIMENSIONS (number), and optionally TABLE/COLUMN names for core.item_embeddings and embedding column. 2) If configuration is environment-driven, add EMBEDDING_MODEL_ID and EMBEDDING_DIMENSIONS to .env.example and load them in the config module (validate at startup). 3) Update any existing vector strategy module to reference these constants so the chosen model and dimension are consistent system-wide. 4) Document the chosen values in README/ADR so future migrations remain aligned.
+Create a configuration module that exports constants for the embedding model identifier (e.g., 'text-embedding-3-small') and vector dimensions (e.g., 768). This will serve as the single source of truth for embedding configuration across the application.
 
-## 2. Pre-migration data audit for existing embeddings [pending]
+## 2. Implement database CHECK constraint for vector dimensions [pending]
 ### Dependencies: 30.1
-### Description: Verify that all existing vectors in core.item_embeddings conform to the intended dimension before enforcing constraints.
+### Description: Add database migration to enforce vector dimension consistency
 ### Details:
-1) Write a small script (scripts/audit-embedding-dimensions.ts) that: a) Reads EMBEDDING_DIMENSIONS from src/config/embedding.ts. b) Connects to the DB and attempts a dry-run change in a transaction to enforce the dimension (see step 3 details) and rolls back, capturing any error. 2) If the dry-run fails, identify offenders: for pgvector-backed columns, fetch rows with SELECT id, embedding::text FROM core.item_embeddings WHERE embedding IS NOT NULL; compute dimension by parsing the textual representation and counting elements; for float[] storage, use array_length(embedding, 1) to filter. 3) Output a report listing offending IDs and counts and fail the script with a non-zero exit code so CI prevents the migration until fixed. 4) Provide a remediation note (e.g., re-embed items or delete invalid rows) for developers.
+Create a database migration that adds a CHECK constraint to the core.item_embeddings table to ensure all vectors match the expected dimension from the configuration. Update the existing vector(768) column definition to reference the centralized dimension constant.
 
-## 3. Schema migration: enforce vector dimension at the database level [pending]
-### Dependencies: 30.1, 30.2
-### Description: Add a database constraint to guarantee embedding vectors have the exact expected dimension in core.item_embeddings.
-### Details:
-Implement a forward migration with your migration tool (e.g., Knex/Flyway/Prisma): 1) Read the target dimension from configuration at build-time or hardcode it into the migration (migrations should be immutable; copy the numeric value). 2) If using pgvector: a) Ensure the pgvector extension is enabled (CREATE EXTENSION IF NOT EXISTS vector;). b) Set the column to a dimensioned vector type to enforce at the type level: ALTER TABLE core.item_embeddings ALTER COLUMN embedding TYPE vector(<DIM>) USING embedding; This will fail if existing rows have a mismatched dimension (hence the audit in 30.2). 3) If NOT using pgvector (e.g., float[] or jsonb): add a CHECK constraint allowing NULLs but enforcing length when present, for example: ALTER TABLE core.item_embeddings ADD CONSTRAINT chk_item_embeddings_dimension CHECK (embedding IS NULL OR array_length(embedding, 1) = <DIM>); 4) Name constraints deterministically (e.g., chk_item_embeddings_dimension) and add a COMMENT ON COLUMN core.item_embeddings.embedding to document the required dimension and model ID. 5) Provide a down migration that drops the CHECK constraint and, if applicable, relaxes type back to vector without dimension (or original type).
-
-## 4. Add runtime guards for model ID and embedding dimension consistency [pending]
+## 3. Build data audit system for existing embeddings [pending]
 ### Dependencies: 30.1
-### Description: Ensure the embedding computation path asserts the configured model and returned embedding dimension match the vector strategy.
+### Description: Create audit functionality to validate dimension compliance of existing embeddings
 ### Details:
-1) In the embedding computation service (used in Task 29), import EMBEDDING_MODEL_ID and EMBEDDING_DIMENSIONS. 2) Before calling the provider, assert that the provider request model equals EMBEDDING_MODEL_ID; if the model is set elsewhere (e.g., via strategy), compare and throw a descriptive error when mismatched. 3) After receiving embeddings, assert every returned vector length equals EMBEDDING_DIMENSIONS before attempting DB upsert; include the item ID and observed length in the error for debugging. 4) Ensure error messages direct developers to update either config or strategy consistently. 5) Optionally log the first offending item and truncate the vector for log safety.
+Implement a data audit script that scans existing embeddings in the database and reports any that don't match the expected dimensions. This will help identify inconsistencies before applying the database constraint.
 
-## 5. Automated tests and CI wiring for guards [pending]
-### Dependencies: 30.3, 30.4
-### Description: Add database and runtime tests that verify the new guards, and ensure they run in CI.
+## 4. Add runtime guards in embedding computation services [pending]
+### Dependencies: 30.1
+### Description: Implement runtime validation in embedding generation code
 ### Details:
-1) Database test: spin up a Postgres with pgvector in tests (e.g., testcontainers). Apply migrations. Attempt to insert into core.item_embeddings with wrong-dimension vector and assert failure; insert correct-dimension vector and assert success. 2) Runtime unit tests: verify model mismatch throws; verify wrong vector lengths throw; verify happy-path works. 3) Wire these tests into CI to run on every push/PR. 4) If a database test environment is unavailable in CI, add a lightweight SQL migration smoke test that at least applies migrations and runs a negative insert test.
+Add runtime assertions in the embedding computation code to verify that the model being used matches the configured model identifier and that generated vectors have the expected dimensions. Include proper error handling and logging for validation failures.
+
+## 5. Create comprehensive test suite and CI integration [pending]
+### Dependencies: 30.2, 30.3, 30.4
+### Description: Develop tests for all embedding consistency guards and integrate into CI pipeline
+### Details:
+Create unit tests for runtime guards, integration tests for database constraints, and end-to-end tests for the complete embedding workflow. Ensure CI pipeline runs these tests and fails builds when embedding consistency is violated.
 

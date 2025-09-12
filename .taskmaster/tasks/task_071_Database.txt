@@ -1,0 +1,85 @@
+# Task ID: 71
+# Title: DB.5 – JSONL Materializer: artifacts → staging tables
+# Status: pending
+# Dependencies: 69
+# Priority: medium
+# Description: Node/Kysely materializer that ingests JSONL artifacts (from Scrapers) into Postgres staging tables with idempotent upsert semantics and full provenance.
+# Details:
+Scope:\n- Input: JSONL records per document with fields: source_url, sha256, mime, file_size, page_count?, meeting_date?, committee?, doc_type (agenda|minutes), text_summary?, items? (array), created_at, extracted_at, extractor_version.\n- Staging schema (civic.stage_documents): columns mirror JSONL fields; add portal, city code, ingest_id, run_id, error_code, error_detail. PK: (sha256); unique on (source_url).\n- Idempotency: Upsert on sha256; skip if identical payload; update select mutable fields (first_seen_at preserved).\n- Batching: Stream read JSONL; batch inserts with Kysely transaction; retry on deadlocks; chunks of 500.\n- Provenance: ingest_id/run_id passed via CLI; all rows stamped with created_by + runtime version.\n- Validation: schema (zod) with coercions and defaulting; error bucket writes to civic.stage_errors.\n- CLI: bin/materialize-jsonl --input glob --run-id <uuid> --portal sf --city SFO --dry-run --limit <n>.\n- Observability: log structured metrics: read_count, inserted, updated, skipped, errors.\nAcceptance Criteria:\n- Kysely models under src/db/models/stage.ts; migration creates civic.stage_documents and civic.stage_errors.\n- CLI processes sample JSONL from Scrapers and writes rows; idempotent reruns produce 0 inserts.\n- Unit tests for upsert logic; integration test against a temp DB schema.\nConstraints:\n- Materializer only reads JSONL and writes staging; normalization handled in DB.6.\n- No PDF content stored; metadata only.
+
+# Test Strategy:
+
+
+# Subtasks:
+## 1. Create database migration for civic schema and staging tables [pending]
+### Dependencies: None
+### Description: Create SQL migration file to establish civic.stage_documents and civic.stage_errors tables with proper indexes, constraints, and foreign keys
+### Details:
+Design and implement the database schema migration that creates the civic schema namespace and both staging tables. Include primary key on sha256, unique constraint on source_url, appropriate indexes for performance, and error table structure for validation failures.
+
+## 2. Define Kysely TypeScript models for staging tables [pending]
+### Dependencies: 71.1
+### Description: Create TypeScript interfaces and Kysely table definitions for civic.stage_documents and civic.stage_errors under src/db/models/stage.ts
+### Details:
+Implement strongly-typed Kysely models that mirror the database schema, including all JSONL input fields plus staging-specific columns like portal, city_code, ingest_id, run_id, error_code, and error_detail.
+
+## 3. Create Zod validation schemas for JSONL input format [pending]
+### Dependencies: None
+### Description: Define comprehensive Zod schemas for validating and coercing JSONL document records with proper error handling
+### Details:
+Build validation schemas that handle all expected JSONL fields including required fields (source_url, sha256, mime, file_size, created_at, extracted_at, extractor_version) and optional fields (page_count, meeting_date, committee, doc_type, text_summary, items array) with appropriate coercions and defaults.
+
+## 4. Implement streaming JSONL parser with batching [pending]
+### Dependencies: 71.3
+### Description: Create a streaming parser that reads JSONL files and processes records in configurable batches for memory efficiency
+### Details:
+Build a streaming reader that can handle large JSONL files, parse each line as JSON, validate against Zod schema, and accumulate records into batches of 500 (configurable) for database operations while maintaining memory bounds.
+
+## 5. Develop SHA256-based upsert logic with idempotency [pending]
+### Dependencies: 71.2, 71.4
+### Description: Implement the core upsert functionality that handles duplicate detection and selective field updates based on SHA256 hash
+### Details:
+Create upsert logic using Kysely's onConflict functionality, ensuring SHA256-based deduplication, preservation of first_seen_at timestamps, and selective updates of mutable fields while maintaining idempotent behavior across runs.
+
+## 6. Implement transaction management with deadlock retry [pending]
+### Dependencies: 71.5
+### Description: Add robust transaction handling with automatic retry logic for database deadlocks and connection failures
+### Details:
+Wrap batch operations in Kysely transactions with exponential backoff retry logic for deadlock scenarios, connection timeouts, and other transient database errors while maintaining data consistency.
+
+## 7. Build comprehensive CLI interface [pending]
+### Dependencies: 71.6
+### Description: Create bin/materialize-jsonl CLI with full option support including glob patterns, dry-run mode, and configuration parameters
+### Details:
+Implement command-line interface supporting --input (glob pattern), --run-id (UUID), --portal, --city, --dry-run, --limit options with proper argument validation, help text, and error handling.
+
+## 8. Implement error handling and structured logging [pending]
+### Dependencies: 71.7
+### Description: Add comprehensive error handling with structured logging for observability and debugging
+### Details:
+Create structured logging system that captures metrics like read_count, inserted, updated, skipped, errors with proper correlation IDs, error categorization, and integration with civic.stage_errors table for validation failures.
+
+## 9. Write unit tests for upsert logic [pending]
+### Dependencies: 71.5, 71.8
+### Description: Create comprehensive unit tests covering upsert scenarios, idempotency, and edge cases
+### Details:
+Develop unit test suite covering new record insertion, duplicate handling, selective field updates, error scenarios, validation failures, and idempotent re-runs using mocked database interactions.
+
+## 10. Create integration tests against test database [pending]
+### Dependencies: 71.8, 71.9
+### Description: Build end-to-end integration tests using temporary database schema with real JSONL sample data
+### Details:
+Implement integration tests that create temporary civic schema, process sample JSONL files from scrapers, verify correct database state, test idempotent re-runs, and validate error handling with real database connections.
+
+## 11. Optimize performance for batch processing [pending]
+### Dependencies: 71.10
+### Description: Tune batch size, implement connection pooling, and optimize database operations for high-throughput processing
+### Details:
+Profile and optimize the materializer for performance including optimal batch sizes (baseline 500), connection pool configuration, index utilization analysis, and memory usage optimization for large JSONL files.
+
+## 12. Create documentation and usage examples [pending]
+### Dependencies: 71.11
+### Description: Write comprehensive documentation including setup instructions, usage examples, and troubleshooting guide
+### Details:
+Document the complete materializer system including CLI usage examples, sample JSONL format, database schema explanation, common error scenarios, performance tuning guidelines, and integration patterns with the broader CiviCue system.
+
