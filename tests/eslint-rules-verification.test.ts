@@ -34,7 +34,8 @@ describe('civicue ESLint architectural rules', () => {
   it('flags direct process.env access outside env loader', async () => {
     const res = await lintVirtual(
       'const x = process.env.SECRET_TOKEN as unknown; console.log(x);',
-      'src/app/fake-env-violation.ts'
+      'src/app/fake-env-violation.ts',
+      true // Enable TypeScript parser for .ts file
     );
     expect(res.errorCount).toBeGreaterThan(0);
     expect(res.messages.some(m => m.ruleId === 'civicue/no-process-env-outside-env')).toBe(true);
