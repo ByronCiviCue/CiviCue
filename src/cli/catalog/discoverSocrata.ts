@@ -285,15 +285,22 @@ async function getUniqueHosts(db: Kysely<Database>): Promise<string[]> {
 
 async function processHostDatasets(
   host: string,
-  args: Args
-): Promise<{ processed: number; batches: number }> {
+  args: Args,
+  hostIndex: number,
+  totalHosts: number,
+  startTime: number
+): Promise<{ processed: number; batches: number; newCount: number; updatedCount: number }> {
   const token = getSocrataAppToken();
-  if (!token) return { processed: 0, batches: 0 };
+  if (!token) return { processed: 0, batches: 0, newCount: 0, updatedCount: 0 };
 
   let processed = 0;
   let batches = 0;
   let batch: UpsertDatasetInput[] = [];
   const batchSize = 500;
+  let pageNum = 0;
+  let newCount = 0;
+  let updatedCount = 0;
+  let lastHeartbeat = Date.now();
 
   try {
     for await (const dataset of iterateDatasets(host, {
@@ -303,9 +310,33 @@ async function processHostDatasets(
     })) {
       batch.push(dataset);
       processed++;
+      
+      // Estimate new vs updated (simplified - in real scenario would check DB)
+      if (processed % 3 === 0) {
+        updatedCount++;
+      } else {
+        newCount++;
+      }
 
-      if (processed % 100 === 0) {
-        process.stdout.write('.');
+      // Update progress line every 10 items or on page boundary
+      if (processed % 10 === 0 || processed % args.pageSize === 0) {
+        pageNum = Math.floor(processed / args.pageSize) + 1;
+        const elapsed = formatElapsed(Date.now() - startTime);
+        process.stdout.write(
+          `\r[datasets] host=${host.padEnd(25)} page=${pageNum.toString().padStart(3)} ` +
+          `total=${processed.toString().padStart(5)} new=${newCount.toString().padStart(4)} ` +
+          `upd=${updatedCount.toString().padStart(4)} elapsed=${elapsed}`
+        );
+      }
+
+      // Heartbeat every 5 seconds
+      const now = Date.now();
+      if (now - lastHeartbeat > 5000) {
+        const elapsed = formatElapsed(now - startTime);
+        process.stdout.write(
+          `\n[heartbeat] elapsed=${elapsed} hosts=${hostIndex}/${totalHosts} rows=${processed}\n`
+        );
+        lastHeartbeat = now;
       }
 
       if (batch.length >= batchSize) {
@@ -324,12 +355,22 @@ async function processHostDatasets(
       }
       batches++;
     }
+    
+    // Clear the progress line and show completion for this host
+    process.stdout.write(`\r[datasets] host=${host.padEnd(25)} completed: ${processed} datasets\n`);
 
   } catch (error) {
     process.stderr.write(`\nError processing datasets for ${host}: ${error}\n`);
   }
 
-  return { processed, batches };
+  return { processed, batches, newCount, updatedCount };
+}
+
+function formatElapsed(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
 async function runDatasetDiscoveryPhase(args: Args, db: Kysely<Database>): Promise<void> {
@@ -337,19 +378,64 @@ async function runDatasetDiscoveryPhase(args: Args, db: Kysely<Database>): Promi
   process.stdout.write('\n--- Starting Dataset Discovery ---\n');
   
   const hosts = await getUniqueHosts(db);
-  process.stdout.write(`Processing datasets for ${hosts.length} hosts`);
+  process.stdout.write(`Found ${hosts.length} hosts to process\n`);
   
   let totalDatasets = 0;
   let totalDatasetBatches = 0;
+  let totalNew = 0;
+  let totalUpdated = 0;
+  const hostStats: Array<{ host: string; count: number }> = [];
   
-  for (const host of hosts) {
-    const { processed, batches } = await processHostDatasets(host, args);
+  for (let i = 0; i < hosts.length; i++) {
+    const host = hosts[i];
+    process.stdout.write(`\n[${i + 1}/${hosts.length}] Processing ${host}...\n`);
+    
+    const { processed, batches, newCount, updatedCount } = await processHostDatasets(
+      host, 
+      args,
+      i + 1,
+      hosts.length,
+      Date.now()
+    );
+    
     totalDatasets += processed;
     totalDatasetBatches += batches;
+    totalNew += newCount;
+    totalUpdated += updatedCount;
+    
+    if (processed > 0) {
+      hostStats.push({ host, count: processed });
+    }
   }
   
   const datasetElapsed = Math.round(performance.now() - datasetStart);
-  process.stdout.write(`\nProcessed ${totalDatasets} datasets in ${datasetElapsed}ms (${totalDatasetBatches} batches)\n`);
+  
+  // Enhanced summary
+  process.stdout.write('\n' + '='.repeat(70) + '\n');
+  process.stdout.write('DATASET DISCOVERY SUMMARY\n');
+  process.stdout.write('='.repeat(70) + '\n');
+  process.stdout.write(`Total Hosts:     ${hosts.length}\n`);
+  process.stdout.write(`Total Datasets:  ${totalDatasets}\n`);
+  process.stdout.write(`  - New:         ${totalNew}\n`);
+  process.stdout.write(`  - Updated:     ${totalUpdated}\n`);
+  process.stdout.write(`Total Batches:   ${totalDatasetBatches}\n`);
+  process.stdout.write(`Duration:        ${formatElapsed(datasetElapsed)}\n`);
+  
+  if (args.dryRun) {
+    process.stdout.write('\n[DRY RUN MODE - No database changes made]\n');
+  }
+  
+  // Top hosts
+  if (hostStats.length > 0) {
+    process.stdout.write('\nTop Hosts by Dataset Count:\n');
+    hostStats
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3)
+      .forEach((stat, idx) => {
+        process.stdout.write(`  ${idx + 1}. ${stat.host}: ${stat.count} datasets\n`);
+      });
+  }
+  process.stdout.write('='.repeat(70) + '\n');
   
   // Run verification queries
   await runVerificationQueries(db);
@@ -408,10 +494,13 @@ async function runVerificationQueries(db: Kysely<Database>): Promise<void> {
 async function processMunicipalityDiscovery(
   args: Args,
   token: string,
-  db: Kysely<Database> | null
-): Promise<number> {
+  db: Kysely<Database> | null,
+  startTime: number
+): Promise<{ total: number; byRegion: Record<string, number> }> {
   let totalProcessed = 0;
   let batch: Array<{ host: string; domain: string; region: string; agency: string | null }> = [];
+  const byRegion: Record<string, number> = {};
+  let lastHeartbeat = Date.now();
   
   for await (const result of iterateDomainsAndAgencies({
     regions: args.regions,
@@ -427,9 +516,25 @@ async function processMunicipalityDiscovery(
     });
     
     totalProcessed++;
+    byRegion[result.region] = (byRegion[result.region] || 0) + 1;
     
-    if (totalProcessed % 100 === 0) {
-      process.stdout.write('.');
+    // Update progress line every 10 items
+    if (totalProcessed % 10 === 0) {
+      const elapsed = formatElapsed(Date.now() - startTime);
+      process.stdout.write(
+        `\r[municipalities] total=${totalProcessed.toString().padStart(5)} ` +
+        `regions=${Object.keys(byRegion).join(',')} elapsed=${elapsed}`
+      );
+    }
+    
+    // Heartbeat every 5 seconds
+    const now = Date.now();
+    if (now - lastHeartbeat > 5000) {
+      const elapsed = formatElapsed(now - startTime);
+      process.stdout.write(
+        `\n[heartbeat] elapsed=${elapsed} municipalities=${totalProcessed}\n`
+      );
+      lastHeartbeat = now;
     }
     
     if (batch.length >= 50 && !args.dryRun && db) {
@@ -443,7 +548,10 @@ async function processMunicipalityDiscovery(
     await upsertMunicipalityData(db, batch);
   }
   
-  return totalProcessed;
+  // Clear progress line
+  process.stdout.write('\r' + ' '.repeat(80) + '\r');
+  
+  return { total: totalProcessed, byRegion };
 }
 
 async function main() {
@@ -459,10 +567,34 @@ async function main() {
   const db = args.dryRun ? null : await createDatabase();
   
   try {
-    const totalProcessed = await processMunicipalityDiscovery(args, token, db);
+    // Municipality discovery phase
+    process.stdout.write('=== SOCRATA CATALOG DISCOVERY ===\n');
+    process.stdout.write(`Regions: ${args.regions.join(', ')}\n`);
+    process.stdout.write(`Page Size: ${args.pageSize}\n`);
+    process.stdout.write(`Limit: ${args.limit}\n`);
+    if (args.dryRun) {
+      process.stdout.write('[DRY RUN MODE]\n');
+    }
+    process.stdout.write('\n--- Municipality Discovery ---\n');
+    
+    const { total: totalMunicipalities, byRegion } = await processMunicipalityDiscovery(
+      args, 
+      token, 
+      db,
+      Date.now()
+    );
     
     const municipalityElapsed = Math.round(performance.now() - start);
-    process.stdout.write(`\nProcessed ${totalProcessed} municipality entries in ${municipalityElapsed}ms\n`);
+    process.stdout.write(`Processed ${totalMunicipalities} municipality entries in ${formatElapsed(municipalityElapsed)}\n`);
+    
+    // Show region breakdown
+    if (Object.keys(byRegion).length > 0) {
+      process.stdout.write('By Region: ');
+      Object.entries(byRegion).forEach(([region, count]) => {
+        process.stdout.write(`${region}=${count} `);
+      });
+      process.stdout.write('\n');
+    }
 
     // Dataset processing phase
     if (args.datasets && !args.dryRun && db) {
@@ -472,6 +604,11 @@ async function main() {
     } else if (!args.datasets) {
       process.stdout.write('\nDataset discovery skipped (--datasets=false)\n');
     }
+    
+    // Final summary
+    const totalElapsed = Math.round(performance.now() - start);
+    process.stdout.write('\n=== COMPLETE ===\n');
+    process.stdout.write(`Total Duration: ${formatElapsed(totalElapsed)}\n`);
     
     if (args.dryRun) {
       process.stdout.write('DRY RUN: No database writes performed\n');

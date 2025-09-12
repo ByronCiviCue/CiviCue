@@ -4884,8 +4884,20 @@
             "title": "Dataset-level discovery and registry population",
             "description": "Implement Socrata dataset discovery with Kysely-based upserts and verification queries. Extend CLI with --datasets flag, add catalog.socrata_datasets schema, and provide verification query infrastructure.",
             "details": "Created database migration for catalog.socrata_datasets table with proper indexes. Added upsertDatasets() and retireStaleDatasets() functions to repo layer using Kysely patterns. Extended CLI with --datasets flag and dataset processing phase. Implemented comprehensive testing and technical documentation.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
+            "parentTaskId": 66
+          },
+          {
+            "id": 8,
+            "title": "Snapshot & Publication: run discovery, populate DB, emit report",
+            "description": "Run end-to-end dataset discovery against US/EU with current limits, upsert into catalog.socrata_datasets, and generate snapshot documentation with metrics and verification queries.",
+            "dependencies": [
+              "66.7"
+            ],
+            "details": "- Run end-to-end dataset discovery against US/EU with current limits\n- Upsert into catalog.socrata_datasets (idempotent)\n- Generate new snapshot doc in __docs__/catalogs/registry-snapshot-YYYYMMDD.md with:\n  - Run parameters (regions/page-size/limit/duration/hosts)\n  - Summary metrics (new/updated/retired, top hosts, recent datasets)\n  - Verification queries and embedded results\n- Write run result footer (row counts) suitable for Railway cron logs\n- Pre-work for DB.73 (replication hash checks)",
+            "status": "pending",
+            "testStrategy": "Verify snapshot document generation, database population metrics, and idempotent behavior on repeated runs",
             "parentTaskId": 66
           }
         ],
@@ -5845,7 +5857,7 @@
     ],
     "metadata": {
       "created": "2025-09-10T21:14:10.525Z",
-      "updated": "2025-09-12T17:59:40.055Z",
+      "updated": "2025-09-12T20:43:50.971Z",
       "description": "Epic: Database"
     }
   },

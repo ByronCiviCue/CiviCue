@@ -47,9 +47,22 @@ Implement structured logging with progress indicators, error reporting, and perf
 ### Details:
 Implement comprehensive integration tests using the cassette-based test framework. Add dry-run mode that logs operations without executing database writes. Include tests for rate limiting, pagination, error handling, and resume functionality.
 
-## 7. Dataset-level discovery and registry population [pending]
+## 7. Dataset-level discovery and registry population [done]
 ### Dependencies: None
 ### Description: Implement Socrata dataset discovery with Kysely-based upserts and verification queries. Extend CLI with --datasets flag, add catalog.socrata_datasets schema, and provide verification query infrastructure.
 ### Details:
 Created database migration for catalog.socrata_datasets table with proper indexes. Added upsertDatasets() and retireStaleDatasets() functions to repo layer using Kysely patterns. Extended CLI with --datasets flag and dataset processing phase. Implemented comprehensive testing and technical documentation.
+
+## 8. Snapshot & Publication: run discovery, populate DB, emit report [pending]
+### Dependencies: 66.7
+### Description: Run end-to-end dataset discovery against US/EU with current limits, upsert into catalog.socrata_datasets, and generate snapshot documentation with metrics and verification queries.
+### Details:
+- Run end-to-end dataset discovery against US/EU with current limits
+- Upsert into catalog.socrata_datasets (idempotent)
+- Generate new snapshot doc in __docs__/catalogs/registry-snapshot-YYYYMMDD.md with:
+  - Run parameters (regions/page-size/limit/duration/hosts)
+  - Summary metrics (new/updated/retired, top hosts, recent datasets)
+  - Verification queries and embedded results
+- Write run result footer (row counts) suitable for Railway cron logs
+- Pre-work for DB.73 (replication hash checks)
 
