@@ -40,11 +40,34 @@ vi.mock('../../src/db/catalog/repo.js', () => ({
   processItemBatch: vi.fn()
 }));
 
+// Mock the observability modules
+vi.mock('../../src/observability/metrics.js', () => ({
+  getMetrics: vi.fn(),
+  resetMetrics: vi.fn(),
+  METRICS: {
+    BATCHES_TOTAL: 'socrata.ingest.batches_total',
+    ITEMS_TOTAL: 'socrata.ingest.items_total',
+    RESUME_RESTARTS_TOTAL: 'socrata.ingest.resume_restarts_total',
+    DUPLICATES_SKIPPED_TOTAL: 'socrata.ingest.duplicates_skipped_total',
+    BATCH_DURATION_MS: 'socrata.ingest.batch_duration_ms',
+    PIPELINE_DURATION_MS: 'socrata.ingest.pipeline_duration_ms',
+  },
+}));
+
+vi.mock('../../src/observability/log.js', () => ({
+  createObservabilityLogger: vi.fn((baseLogger) => baseLogger),
+}));
+
 const { iterateDomainsAndAgencies } = await import('../../src/adapters/socrata/catalogDiscovery.js');
 const { loadResumeState, processItemBatch } = await import('../../src/db/catalog/repo.js');
+const { getMetrics } = await import('../../src/observability/metrics.js');
+const { createObservabilityLogger } = await import('../../src/observability/log.js');
+
 const mockIterateDomainsAndAgencies = vi.mocked(iterateDomainsAndAgencies);
 const mockLoadResumeState = vi.mocked(loadResumeState);
 const mockProcessItemBatch = vi.mocked(processItemBatch);
+const mockGetMetrics = vi.mocked(getMetrics);
+const mockCreateObservabilityLogger = vi.mocked(createObservabilityLogger);
 
 describe('Socrata Catalog Ingest - Pagination', () => {
   const mockLogger = {
@@ -68,6 +91,14 @@ describe('Socrata Catalog Ingest - Pagination', () => {
     // Default mock behavior: no prior resume state
     mockLoadResumeState.mockResolvedValue(null);
     mockProcessItemBatch.mockResolvedValue();
+    
+    // Mock metrics collector
+    const mockMetrics = {
+      increment: vi.fn(),
+      gauge: vi.fn(),
+      timing: vi.fn(),
+    };
+    mockGetMetrics.mockReturnValue(mockMetrics);
   });
 
   afterEach(() => {
@@ -318,6 +349,14 @@ describe('Socrata Catalog Ingest - Durable Resume & Idempotency', () => {
     // Default mock behavior: no prior resume state
     mockLoadResumeState.mockResolvedValue(null);
     mockProcessItemBatch.mockResolvedValue();
+    
+    // Mock metrics collector
+    const mockMetrics = {
+      increment: vi.fn(),
+      gauge: vi.fn(),
+      timing: vi.fn(),
+    };
+    mockGetMetrics.mockReturnValue(mockMetrics);
   });
 
   afterEach(() => {
@@ -342,11 +381,15 @@ describe('Socrata Catalog Ingest - Durable Resume & Idempotency', () => {
     const result = await runSocrataCatalogIngest(baseOptions);
 
     expect(mockLoadResumeState).toHaveBeenCalledWith('socrata_catalog');
-    expect(mockLogger.info).toHaveBeenCalledWith('Resume state loaded', {
+    expect(mockLogger.info).toHaveBeenCalledWith('Resume from token', expect.objectContaining({
       pipeline: 'socrata_catalog',
       last_processed_at: '2024-01-01T12:00:00.000Z',
-      resume_token_length: existingResumeState.resume_token.length,
-    });
+      token_length: existingResumeState.resume_token.length,
+    }));
+    expect(mockLogger.info).toHaveBeenCalledWith('Resume operation', expect.objectContaining({
+      region: 'US',
+      processed: 3,
+    }));
     expect(result.totalProcessed).toBe(5); // 3 from resume + 2 new
   });
 
@@ -413,11 +456,12 @@ describe('Socrata Catalog Ingest - Durable Resume & Idempotency', () => {
     );
 
     expect(mockProcessItemBatch).toHaveBeenCalledTimes(2);
-    expect(mockLogger.error).toHaveBeenCalledWith('Batch rollback', {
+    expect(mockLogger.error).toHaveBeenCalledWith('Batch rollback', expect.objectContaining({
       batch_size: 1, // Remaining item after first batch of 3
+      duration_ms: expect.any(Number),
       error_message: 'Database connection lost',
       resume_preserved: true,
-    });
+    }));
   });
 
   it('should handle idempotent re-processing without duplicates', async () => {
@@ -435,8 +479,15 @@ describe('Socrata Catalog Ingest - Durable Resume & Idempotency', () => {
 
     const result = await runSocrataCatalogIngest(baseOptions);
 
-    expect(result.totalProcessed).toBe(2);
+    // Should process only 1 unique item (duplicate is correctly skipped)
+    expect(result.totalProcessed).toBe(1);
     expect(mockProcessItemBatch).toHaveBeenCalledTimes(1);
+    
+    // Verify duplicate was tracked via metrics
+    const mockMetrics = mockGetMetrics();
+    expect(mockMetrics.increment).toHaveBeenCalledWith('socrata.ingest.duplicates_skipped_total', 1, {
+      region: 'US'
+    });
     
     // Verify idempotent items are passed to batch processor
     expect(mockProcessItemBatch).toHaveBeenCalledWith(
@@ -529,5 +580,222 @@ describe('Socrata Catalog Ingest - Durable Resume & Idempotency', () => {
 
     // Should not attempt to load resume state when disabled
     expect(mockLoadResumeState).not.toHaveBeenCalled();
+  });
+});
+
+describe('Socrata Catalog Ingest - Observability & Monitoring', () => {
+  const mockLogger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  };
+
+  const mockMetrics = {
+    increment: vi.fn(),
+    gauge: vi.fn(),
+    timing: vi.fn(),
+  };
+
+  const baseOptions: SocrataCatalogIngestOptions = {
+    regions: ['US'],
+    pageSize: 2,
+    limit: 5,
+    dryRun: false,
+    batchSize: 3,
+    metricsEnabled: true,
+    logLevel: 'info',
+    logger: mockLogger,
+    now: () => new Date('2024-01-01T00:00:00Z'),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default mock behavior
+    mockLoadResumeState.mockResolvedValue(null);
+    mockProcessItemBatch.mockResolvedValue();
+    mockGetMetrics.mockReturnValue(mockMetrics);
+    mockCreateObservabilityLogger.mockReturnValue(mockLogger);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should increment metrics on batch commit', async () => {
+    mockIterateDomainsAndAgencies.mockImplementation(async function* () {
+      for (let i = 1; i <= 4; i++) {
+        yield { 
+          region: 'US' as const, 
+          host: `data.city${i}.gov`, 
+          domain: `city${i}.gov`, 
+          agency: `Agency ${i}` 
+        };
+      }
+    });
+
+    const result = await runSocrataCatalogIngest(baseOptions);
+
+    expect(result.totalProcessed).toBe(4);
+    
+    // Should have metrics enabled
+    expect(mockGetMetrics).toHaveBeenCalledWith(true);
+    
+    // Should increment batch and items metrics
+    expect(mockMetrics.increment).toHaveBeenCalledWith(
+      'socrata.ingest.batches_total', 
+      1
+    );
+    expect(mockMetrics.increment).toHaveBeenCalledWith(
+      'socrata.ingest.items_total', 
+      3 // First batch of 3 items
+    );
+    expect(mockMetrics.increment).toHaveBeenCalledWith(
+      'socrata.ingest.items_total', 
+      1 // Second batch of 1 item
+    );
+    
+    // Should record batch duration
+    expect(mockMetrics.timing).toHaveBeenCalledWith(
+      'socrata.ingest.batch_duration_ms',
+      expect.any(Number)
+    );
+    
+    // Should record pipeline duration
+    expect(mockMetrics.timing).toHaveBeenCalledWith(
+      'socrata.ingest.pipeline_duration_ms',
+      expect.any(Number),
+      expect.objectContaining({
+        regions: 'US',
+        dry_run: 'false',
+      })
+    );
+  });
+
+  it('should log resume operations when enabled', async () => {
+    const existingResumeState = {
+      pipeline: 'socrata_catalog',
+      resume_token: '{"region":"US","cursor":"existing","processed":2}',
+      last_processed_at: new Date('2024-01-01T12:00:00Z'),
+      updated_at: new Date('2024-01-01T12:00:00Z'),
+    };
+
+    mockLoadResumeState.mockResolvedValue(existingResumeState);
+    
+    mockIterateDomainsAndAgencies.mockImplementation(async function* () {
+      yield { region: 'US' as const, host: 'data.city3.gov', domain: 'city3.gov', agency: 'Agency 3' };
+    });
+
+    await runSocrataCatalogIngest(baseOptions);
+
+    // Should increment resume restart metric
+    expect(mockMetrics.increment).toHaveBeenCalledWith(
+      'socrata.ingest.resume_restarts_total',
+      1,
+      { pipeline: 'socrata_catalog' }
+    );
+    
+    // Should log resume operation
+    expect(mockLogger.info).toHaveBeenCalledWith('Resume from token', {
+      pipeline: 'socrata_catalog',
+      last_processed_at: '2024-01-01T12:00:00.000Z',
+      token_length: existingResumeState.resume_token.length,
+    });
+  });
+
+  it('should track and log duplicate items', async () => {
+    // Mock iterator that yields duplicate items
+    mockIterateDomainsAndAgencies.mockImplementation(async function* () {
+      yield { region: 'US' as const, host: 'data.city1.gov', domain: 'city1.gov', agency: 'Agency 1' };
+      yield { region: 'US' as const, host: 'data.city1.gov', domain: 'city1.gov', agency: 'Agency 1' }; // Duplicate
+      yield { region: 'US' as const, host: 'data.city2.gov', domain: 'city2.gov', agency: 'Agency 2' };
+    });
+
+    const result = await runSocrataCatalogIngest(baseOptions);
+
+    expect(result.totalProcessed).toBe(2); // Should skip 1 duplicate
+    
+    // Should increment duplicate skip metric
+    expect(mockMetrics.increment).toHaveBeenCalledWith(
+      'socrata.ingest.duplicates_skipped_total',
+      1,
+      { region: 'US' }
+    );
+    
+    // Should log duplicate skip
+    expect(mockLogger.debug).toHaveBeenCalledWith('Duplicate skipped', {
+      host: 'data.city1.gov',
+      domain: 'city1.gov', 
+      agency: 'Agency 1',
+      region: 'US',
+    });
+  });
+
+  it('should disable metrics when metricsEnabled is false', async () => {
+    const disabledMetricsOptions: SocrataCatalogIngestOptions = {
+      ...baseOptions,
+      metricsEnabled: false,
+    };
+
+    mockIterateDomainsAndAgencies.mockImplementation(async function* () {
+      yield { region: 'US' as const, host: 'data.city1.gov', domain: 'city1.gov', agency: 'Agency 1' };
+    });
+
+    await runSocrataCatalogIngest(disabledMetricsOptions);
+
+    // Should get metrics with disabled flag
+    expect(mockGetMetrics).toHaveBeenCalledWith(false);
+  });
+
+  it('should respect logLevel configuration', async () => {
+    const debugLogOptions: SocrataCatalogIngestOptions = {
+      ...baseOptions,
+      logLevel: 'debug',
+    };
+
+    mockIterateDomainsAndAgencies.mockImplementation(async function* () {
+      yield { region: 'US' as const, host: 'data.city1.gov', domain: 'city1.gov', agency: 'Agency 1' };
+    });
+
+    await runSocrataCatalogIngest(debugLogOptions);
+
+    // Should create logger with debug level
+    expect(mockCreateObservabilityLogger).toHaveBeenCalledWith(
+      mockLogger,
+      'debug',
+      true
+    );
+  });
+
+  it('should log batch processing with structured context', async () => {
+    mockIterateDomainsAndAgencies.mockImplementation(async function* () {
+      for (let i = 1; i <= 3; i++) {
+        yield { 
+          region: 'US' as const, 
+          host: `data.city${i}.gov`, 
+          domain: `city${i}.gov`, 
+          agency: `Agency ${i}` 
+        };
+      }
+    });
+
+    await runSocrataCatalogIngest(baseOptions);
+
+    // Should log batch processed with structured context
+    expect(mockLogger.info).toHaveBeenCalledWith('Batch processed', {
+      batch_size: 3,
+      items_total: 3,
+      duration_ms: expect.any(Number),
+      resume_token_advanced: true,
+    });
+    
+    // Should log processing progress
+    expect(mockLogger.debug).toHaveBeenCalledWith('Processing progress', {
+      region: 'US',
+      host: 'data.city1.gov',
+      agency: 'Agency 1',
+      total_processed: 1,
+      batch_size: 1,
+    });
   });
 });
