@@ -23,6 +23,9 @@ export interface SocrataCatalogIngestResult {
   plannedLimit: number;
   dryRun: boolean;
   resumeFrom?: string | null;
+  totalProcessed: number;
+  lastCursor?: string | null;
+  completedRegions: IngestRegion[];
 }
 
 export class SocrataCatalogIngestError extends Error {
