@@ -14,6 +14,9 @@ importers:
       fast-csv:
         specifier: ^5.0.5
         version: 5.0.5
+      kysely:
+        specifier: ^0.28.5
+        version: 0.28.5
       nanoid:
         specifier: ^5.0.7
         version: 5.1.5
@@ -84,6 +87,9 @@ importers:
       eslint-plugin-sonarjs:
         specifier: ^3.0.5
         version: 3.0.5(eslint@9.35.0)
+      husky:
+        specifier: ^9.1.6
+        version: 9.1.7
       openapi-typescript:
         specifier: ^7.9.1
         version: 7.9.1(typescript@5.9.2)
@@ -1631,6 +1637,11 @@ packages:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
 
+  husky@9.1.7:
+    resolution: {integrity: sha512-5gs5ytaNjBrh5Ow3zrvdUUY+0VxIuWVL4i9irt6friV+BqdCfmV11CQTWMiBYWHbXhco+J1kHfTOUkePhCDvMA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   ignore@5.3.2:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
     engines: {node: '>= 4'}
@@ -1874,6 +1885,10 @@ packages:
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
+
+  kysely@0.28.5:
+    resolution: {integrity: sha512-rlB0I/c6FBDWPcQoDtkxi9zIvpmnV5xoIalfCMSMCa7nuA6VGA3F54TW9mEgX4DVf10sXAWCF5fDbamI/5ZpKA==}
+    engines: {node: '>=20.0.0'}
 
   leven@3.1.0:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
@@ -4615,6 +4630,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  husky@9.1.7: {}
+
   ignore@5.3.2: {}
 
   ignore@7.0.5: {}
@@ -4834,6 +4851,8 @@ snapshots:
       json-buffer: 3.0.1
 
   kind-of@6.0.3: {}
+
+  kysely@0.28.5: {}
 
   leven@3.1.0: {}
 
