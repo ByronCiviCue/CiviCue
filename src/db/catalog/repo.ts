@@ -1,6 +1,7 @@
 import { getDb } from '../kysely.js';
 import { isDatabaseDryRun } from '../../lib/secrets/secrets.js';
 import type { ResumeState } from './types.js';
+import { getMetrics } from '../../observability/metrics.js';
 
 export interface UpsertHostInput {
   region: 'US' | 'EU';
@@ -192,6 +193,8 @@ export async function processItemBatch(
   }
 
   const db = getDb();
+  const metrics = getMetrics();
+  const transactionStartTime = Date.now();
   
   await db.transaction().execute(async (trx) => {
     // Process each item in the batch
@@ -266,4 +269,9 @@ export async function processItemBatch(
       )
       .executeTakeFirst();
   });
+
+  // Emit metrics after successful transaction
+  const transactionDuration = Date.now() - transactionStartTime;
+  metrics.timing('socrata.ingest.db_transaction_duration_ms', transactionDuration);
+  metrics.increment('socrata.ingest.db_items_processed_total', items.length);
 }

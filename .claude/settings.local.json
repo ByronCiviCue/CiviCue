@@ -49,7 +49,13 @@
       "Bash(task-master list:*)",
       "Bash(task-master add-dependency:*)",
       "Bash(task-master remove-dependency:*)",
-      "Bash(task-master help:*)"
+      "Bash(task-master help:*)",
+      "Bash(tm task:*)",
+      "Bash(tm help:*)",
+      "Bash(tm show:*)",
+      "Bash(tm list:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(tm set-status:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -4731,7 +4731,7 @@
         "title": "Socrata global directory database schema and migration",
         "description": "Create PostgreSQL tables for storing global Socrata directory data including hosts, domains, and agencies with proper indexing and constraints.",
         "details": "Design and implement database migration for socrata_hosts(host text primary key, region text not null, last_seen timestamptz not null default now()), socrata_domains(domain text primary key, country text, region text not null, last_seen timestamptz not null default now()), socrata_agencies(host text not null, name text not null, type text, primary key(host, name)). Include proper indexes for query performance and foreign key relationships where appropriate. Migration must be idempotent and reversible.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "tag": "Database",
@@ -4751,7 +4751,7 @@
             "description": "Create the three table definitions (socrata_hosts, socrata_domains, socrata_agencies) with proper PostgreSQL column types, primary keys, and NOT NULL constraints as specified in the requirements.",
             "dependencies": [],
             "details": "Define socrata_hosts table with host (text primary key), region (text not null), last_seen (timestamptz not null default now()). Define socrata_domains table with domain (text primary key), country (text), region (text not null), last_seen (timestamptz not null default now()). Define socrata_agencies table with host (text not null), name (text not null), type (text), and composite primary key (host, name). Validate all column types and constraints match the specification.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4762,7 +4762,7 @@
               "65.1"
             ],
             "details": "Create indexes on socrata_hosts.region, socrata_domains.region, socrata_domains.country, and last_seen columns where appropriate. Consider composite indexes for common query patterns. Ensure indexes support efficient lookups for directory discovery operations and maintenance queries.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4774,7 +4774,7 @@
               "65.2"
             ],
             "details": "Implement foreign key constraint from socrata_agencies.host to socrata_hosts.host to maintain referential integrity. Use CREATE TABLE IF NOT EXISTS and other idempotent patterns. Follow existing migration naming convention (e.g., 0011_socrata_directory.sql). Ensure transaction safety and proper error handling.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4785,7 +4785,7 @@
               "65.3"
             ],
             "details": "Create DROP statements in proper dependency order (drop foreign keys first, then tables). Add validation tests to ensure tables are created with correct structure, constraints are enforced, and indexes exist. Test both UP and DOWN migration paths. Verify idempotent behavior by running migration multiple times.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ],
@@ -4798,7 +4798,7 @@
         "title": "Socrata catalog ingestion service with rate limiting",
         "description": "Implement the catalog ingestion service that paginates through Discovery API for US/EU regions and upserts data into PostgreSQL tables.",
         "details": "Create services/discovery/socrataCatalogIngest.ts that uses the regions module and discovery client to fetch catalog data. Implement proper rate limiting with small concurrency and exponential backoff. Support resume functionality via cursor/since flags (placeholders allowed). Upsert operations must be idempotent by primary key. Include comprehensive progress logging without exposing secrets or creating noisy output.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "65"
         ],
@@ -4820,7 +4820,7 @@
             "description": "Implement the core service class structure with configuration options, initialization, and centralized error handling for the Socrata catalog ingestion service.",
             "dependencies": [],
             "details": "Create the main SocrataCatalogIngestService class in services/discovery/socrataCatalogIngest.ts with configuration interface for rate limiting, database connection, and regional settings. Implement proper error handling patterns and service initialization methods.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4831,7 +4831,7 @@
               "66.1"
             ],
             "details": "Implement cursor-based pagination logic using the Discovery API's pagination parameters. Add support for resume functionality via cursor/since flags, allowing ingestion to continue from a previous state. Handle edge cases like API response changes.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4842,7 +4842,7 @@
               "66.1"
             ],
             "details": "Create rate limiting logic with exponential backoff for handling API rate limits. Implement concurrency controls to limit parallel requests. Add retry mechanisms for transient failures with proper backoff strategies.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4853,7 +4853,7 @@
               "66.2"
             ],
             "details": "Create database upsert methods for socrata_hosts, socrata_domains, and socrata_agencies tables. Ensure operations are idempotent using ON CONFLICT clauses. Implement proper transaction handling and batch operations for performance.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4865,7 +4865,7 @@
               "66.4"
             ],
             "details": "Implement structured logging with progress indicators, error reporting, and performance metrics. Ensure no secrets or sensitive data are logged. Add correlation IDs for request tracking and debug information for troubleshooting.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -4876,7 +4876,7 @@
               "66.5"
             ],
             "details": "Implement comprehensive integration tests using the cassette-based test framework. Add dry-run mode that logs operations without executing database writes. Include tests for rate limiting, pagination, error handling, and resume functionality.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ],
@@ -5822,7 +5822,7 @@
     ],
     "metadata": {
       "created": "2025-09-10T21:14:10.525Z",
-      "updated": "2025-09-10T22:44:52.954Z",
+      "updated": "2025-09-12T17:17:45.481Z",
       "description": "Epic: Database"
     }
   },

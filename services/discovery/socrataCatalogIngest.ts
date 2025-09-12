@@ -11,6 +11,8 @@ import { getSocrataAppToken } from '../../src/lib/secrets/secrets.js';
 import { sleep } from '../../src/adapters/socrata/http.js';
 import { isSocrataClientError } from '../../src/adapters/socrata/types.js';
 import { loadResumeState, processItemBatch, type CatalogItem } from '../../src/db/catalog/repo.js';
+import { getMetrics, METRICS, type MetricsCollector } from '../../src/observability/metrics.js';
+import { createObservabilityLogger, type StructuredLogger } from '../../src/observability/log.js';
 
 /**
  * Socrata catalog ingestion service with cursor-based pagination and resume functionality.
@@ -316,12 +318,14 @@ function createDefaultLogger() {
  * @param resumeEnabled Whether resume functionality is enabled
  * @param dryRun Whether this is a dry-run operation
  * @param logger Structured logger for events
+ * @param metrics Metrics collector for instrumentation
  * @returns Resume token string or null if not found/disabled
  */
 async function loadDurableResume(
   resumeEnabled: boolean,
   dryRun: boolean,
-  logger: NonNullable<SocrataCatalogIngestOptions['logger']>
+  logger: StructuredLogger,
+  metrics: MetricsCollector
 ): Promise<string | null> {
   if (!resumeEnabled || dryRun) {
     return null;
@@ -330,10 +334,15 @@ async function loadDurableResume(
   try {
     const resumeState = await loadResumeState(SOCRATA_PIPELINE);
     if (resumeState?.resume_token) {
-      logger.info('Resume state loaded', {
+      // Emit metrics for resume restart
+      metrics.increment(METRICS.RESUME_RESTARTS_TOTAL, 1, { 
+        pipeline: SOCRATA_PIPELINE 
+      });
+      
+      logger.info('Resume from token', {
         pipeline: SOCRATA_PIPELINE,
         last_processed_at: resumeState.last_processed_at?.toISOString(),
-        resume_token_length: resumeState.resume_token.length,
+        token_length: resumeState.resume_token.length,
       });
       return resumeState.resume_token;
     }
@@ -352,33 +361,51 @@ async function loadDurableResume(
  * @param resumeToken Token to save after successful batch processing
  * @param processedAt Timestamp for the batch
  * @param logger Structured logger for events
+ * @param metrics Metrics collector for instrumentation
  * @param dryRun Whether this is a dry-run operation
  */
 async function processBatchWithResume(
   batch: CatalogItem[],
   resumeToken: string,
   processedAt: Date,
-  logger: NonNullable<SocrataCatalogIngestOptions['logger']>,
+  logger: StructuredLogger,
+  metrics: MetricsCollector,
   dryRun: boolean
 ): Promise<void> {
   if (dryRun) {
-    logger.debug?.('Dry-run batch processing', { 
-      batch_size: batch.length,
-      resume_token_length: resumeToken.length,
-    });
+    if (logger.debug) {
+      logger.debug('Dry-run batch processing', { 
+        batch_size: batch.length,
+        resume_token_length: resumeToken.length,
+      });
+    }
     return;
   }
 
+  const startTime = Date.now();
+  
   try {
     await processItemBatch(batch, resumeToken, processedAt);
-    logger.info('Batch committed', {
+    
+    const duration = Date.now() - startTime;
+    
+    // Emit metrics
+    metrics.increment(METRICS.BATCHES_TOTAL, 1);
+    metrics.increment(METRICS.ITEMS_TOTAL, batch.length);
+    metrics.timing(METRICS.BATCH_DURATION_MS, duration);
+    
+    logger.info('Batch processed', {
       batch_size: batch.length,
-      items_processed: batch.length,
+      items_total: batch.length,
+      duration_ms: duration,
       resume_token_advanced: true,
     });
   } catch (error) {
+    const duration = Date.now() - startTime;
+    
     logger.error('Batch rollback', {
       batch_size: batch.length,
+      duration_ms: duration,
       error_message: error instanceof Error ? error.message : String(error),
       resume_preserved: true,
     });
@@ -393,6 +420,7 @@ async function processBatchWithResume(
  * @param limit Maximum total items to process
  * @param startingProcessed Number of items already processed (from resume)
  * @param logger Structured logger for events
+ * @param metrics Metrics collector for instrumentation
  * @param now Time provider function
  * @param dryRun Whether this is a dry-run operation
  * @returns Total processed count and last cursor
@@ -402,15 +430,39 @@ async function processItemsInBatches(
   batchSize: number,
   limit: number,
   startingProcessed: number,
-  logger: NonNullable<SocrataCatalogIngestOptions['logger']>,
+  logger: StructuredLogger,
+  metrics: MetricsCollector,
   now: () => Date,
   dryRun: boolean
 ): Promise<{ totalProcessed: number; lastCursor: string | null }> {
   let totalProcessed = startingProcessed;
   let lastCursor: string | null = null;
   let currentBatch: CatalogItem[] = [];
+  const seenItems = new Set<string>(); // Track items within session for duplicate detection
 
   for await (const item of iterator) {
+    // Create unique key for duplicate detection
+    const itemKey = `${item.region}:${item.host}:${item.domain}:${item.agency || 'null'}`;
+    
+    // Check for duplicates within current session
+    if (seenItems.has(itemKey)) {
+      metrics.increment(METRICS.DUPLICATES_SKIPPED_TOTAL, 1, {
+        region: item.region,
+      });
+      
+      if (logger.debug) {
+        logger.debug('Duplicate skipped', {
+          host: item.host,
+          domain: item.domain,
+          agency: item.agency,
+          region: item.region,
+        });
+      }
+      continue; // Skip duplicate item
+    }
+    
+    seenItems.add(itemKey);
+
     // Add item to current batch
     currentBatch.push({
       region: item.region,
@@ -427,17 +479,19 @@ async function processItemsInBatches(
       processed: totalProcessed,
     });
 
-    logger.debug?.('Processing progress', { 
-      region: item.region, 
-      host: item.host, 
-      agency: item.agency,
-      total_processed: totalProcessed,
-      batch_size: currentBatch.length,
-    });
+    if (logger.debug) {
+      logger.debug('Processing progress', { 
+        region: item.region, 
+        host: item.host, 
+        agency: item.agency,
+        total_processed: totalProcessed,
+        batch_size: currentBatch.length,
+      });
+    }
 
     // Process batch when it reaches configured size
     if (currentBatch.length >= batchSize) {
-      await processBatchWithResume(currentBatch, lastCursor, now(), logger, dryRun);
+      await processBatchWithResume(currentBatch, lastCursor, now(), logger, metrics, dryRun);
       currentBatch = []; // Reset batch
     }
 
@@ -449,7 +503,7 @@ async function processItemsInBatches(
 
   // Process remaining items in final batch
   if (currentBatch.length > 0 && lastCursor) {
-    await processBatchWithResume(currentBatch, lastCursor, now(), logger, dryRun);
+    await processBatchWithResume(currentBatch, lastCursor, now(), logger, metrics, dryRun);
   }
 
   return { totalProcessed, lastCursor };
@@ -489,9 +543,17 @@ export async function runSocrataCatalogIngest(
   try {
     validateOptions(opts);
 
-    const logger = opts.logger ?? createDefaultLogger();
+    const baseLogger = opts.logger ?? createDefaultLogger();
+    const metricsEnabled = opts.metricsEnabled ?? true;
+    const logLevel = opts.logLevel ?? 'info';
+    
+    // Initialize observability components
+    const metrics = getMetrics(metricsEnabled);
+    const logger = createObservabilityLogger(baseLogger, logLevel, true);
+    
     const now = opts.now ?? (() => new Date());
     const startedAt = now().toISOString();
+    const pipelineStartTime = Date.now();
     const batchSize = opts.batchSize ?? DEFAULT_BATCH_SIZE;
     const resumeEnabled = opts.resumeEnabled ?? true;
     
@@ -506,7 +568,7 @@ export async function runSocrataCatalogIngest(
     });
 
     // Load durable resume state from database (if enabled and not dry-run)
-    const durableResumeToken = await loadDurableResume(resumeEnabled, opts.dryRun, logger);
+    const durableResumeToken = await loadDurableResume(resumeEnabled, opts.dryRun, logger, metrics);
     
     // Guard clause: parse resume state from options or database
     const resumeState = opts.resumeFrom ? 
@@ -552,6 +614,7 @@ export async function runSocrataCatalogIngest(
         opts.limit,
         startingProcessed,
         logger,
+        metrics,
         now,
         opts.dryRun
       );
@@ -570,13 +633,24 @@ export async function runSocrataCatalogIngest(
     }
     
     const finishedAt = now().toISOString();
+    const pipelineDuration = Date.now() - pipelineStartTime;
+    
+    // Emit pipeline-level metrics
+    metrics.timing(METRICS.PIPELINE_DURATION_MS, pipelineDuration, {
+      regions: opts.regions.join(','),
+      dry_run: String(opts.dryRun),
+    });
+    
     const result = finalizeResult(opts, {
       totalProcessed,
       lastCursor,
       completedRegions: [...opts.regions], // Simplified: mark all as completed
     }, { startedAt, finishedAt });
 
-    logger.info('Ingest complete', result);
+    logger.info('Ingest complete', { 
+      ...result,
+      pipeline_duration_ms: pipelineDuration,
+    });
     return result;
     
   } catch (error: unknown) {

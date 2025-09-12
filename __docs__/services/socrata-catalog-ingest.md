@@ -165,3 +165,118 @@ const options = {
 - `total_processed`: Cumulative count across all runs (survives restarts)
 - `batch_size`: Items in current batch for performance monitoring
 - Resume token contains region and processed count for debugging
+
+## Observability & Monitoring (Task 66.5)
+
+The catalog ingestion service provides comprehensive runtime visibility through structured metrics and enhanced logging. This observability layer tracks resume/idempotency behavior, performance characteristics, and operational health.
+
+### Metrics Collection
+
+The service emits structured metrics following Prometheus naming conventions:
+
+**Pipeline Metrics:**
+- `socrata.ingest.pipeline_duration_ms`: Total pipeline execution time
+- `socrata.ingest.batches_total`: Number of batches processed (with region label)
+- `socrata.ingest.items_total`: Total items processed (with region label)
+- `socrata.ingest.resume_restarts_total`: Count of resume operations from saved state
+
+**Quality Metrics:**
+- `socrata.ingest.duplicates_skipped_total`: Items deduplicated within session (with region label)
+- `socrata.ingest.batch_duration_ms`: Per-batch processing time
+- `socrata.ingest.db_transaction_duration_ms`: Database transaction timing
+- `socrata.ingest.db_items_processed_total`: Items successfully persisted to database
+
+**Metrics Configuration:**
+```typescript
+const options = {
+  metricsEnabled: true,    // Enable/disable metrics collection (default: true)
+  // ... other options
+};
+```
+
+### Structured Logging
+
+Enhanced logging provides operational visibility with configurable verbosity:
+
+**Log Levels:**
+- `error`: Pipeline failures and retry exhaustion
+- `warn`: Recoverable errors and fallback scenarios  
+- `info`: Progress tracking, batch commits, resume operations (default)
+- `debug`: Item-level processing details and duplicate detection
+
+**Structured Context:**
+```typescript
+const options = {
+  logLevel: 'info',        // Control log verbosity (default: 'info')
+  logger: customLogger,    // Optional structured logger override
+  // ... other options
+};
+```
+
+**Key Log Messages:**
+- `Pipeline starting`: Initial configuration and resume state
+- `Resuming from saved state`: Resume token details and last processed timestamp
+- `Processing batch`: Batch size, region, and accumulated items
+- `Duplicate skipped`: Host, domain, agency, and region for deduplicated items  
+- `Batch committed`: Transaction success with resume advancement
+- `Pipeline completed`: Final statistics and processing summary
+
+### Duplicate Detection & Tracking
+
+Within-session duplicate detection prevents reprocessing of identical items:
+
+**Detection Logic:**
+- Items are identified by composite key: `region:host:domain:agency`
+- Duplicates within the same processing session are skipped
+- Metrics track duplicate count by region for operational visibility
+- Cross-session duplicates (from resume) rely on database idempotency
+
+**Observability Benefits:**
+- Duplicate metrics indicate upstream data quality issues
+- Debug logs show exact duplicate items for troubleshooting
+- Session-scoped tracking avoids false positives across restarts
+
+### Performance Monitoring  
+
+Timing metrics provide performance visibility across pipeline stages:
+
+**Database Performance:**
+- Transaction duration tracks database responsiveness
+- Items per transaction shows batch efficiency
+- Resume state persistence timing
+
+**Pipeline Performance:**
+- End-to-end processing time for capacity planning
+- Per-batch timing for bottleneck identification  
+- Region-specific metrics for geographic performance analysis
+
+### Configuration Examples
+
+**Production Monitoring:**
+```typescript
+const options = {
+  metricsEnabled: true,
+  logLevel: 'info',
+  batchSize: 100,
+  // ... other options
+};
+```
+
+**Development Debugging:**
+```typescript  
+const options = {
+  metricsEnabled: true,
+  logLevel: 'debug',        // Verbose logging for troubleshooting
+  batchSize: 10,           // Smaller batches for detailed observation
+  // ... other options
+};
+```
+
+**Minimal Observability:**
+```typescript
+const options = {
+  metricsEnabled: false,   // Disable metrics collection
+  logLevel: 'error',       // Only log failures
+  // ... other options
+};
+```

@@ -18,6 +18,8 @@ export interface SocrataCatalogIngestOptions {
   retryConfig?: Partial<RetryConfig>;
   batchSize?: number;        // Default: 100
   resumeEnabled?: boolean;   // Default: true
+  metricsEnabled?: boolean;  // Default: true
+  logLevel?: 'debug' | 'info' | 'warn' | 'error';  // Default: 'info'
   logger?: {
     info(...args: unknown[]): void;
     warn(...args: unknown[]): void;
