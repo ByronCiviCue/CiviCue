@@ -1,116 +1,29 @@
-node_modules/
+# Environment files
 .env
 .env.local
-.env.runtime
+.env.*
+
+# Dependencies
+node_modules/
+
+# Build outputs
 dist/
-coverage/
-.DS_Store
-*.log
-.pnpm-store/
-.turbo/
-tmp/
-# Allow committed placeholder logs
-!logs/ingest.log
-!logs/replication.log
+packages/*/dist/
 
-# ---- Bulk datasets (ignore) ----
-311 Cases/**
-!311 Cases/README.md
-
-data/csv_raw/311/**
-!data/csv_raw/311/README.md
-
-# Optional sample area (tracked)
-!data/samples/
-!data/samples/311/
-!data/samples/311/*.json
-
-# ---- Bulk datasets (ignore) round 2 ----
+# IDE/Editor
 .vscode/
+.idea/
 
-Archived Raw Data/**
-!Archived Raw Data/README.md
+# Temp/Archive files
+*.zip
+tmp/
+temp/
 
-BOS MINUTES/**
-!BOS MINUTES/README.md
+# External/vendor
+external/
 
-SF BOS MINUTES/**
-!SF BOS MINUTES/README.md
+# ingestion/python virtual envs and data artifacts
+ingestion/python/.venv/
+data/
+*.jsonl
 
-TABULATED BOS MEETING MINUTES/**
-!TABULATED BOS MEETING MINUTES/README.md
-
-Campaign Finance/**
-!Campaign Finance/README.md
-
-Contact Lobbyist Activity/**
-!Contact Lobbyist Activity/README.md
-
-Lobbyist Activity Directory/**
-!Lobbyist Activity Directory/README.md
-
-Lobbyist Directory/**
-!Lobbyist Directory/README.md
-
-Building Permits/**
-!Building Permits/README.md
-
-Zoning_Master/**
-!Zoning_Master/README.md
-
-Supervisor Policy Positions Campaigned On/**
-!Supervisor Policy Positions Campaigned On/README.md
-
-Crime2/**
-!Crime2/README.md
-
-Housing/**
-!Housing/README.md
-
-Evictions/**
-!Evictions/README.md
-
-Permitting_Delays_Archive/**
-!Permitting_Delays_Archive/README.md
-
-SF_Dashboard_LatestExports/**
-!SF_Dashboard_LatestExports/README.md
-
-# Tracked sample areas
-!data/samples/
-!data/samples/**
-
-# ---- Bulk datasets (ignore) round 3 ----
-Behested_Payments_SF_Master/**
-!Behested_Payments_SF_Master/README.md
-
-Committee Meetings/**
-!Committee Meetings/README.md
-
-Crime/**
-!Crime/README.md
-
-SF_Crime_Weekly_Exports/**
-!SF_Crime_Weekly_Exports/README.md
-
-# Logs
-logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-dev-debug.log
-# Dependency directories
-# Environment variables (duplicates removed above)
-# Editor directories and files
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-# OS specific
-
-# Task files
-# tasks.json
-# tasks/ 
