@@ -330,7 +330,7 @@ export async function upsertDatasets(
     last_seen: now,
   }));
 
-  const result = await db
+  await db
     .insertInto('catalog.socrata_datasets')
     .values(values)
     .onConflict((oc) =>
