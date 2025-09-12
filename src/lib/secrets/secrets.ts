@@ -121,4 +121,9 @@ export function getDatabaseUrl(): string {
   if (!v) throw new Error('DATABASE_URL is required but not set');
   return v;
 }
+
+/** Check if database operations should run in dry-run mode. */
+export function isDatabaseDryRun(): boolean {
+  return process.env.CIVICUE_DB_DRYRUN === '1';
+}
 /* eslint-enable civicue/no-process-env-outside-env */

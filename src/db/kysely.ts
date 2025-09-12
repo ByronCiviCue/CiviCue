@@ -1,22 +1,24 @@
 import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { getDatabaseUrl } from '../lib/secrets/secrets.js';
+import type { SocrataHosts, SocrataDomains, SocrataAgencies } from './catalog/types.js';
 
 export interface CatalogDB {
-  catalog: {
-    socrata_municipality_index: {
-      host: string;
-      domain: string;
-      region: string;
-      country: string | null;
-      city: string | null;
-      agency_count: number;
-      dataset_count: number;
-      last_seen: Date;
-      source: string;
-      meta: unknown | null;
-    };
+  'catalog.socrata_municipality_index': {
+    host: string;
+    domain: string;
+    region: string;
+    country: string | null;
+    city: string | null;
+    agency_count: number;
+    dataset_count: number;
+    last_seen: Date;
+    source: string;
+    meta: unknown | null;
   };
+  'catalog.socrata_hosts': SocrataHosts;
+  'catalog.socrata_domains': SocrataDomains;
+  'catalog.socrata_agencies': SocrataAgencies;
 }
 
 let _db: Kysely<CatalogDB> | undefined;

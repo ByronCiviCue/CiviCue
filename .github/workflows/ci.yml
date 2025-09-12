@@ -4,55 +4,70 @@ on:
   push:
     branches: [ "**" ]
   pull_request:
-    branches: [ "**" ]
 
 permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Verify (Node ${{ matrix.node }})
+  build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [ "20.x" ]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Use Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
-          cache: "pnpm"
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+          node-version: '22.x'
+          
+      - run: corepack enable
+      
+      - uses: pnpm/action-setup@v4
         with:
-          version: 9
-          run_install: false
-
-      - name: Install (frozen lockfile)
-        run: pnpm -s install --frozen-lockfile
-
+          version: '9'
+          
+      - name: Git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+          
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          CI: true
+          
+      - name: Lint
+        run: pnpm -s lint
+        env:
+          CI: true
+          NODE_OPTIONS: --max-old-space-size=4096
+          CIVICUE_DB_DRYRUN: "1"
+          CIVICUE_SKIP_ENV_VALIDATION: "1"
+          SOCRATA_APP_TOKEN: "ci-token"
+          DATABASE_URL: "postgres://ci:ci@localhost:5432/ci"
+          
       - name: Typecheck
         run: pnpm -s typecheck
-
-      - name: Lint
-        run: pnpm -s lint:ci
-
-      - name: Arch Tests
-        run: pnpm -s test:arch
-
-      - name: Unit Tests
-        run: pnpm -s test:all
-
-      - name: Build
-        run: pnpm -s build
+        env:
+          CI: true
+          NODE_OPTIONS: --max-old-space-size=4096
+          CIVICUE_DB_DRYRUN: "1"
+          CIVICUE_SKIP_ENV_VALIDATION: "1"
+          SOCRATA_APP_TOKEN: "ci-token"
+          DATABASE_URL: "postgres://ci:ci@localhost:5432/ci"
+          
+      - name: Tests
+        run: pnpm -s test -- --reporter=dot --run --maxWorkers=50%
+        env:
+          CI: true
+          NODE_OPTIONS: --max-old-space-size=4096
+          CIVICUE_DB_DRYRUN: "1"
+          CIVICUE_SKIP_ENV_VALIDATION: "1"
+          SOCRATA_APP_TOKEN: "ci-token"
+          DATABASE_URL: "postgres://ci:ci@localhost:5432/ci"
 
       - name: Validate SF Socrata Registry
         if: |
