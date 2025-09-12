@@ -1850,7 +1850,9 @@
           }
         ],
         "meta": {
-          "depends_on": []
+          "depends_on": [
+            "Database.67"
+          ]
         }
       },
       {
@@ -3700,6 +3702,7 @@
         ],
         "meta": {
           "depends_on": [
+            "API.3",
             "API.3.1",
             "API.54"
           ]
@@ -3767,6 +3770,7 @@
         ],
         "meta": {
           "depends_on": [
+            "API.3",
             "API.3.1",
             "API.54",
             "API.55"
@@ -3844,6 +3848,7 @@
         ],
         "meta": {
           "depends_on": [
+            "API.3",
             "API.3.1",
             "API.55",
             "API.56"
@@ -3986,6 +3991,7 @@
         ],
         "meta": {
           "depends_on": [
+            "API.3",
             "API.3.1",
             "API.58"
           ]
@@ -4043,6 +4049,7 @@
         ],
         "meta": {
           "depends_on": [
+            "API.3",
             "API.3.1",
             "API.58"
           ]
@@ -4147,6 +4154,7 @@
         ],
         "meta": {
           "depends_on": [
+            "API.3",
             "API.3.1",
             "API.58",
             "API.59",
@@ -4357,7 +4365,9 @@
         "dependencies": [],
         "priority": "high",
         "meta": {
-          "depends_on": []
+          "depends_on": [
+            "Database.26"
+          ]
         }
       },
       {
@@ -4517,7 +4527,9 @@
         "details": "Scope:\\n- Branches: define domain branches and semantic methods (e.g., searchDatasets, getDatasetMeta, sampleRows).\\n- Interfaces: stable method signatures that work across providers/cities.\\n- Validation: boundary schemas; adapters import generated types, no handwritten types.\\n- Caching: shared tag registry; TTLs; SWR; invalidation rules.\\n- Observability: correlation IDs, standard errors, minimal metrics.\\n- Acceptance Criteria:\\n  - Branch classes implemented with JSDoc; methods cover core operations across providers.\\n  - Tests: contract tests for interfaces; integration tests for SoQL builder/CKAN/ArcGIS adapters; record/replay where feasible.\\n- Notes:\\n  - Supersedes single-purpose city tasks (e.g., Detroit-only index/profile).\\n  - Aligns with '__docs__/architecture/API Client Guidance/api-architecture-guide.md'.",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "66"
+        ],
         "priority": "high",
         "subtasks": [
           {
@@ -4691,7 +4703,10 @@
           }
         ],
         "meta": {
-          "depends_on": []
+          "depends_on": [
+            "API.62",
+            "API.66"
+          ]
         }
       }
     ],
@@ -4784,7 +4799,9 @@
         "description": "Implement the catalog ingestion service that paginates through Discovery API for US/EU regions and upserts data into PostgreSQL tables.",
         "details": "Create services/discovery/socrataCatalogIngest.ts that uses the regions module and discovery client to fetch catalog data. Implement proper rate limiting with small concurrency and exponential backoff. Support resume functionality via cursor/since flags (placeholders allowed). Upsert operations must be idempotent by primary key. Include comprehensive progress logging without exposing secrets or creating noisy output.",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "65"
+        ],
         "priority": "high",
         "tag": "Database",
         "metadata": {
@@ -4865,7 +4882,9 @@
         ],
         "meta": {
           "depends_on": [
-            "Database.65"
+            "Database.65",
+            "Database.67",
+            "Database.68"
           ]
         }
       },
@@ -4956,7 +4975,9 @@
         "description": "Add migration steps to create the core schema, enable pgvector and pgcrypto extensions, and prepare utility functions.",
         "details": "In the migration UP section:\n- CREATE SCHEMA IF NOT EXISTS core;\n- CREATE EXTENSION IF NOT EXISTS vector; (pgvector)\n- CREATE EXTENSION IF NOT EXISTS pgcrypto; (for gen_random_uuid())\n- Create a reusable updated_at trigger function:\n  - CREATE FUNCTION core.set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;\nNotes:\n- Ensure the migration runs inside a transaction (unless your tooling requires non-transactional for index concurrently; we are not using concurrently here).\n- Parameterize the search_path or schema qualifiers to avoid ambiguity.",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "67"
+        ],
         "priority": "high",
         "tag": "Database",
         "metadata": {
@@ -5013,7 +5034,9 @@
         "description": "Implement rollback steps and validate the schema by running smoke tests end-to-end.",
         "details": "In the migration DOWN section (reverse order):\n- DROP INDEX IF EXISTS core.item_embeddings_embedding_ivfflat_idx;\n- DROP TABLE IF EXISTS core.item_embeddings;\n- DROP TRIGGER IF EXISTS items_set_updated_at ON core.items;\n- DROP TABLE IF EXISTS core.items;\n- DROP FUNCTION IF EXISTS core.set_updated_at();\n- Optionally DROP SCHEMA core; only if empty and safe in your environment.\n- Optionally DROP EXTENSION vector and pgcrypto if policy allows (they may be shared; usually leave installed).\nVerification steps:\n- Run UP migration on a fresh dev DB; perform the insert/update/select checks described in prior subtasks.\n- Run DOWN migration; verify tables, indexes, and function are removed.\n- Re-run UP to ensure idempotency and no leftover artifacts.\n- Document the embedding dimension and model choice in a README next to the migration.",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "68"
+        ],
         "priority": "high",
         "tag": "Database",
         "metadata": {
@@ -5085,7 +5108,9 @@
         "details": "Create the `jobs/ingest-branch.ts` script. It should read activated data from a branch, `upsert` records into the `core.items` table, and trigger a subsequent job or function to generate embeddings for new/updated items.",
         "testStrategy": "Integration test that runs the job against a small, known dataset from a branch. Verify that the `core.items` table is correctly populated and that the embedding generation process is triggered.",
         "priority": "high",
-        "dependencies": [],
+        "dependencies": [
+          "69"
+        ],
         "status": "pending",
         "subtasks": [
           {
@@ -5153,7 +5178,10 @@
           ]
         },
         "meta": {
-          "depends_on": []
+          "depends_on": [
+            "Database.67",
+            "Database.69"
+          ]
         }
       },
       {
@@ -5163,7 +5191,9 @@
         "details": "Add a `CHECK` constraint to the `core.item_embeddings` table to enforce a specific vector dimension. Also add a runtime `assert` in the embedding computation code to ensure the model being used matches the one specified in the vector strategy.",
         "testStrategy": "Database: Test the migration by trying to insert a vector with the wrong dimension and confirming it fails. Runtime: Unit test the assertion logic to ensure it throws an error if the model identifier is incorrect.",
         "priority": "high",
-        "dependencies": [],
+        "dependencies": [
+          "26"
+        ],
         "status": "pending",
         "subtasks": [
           {
@@ -5233,7 +5263,10 @@
           ]
         },
         "meta": {
-          "depends_on": []
+          "depends_on": [
+            "Database.26",
+            "Database.67"
+          ]
         }
       },
       {
@@ -5242,7 +5275,9 @@
         "description": "Create visualizations that show how fresh the ingested data is, measuring time since the last successful ingest per job/branch, plus a table of the stalest jobs.",
         "details": "Implementation steps:\n- SingleStat/Gauge: “Ingest Freshness (min)” per selected job. Query examples:\n  - Grafana+Prometheus: (time() - max(ingest_job_last_success_timestamp{job=\"$job\",env=\"$env\"})) / 60.\n  - Datadog: (now() - max:ingest.job.last_success{job:$job,env:$env}) / 60.\n- Add thresholds: green < 10m, yellow 10–30m, red > 30m (tune to your SLA).\n- Time series: Plot freshness over time using the same expression to visualize trends.\n- Table panel: “Stalest Ingest Jobs (last 1h)” listing job, freshness minutes, last success timestamp; sort desc; limit 20.\n- Optional: Add panel for “Last Ingest Duration (min)” if metric exists (ingest_job_duration_seconds) to correlate long runtimes with staleness.\n- Variables: Ensure job variable is populated from label/tag job; default to “All” and allow per-job drill-down.",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "28"
+        ],
         "priority": "medium",
         "tag": "Database",
         "metadata": {
@@ -5301,7 +5336,7 @@
         ],
         "meta": {
           "depends_on": [
-            "Database.69"
+            "Database.28"
           ]
         }
       },
@@ -5390,7 +5425,9 @@
         "details": "See __docs__/plans/vectorization.md for full strategy and rationale.",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "26"
+        ],
         "priority": "high",
         "subtasks": [
           {
@@ -5448,7 +5485,9 @@
           ]
         },
         "meta": {
-          "depends_on": []
+          "depends_on": [
+            "Database.26"
+          ]
         }
       },
       {
@@ -5458,7 +5497,9 @@
         "details": "Scope:\\n- Input: JSONL records per document with fields: source_url, sha256, mime, file_size, page_count?, meeting_date?, committee?, doc_type (agenda|minutes), text_summary?, items? (array), created_at, extracted_at, extractor_version.\\n- Staging schema (civic.stage_documents): columns mirror JSONL fields; add portal, city code, ingest_id, run_id, error_code, error_detail. PK: (sha256); unique on (source_url).\\n- Idempotency: Upsert on sha256; skip if identical payload; update select mutable fields (first_seen_at preserved).\\n- Batching: Stream read JSONL; batch inserts with Kysely transaction; retry on deadlocks; chunks of 500.\\n- Provenance: ingest_id/run_id passed via CLI; all rows stamped with created_by + runtime version.\\n- Validation: schema (zod) with coercions and defaulting; error bucket writes to civic.stage_errors.\\n- CLI: bin/materialize-jsonl --input glob --run-id <uuid> --portal sf --city SFO --dry-run --limit <n>.\\n- Observability: log structured metrics: read_count, inserted, updated, skipped, errors.\\nAcceptance Criteria:\\n- Kysely models under src/db/models/stage.ts; migration creates civic.stage_documents and civic.stage_errors.\\n- CLI processes sample JSONL from Scrapers and writes rows; idempotent reruns produce 0 inserts.\\n- Unit tests for upsert logic; integration test against a temp DB schema.\\nConstraints:\\n- Materializer only reads JSONL and writes staging; normalization handled in DB.6.\\n- No PDF content stored; metadata only.",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "69"
+        ],
         "priority": "medium",
         "subtasks": [
           {
@@ -5595,7 +5636,7 @@
         ],
         "meta": {
           "depends_on": [
-            "Database.70"
+            "Database.69"
           ]
         }
       },
@@ -5606,7 +5647,9 @@
         "details": "Scope:\\n- Tables: civic.meetings (meeting_id, committee, meeting_date, source), civic.documents (doc_id, meeting_id, doc_type, sha256, source_url, mime, file_size), civic.items (item_id, meeting_id, position, title, refs).\\n- Keys: deterministic ids based on (portal, committee, meeting_date, doc_type, sha256).\\n- Mapping: derive meeting from JSONL, attach document and items; tolerate partial items (allow nulls with validation warnings).\\n- Idempotency: upsert by keys; maintain first_seen_at/last_seen_at.\\n- Transactions: per-meeting transaction to ensure consistency.\\n- CLI: bin/materialize-stage --from-run <run_id>|--since <ts> --dry-run.\\n- Backfill mode configurable (last 2 years).\\n- Error taxonomy: write rejects to civic.normalize_errors with references to stage row.\\nAcceptance Criteria:\\n- Migrations create civic.meetings/documents/items/normalize_errors with indexes.\\n- Kysely repositories implement typed accessors and insert/upsert helpers.\\n- Integration test: import fixture JSONL → populated normalized tables matching snapshot expectations.\\nConstraints:\\n- No content text; only metadata.\\n- Minimal coupling to Scrapers; contract via JSONL schema only.",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "71"
+        ],
         "priority": "medium",
         "subtasks": [
           {
@@ -5883,7 +5926,9 @@
         "details": "Scope:\\n- Filter grammar: support provider, domain, tag/category, freshness windows.\\n- ANN layer: reuse VEC.1 vector table; support different k and re-ranking.\\n- Scoring: weighted linear combination; expose weights as config.\\n- API: /search/hybrid with query, filters, k, and debug traces.\\n- Observability: log timing for SQL prefilter, ANN, and post-rank.\\nAcceptance Criteria:\\n- Deterministic request schema and response types; JSDoc complete.\\n- Runbook section explaining how to tune weights.\\nTest Strategy:\\n- Golden responses for fixed seeds; latency thresholds in CI.\\n- Fuzz tests for filter combinations (min sample).\\nNotes:\\n- Keep surface internal for now; not public API.",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "1"
+        ],
         "priority": "medium",
         "subtasks": [
           {
@@ -5965,7 +6010,9 @@
         "details": "Scope:\\n- Inputs: catalog metadata, meeting/item metadata (from Scrapers later), simple hand-labeled seed pairs.\\n- Features: TF-IDF/highlights + embeddings; conservative thresholds.\\n- Output: candidate links with evidence citations and scores.\\nAcceptance Criteria:\\n- Reproducible pipeline producing JSONL of candidate links.\\n- Evaluation doc with manual spot-checks and precision notes.\\nConstraints:\\n- Metadata only at this stage; no bulk content lake.\\n- Keep serialization stable for DB materialization later.",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "2"
+        ],
         "priority": "medium",
         "subtasks": [
           {
@@ -6614,7 +6661,9 @@
         "details": "Scope:\\n- Views: portal list, dataset counts, last discovery run, per-host throttles.\\n- Actions: trigger dry-run discovery, resync one portal, export CSV.\\n- Auth: admin-only.\\nAcceptance Criteria:\\n- Pages render with live data; actions gated and audited.\\nTest Strategy:\\n- API integration tests and snapshot UI tests (minimal).",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "3"
+        ],
         "priority": "medium",
         "subtasks": [
           {
@@ -6686,6 +6735,7 @@
         "meta": {
           "depends_on": [
             "API.62",
+            "Admin.3",
             "Database.67",
             "Database.69"
           ]
@@ -7012,7 +7062,9 @@
         "details": "Scope:\\n- Matrix testing for packages; no network unless allowed.\\n- Secrets only for trusted branches/tags.\\nAcceptance Criteria:\\n- PRs show clean gates; docs updated.",
         "testStrategy": "",
         "status": "pending",
-        "dependencies": [],
+        "dependencies": [
+          "1"
+        ],
         "priority": "medium",
         "subtasks": [
           {
@@ -7082,7 +7134,8 @@
         "meta": {
           "depends_on": [
             "API.62",
-            "App.1"
+            "App.1",
+            "Infra.1"
           ]
         }
       }

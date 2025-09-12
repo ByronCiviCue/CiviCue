@@ -16,6 +16,15 @@ class DependencyValidator {
     this.errors = [];
     this.crossTagDeps = [];
     
+    // Tag aliases for backward compatibility
+    this.tagAliases = {
+      'DB': 'Database',
+      'ADM': 'Admin', 
+      'VEC': 'Vector',
+      'ADP': 'App',
+      'INFRA': 'Infra'
+    };
+    
     this.buildTaskMap();
   }
 
@@ -66,8 +75,11 @@ class DependencyValidator {
         // Subtask reference like "2.1" - prepend current tag
         qualifiedDepId = `${taskTag}.${depRef}`;
       } else if (depRef.match(/^[A-Z]/)) {
-        // Cross-tag reference like "API.62"
-        qualifiedDepId = depRef;
+        // Cross-tag reference like "API.62" or "DB.69"
+        const [depTag, depNum] = depRef.split('.');
+        // Apply tag aliases if needed
+        const normalizedTag = this.tagAliases[depTag] || depTag;
+        qualifiedDepId = `${normalizedTag}.${depNum}`;
       } else {
         // Same tag subtask like "2.1"
         qualifiedDepId = `${taskTag}.${depRef}`;
@@ -188,6 +200,75 @@ class DependencyValidator {
     }
   }
 
+  async validateLedger() {
+    try {
+      const ledgerPath = join(projectRoot, '.taskmaster/dependencies.md');
+      const ledgerContent = await readFile(ledgerPath, 'utf-8');
+      
+      // Extract ledger entries (lines starting with "- ") - flexible parsing
+      // Supports: "- FROM -> TO | rationale" and "- FROM (desc) -> TO1, TO2 | rationale"
+      const ledgerLines = ledgerContent.split('\n')
+        .filter(line => line.trim().startsWith('- ') && line.includes(' -> '))
+        .map(line => {
+          // Split on -> first
+          const arrowSplit = line.split(' -> ');
+          if (arrowSplit.length < 2) return null;
+          
+          const from = arrowSplit[0].replace(/^-\s*/, '').trim().replace(/\s*\(.+?\)\s*$/, ''); // Remove "- " prefix and parenthetical if present
+          const rightSide = arrowSplit[1];
+          
+          // Split RHS on | if present
+          const rationaleSplit = rightSide.split(' | ');
+          const toList = rationaleSplit[0].trim();
+          
+          // Handle comma-separated TO list
+          const toTasks = toList.split(',').map(t => t.trim()).filter(Boolean);
+          
+          return toTasks.map(to => ({ from, to }));
+        })
+        .filter(Boolean)
+        .flat(); // Flatten the array since we now return arrays from map
+
+      const ledgerErrors = [];
+      
+      for (const entry of ledgerLines) {
+        // Validate FROM task exists
+        if (!this.allTasks.has(entry.from)) {
+          ledgerErrors.push(`Ledger references non-existent task: ${entry.from}`);
+        }
+        
+        // Validate TO tasks exist (could be comma-separated)
+        const toTasks = entry.to.split(',').map(t => t.trim());
+        for (const toTask of toTasks) {
+          // Apply aliases for validation
+          const [depTag, depNum] = toTask.split('.');
+          const normalizedTag = this.tagAliases[depTag] || depTag;
+          const normalizedId = `${normalizedTag}.${depNum}`;
+          
+          if (!this.allTasks.has(normalizedId)) {
+            ledgerErrors.push(`Ledger references non-existent task: ${toTask} (normalized: ${normalizedId})`);
+          }
+        }
+      }
+      
+      if (ledgerErrors.length > 0) {
+        this.errors.push({
+          type: 'ledger_validation',
+          message: 'Ledger contains invalid task references',
+          details: ledgerErrors
+        });
+      }
+      
+      return { validated: ledgerLines.length, errors: ledgerErrors.length };
+    } catch (error) {
+      this.errors.push({
+        type: 'ledger_read_error',
+        message: `Failed to read/validate ledger: ${error.message}`
+      });
+      return { validated: 0, errors: 1 };
+    }
+  }
+
   generateReport() {
     const report = {
       summary: {
@@ -224,6 +305,11 @@ class DependencyValidator {
       md += '## Fatal Issues\n\n';
       for (const error of report.errors) {
         md += `- **${error.type}:** ${error.message}\n`;
+        if (error.details) {
+          for (const detail of error.details) {
+            md += `  - ${detail}\n`;
+          }
+        }
       }
       md += '\n';
     }
@@ -278,8 +364,11 @@ async function main() {
     // Detect cycles
     validator.detectCycles();
     
-    // Normalize dependencies
+    // Normalize dependencies first
     validator.normalizeDependencies();
+    
+    // Validate ledger against tasks (after normalization)
+    await validator.validateLedger();
     
     // Generate report
     const report = validator.generateReport();
