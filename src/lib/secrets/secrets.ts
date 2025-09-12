@@ -93,3 +93,32 @@ class SecretsManager {
 
 // Singleton instance
 export const secrets = new SecretsManager();
+
+// ESM module
+// Centralized, lint-approved access to process.env
+/* eslint-disable civicue/no-process-env-outside-env */
+
+export function isCI(): boolean {
+  return process.env.CI === 'true' || process.env.CI === '1';
+}
+
+/** Returns best-available Socrata App Token across our normalized keys. */
+export function getSocrataAppToken(): string | undefined {
+  return (
+    process.env['SOCRATA__api.us.socrata.com__APP_TOKEN'] ||
+    process.env.SOCRATA_APP_TOKEN ||
+    process.env.SOCRATA_APP_ID ||
+    undefined
+  );
+}
+
+/** Return DATABASE_URL or throw with a clear message. */
+export function getDatabaseUrl(): string {
+  const v =
+    process.env.DATABASE_URL ||
+    process.env.DB_URL ||
+    '';
+  if (!v) throw new Error('DATABASE_URL is required but not set');
+  return v;
+}
+/* eslint-enable civicue/no-process-env-outside-env */
