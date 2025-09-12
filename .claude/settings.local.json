@@ -55,7 +55,8 @@
       "Bash(tm show:*)",
       "Bash(tm list:*)",
       "Bash(git rev-parse:*)",
-      "Bash(tm set-status:*)"
+      "Bash(tm set-status:*)",
+      "Bash(grep:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
